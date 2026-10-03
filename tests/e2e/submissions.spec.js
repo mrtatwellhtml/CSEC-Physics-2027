@@ -4,12 +4,10 @@ const KEY = 'csec-phys-2027-v1';
 const ENDPOINT = 'https://teacher.test/exec';
 
 async function openNamedLesson(page, endpoint, lessonId = 'week01.1.1') {
-  if (endpoint) {
-    await page.route('**/config.js', route => route.fulfill({
-      contentType: 'text/javascript',
-      body: `window.WB_CONFIG = { endpoint: "${ENDPOINT}" };`,
-    }));
-  }
+  await page.route('**/config.js', route => route.fulfill({
+    contentType: 'text/javascript',
+    body: `window.WB_CONFIG = { endpoint: "${endpoint ? ENDPOINT : ''}" };`,
+  }));
   await page.goto('/');
   await page.evaluate(key => localStorage.removeItem(key), KEY);
   await page.reload();
