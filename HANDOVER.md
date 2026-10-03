@@ -34,6 +34,7 @@ S1 Electrostatics (1 Oct) → S2 Current & Circuits → S3 Mains/Electronics/Mag
 Every CSEC Physics specific objective (A–E) is covered. Totals: 91 units, 284 worked examples, 862 practice Qs, 282 MCQs, 42 structured, 36 past-paper-style. Numbers in all keys were python-checked by the building agents.
 
 ## Decisions
+- Website: `source/` stays OUT of git (tutor, 3 Oct): it holds tutor-only notes. Repo has its own CLAUDE.md saying PLAN.md overrides the parent folder's CLAUDE.md.
 - Word .docx; separate tutor key; Navy/Steel/Teal, Calibri/Cambria, US Letter.
 - Past papers: copyrighted → ORIGINAL CSEC-style questions + a Past Paper Log for real questions from his booklet.
 
@@ -77,8 +78,8 @@ Every CSEC Physics specific objective (A–E) is covered. Totals: 91 units, 284 
 
 ## Open items
 - Confirm Paper 032 applicability and which sections class covers before January (decides the two "gap topic" sessions).
-- Website: decide whether `source/` (16 MB, includes tutor_notes / session plans) is committed or git-ignored. **If the GitHub repo is public, committing it publishes the tutor-only content.** Currently git-ignored (not committed) until decided.
-- Website: create the GitHub repo + remote (the `gh` CLI is not installed on this PC, so create it on github.com, or install `gh`).
+- Website: tutor to create the empty repo `mrtatwellhtml/CSEC-Physics-2027` on github.com (public, no README); then Claude adds the remote and pushes (Git Credential Manager opens a browser sign-in). `gh`/winget are not installed on this PC.
+- Git identity on this PC is "CSEC Dev <dev@csec-papers.local>" (global config from another project), so commits show that name. Tutor to decide whether to set a repo-local name/email.
 - Deploy Apps Script and paste /exec URL into config.js (Phase 8).
 
 ## Session log

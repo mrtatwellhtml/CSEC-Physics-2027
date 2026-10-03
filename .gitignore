@@ -4,6 +4,6 @@ playwright-report/
 tools/report.html
 .DS_Store
 Thumbs.db
-# source/ (16 MB, includes tutor-only notes) is ignored until the tutor decides. Delete these two lines to track it:
+# source/ (16 MB, includes tutor-only notes) stays local only (tutor decision, 3 Oct 2026).
 source/
 tools/katex-preview.html
