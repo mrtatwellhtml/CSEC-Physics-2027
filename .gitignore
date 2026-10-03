@@ -1,0 +1,8 @@
+node_modules/
+test-results/
+playwright-report/
+tools/report.html
+.DS_Store
+Thumbs.db
+# source/ (16 MB, includes tutor-only notes) is ignored until the tutor decides. Delete these two lines to track it:
+source/

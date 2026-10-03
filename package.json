@@ -1,0 +1,22 @@
+{
+  "name": "csec-physics-2027",
+  "version": "1.0.0",
+  "description": "CSEC Physics 2027 interactive workbook (static GitHub Pages site)",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "convert": "node tools/convert.mjs",
+    "serve": "node tools/serve.mjs",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "node --test \"tests/unit/*.test.mjs\"",
+    "test:e2e": "playwright test"
+  },
+  "author": "Mr. Tatwell",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  },
+  "private": true
+}
