@@ -1,22 +1,26 @@
 // tools/convert.mjs + tools/classify.mjs (PLAN.md §5, Phase 1).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { createRequire } from 'node:module';
 import { build } from '../../tools/convert.mjs';
 import { classify, finalQuantity, markPoints, schemeCore } from '../../tools/classify.mjs';
 
 const require = createRequire(import.meta.url);
 const WBC = require('../../assets/js/wbc.js');
-const out = build();
-const json = JSON.stringify(out.books);
+const HAS_SOURCE = fs.existsSync(path.resolve('source/wb/weeks'));
+const sourceTest = HAS_SOURCE ? test : test.skip;
+const out = HAS_SOURCE ? build() : null;
+const json = out ? JSON.stringify(out.books) : '';
 
-test('all 17 books convert, in syllabus order, with lessons', () => {
+sourceTest('all 17 books convert, in syllabus order, with lessons', () => {
   assert.equal(out.books.length, 17);
   assert.deepEqual(out.index.books.map(b => b.section).join(''), 'AAAABBCCDDDDEXXXX');
   for (const b of out.index.books) assert.ok(b.lessons.length >= 3, `${b.id} has lessons`);
 });
 
-test('item and lesson ids are unique and follow <folder>.<unit>.<kind><n>', () => {
+sourceTest('item and lesson ids are unique and follow <folder>.<unit>.<kind><n>', () => {
   const ids = out.report.map(r => r.id);
   assert.equal(new Set(ids).size, ids.length);
   for (const id of ids) assert.match(id, /^(week\d\d|es01)\.[\w.]+$/);
@@ -24,17 +28,17 @@ test('item and lesson ids are unique and follow <folder>.<unit>.<kind><n>', () =
   assert.equal(new Set(lessons).size, lessons.length);
 });
 
-test('ids are stable: a second build gives identical data', () => {
+sourceTest('ids are stable: a second build gives identical data', () => {
   const again = build();
   assert.equal(JSON.stringify(again.books), json);
   assert.equal(JSON.stringify(again.index), JSON.stringify(out.index));
 });
 
-test('no tutor-only content in the student data', () => {
+sourceTest('no tutor-only content in the student data', () => {
   assert.doesNotMatch(json, /tutor_session_plan|tutor_notes|past_paper_suggestions/);
 });
 
-test('mocks: Paper 01 has 60 MCQs with topics and revise links; Paper 02 totals 100', () => {
+sourceTest('mocks: Paper 01 has 60 MCQs with topics and revise links; Paper 02 totals 100', () => {
   const p01 = out.books.find(b => b.id === 'week16').lessons.find(l => l.kind === 'mock');
   assert.equal(p01.mcq.length, 60);
   assert.ok(p01.mcq.every(m => m.revise && /^(week\d\d|es01)$/.test(m.revise) && /^[A-E]$/.test(m.section)));
@@ -44,7 +48,7 @@ test('mocks: Paper 01 has 60 MCQs with topics and revise links; Paper 02 totals 
   assert.ok(p02.grades.length >= 5);
 });
 
-test('every numeric answer appears in the last marked point of its mark scheme', () => {
+sourceTest('every numeric answer appears in the last marked point of its mark scheme', () => {
   const bad = [];
   for (const r of out.report.filter(r => r.kind === 'num' || r.it.autoKind === 'num')) {
     const pts = markPoints(schemeCore(r.answer), r.marks).points;

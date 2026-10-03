@@ -266,6 +266,8 @@ A card with the question first and a **"Show step"** button that reveals one ste
 
 **As built (Phase 6):** Both mocks have a rules screen and a persisted start timestamp/deadline. The sticky timer survives reloads, warns at 15 minutes, and offers submit or explicitly marked overtime after time-up. Paper 01 saves selections from both question cards and its A/B/C/D answer grid; submission reveals automatic scoring, A–E breakdowns, explanations and revision links. Paper 02 saves written responses while locked, then opens its mark schemes and self-mark controls on submission; it saves a capped /100 total and displays the matching grade-guide band after all parts are marked. Mock attempts do not grant practice XP or create Mistake Log entries.
 
+**As built (Phase 7):** The study-tools navigation links to merged, searchable Key words and section-filterable/searchable Formula cards from all 17 books. Teacher summary lists every lesson’s status, answer/self-mark totals, time, stars and reflection; saved state can be exported/imported as versioned JSON. The Mistake Log includes persistent revision notes. Teacher/formula/keyword/lesson pages have print layouts. An unlinked `teacher.html` contains deployment/privacy guidance only and no tutor-only or student records.
+
 ---
 
 ## 7. Gamification and motivation (keep it light)
@@ -303,6 +305,14 @@ A card with the question first and a **"Show step"** button that reveals one ste
   - Add a README with the deploy steps: Extensions → Apps Script → paste → Deploy as Web app, execute as Me, access Anyone → copy the `/exec` URL into config.js.
 - Show the privacy line in the footer: "Your name and answers are sent to your teacher."
 
+**As built (Phase 8):** With a blank endpoint, progress remains local and the footer says so. Once configured, lesson finishes and mock submissions send plain-text JSON; network failures remain in the saved queue and retry on the next visit. The Apps Script validates payloads, writes lesson/mock rows to separate tabs, deduplicates repeated submission IDs, and escapes text that could be treated as a spreadsheet formula. The endpoint URL is public, not an authentication secret. The live spreadsheet/deployment test is pending because it requires the teacher’s Google account and an authorized sheet.
+
+## 9.1 Build and deployment (Phase 9)
+- `.github/workflows/pages.yml` runs `npm test`, checks application and Apps Script syntax, assembles only the generated student site, and deploys it from `main` to GitHub Pages.
+- `DEPLOYMENT.md` records the one-time GitHub Pages setup and optional submission setup.
+- CI does not receive `source/`; source-dependent conversion/content audits still run locally when the ignored tutor source is present. The committed generated data is exercised by all-page browser QA.
+- Tutor-only source and notes are excluded from the Pages artifact. `teacher.html` is unlinked/noindex guidance only; `noindex` is not access control.
+
 ---
 
 ## 10. Images
@@ -336,9 +346,9 @@ Keep a `#printarea` like the reference site. "Print this lesson" renders a clean
 | **4 Questions** | MCQ, numeric, short-text, self-mark ticks, hints, keypad, XP and stars, Mistake Log | Unit tests for `WBC` pass (numbers, standard form, units, minus signs, fractions) |
 | **5 Exam content** | Book check and Past-paper lessons, multi-part questions, interactive graph grid, Past Paper Log table | A data-analysis question can be plotted, fitted and self-marked |
 | **6 Exam mode** | Timed mocks, locked answers, submit, section breakdown, revise links, Paper 02 self-mark and grade band | Paper 01 and Paper 02 flows persist, time out correctly, and score on desktop/mobile |
-| **7 Extras** | Formula cards, Key words, Teacher summary, export/import, print view, `teacher.html` | All pages reachable from the menu |
-| **8 Submissions** | `config.js`, POST + retry queue, `Physics_Responses.gs` + README | A test POST lands in a test Sheet (I'll deploy the script) |
-| **9 QA + deploy** | Playwright tests, Lighthouse pass, GitHub Pages enabled | All tests green. Live URL works on my phone. |
+| **7 Extras** | Formula cards, Key words, Teacher summary, export/import, print view, `teacher.html` | Study tools, progress transfer and printable views work |
+| **8 Submissions** | `config.js`, POST + retry queue, `Physics_Responses.gs` + README | Client and Apps Script tests pass; a live Sheet row is verified by the teacher |
+| **9 QA + deploy** | Playwright curriculum QA, CI workflow, Pages artifact | CI passes and the teacher confirms the live URL on a phone |
 
 ---
 
@@ -353,6 +363,8 @@ Keep a `#printarea` like the reference site. "Print this lesson" renders a clean
 - Every Book Check and Past-paper lesson opens with its converted questions; every data-analysis question with a graph grid has an interactive graph.
 - Structured-question mark ticks update the running score; graph points/line and Past Paper Log entries survive a reload.
 - Paper 01 and Paper 02 mocks keep answer keys and mark schemes hidden until submit; answers and timer persist, timeout/overtime works, and results show score breakdowns, revision links or the Paper 02 grade band.
+- All 123 converted lessons render on desktop and mobile at 360 px without browser errors, broken images, equation errors or horizontal overflow.
+- Reference pages filter/search; progress export/import round-trips; lesson/mock submissions queue and retry on network failure; Apps Script validation, deduplication and Sheets routing are unit-tested.
 - Mobile viewport 375×812 has no horizontal overflow on Home, a lesson or a mock.
 
 ## 15. Rules for Claude Code

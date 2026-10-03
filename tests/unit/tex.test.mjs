@@ -11,6 +11,7 @@ import { BOOKS } from '../../tools/books.mjs';
 const require = createRequire(import.meta.url);
 const katex = require('katex');
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const sourceTest = fs.existsSync(path.join(ROOT, 'source/wb/weeks')) ? test : test.skip;
 const spans = s => [...s.matchAll(new RegExp(`${OPEN}([\\s\\S]*?)${CLOSE}`, 'g'))].map(m => m[1]);
 
 test('formulas: scripts, fractions, roots, Greek, nuclides', () => {
@@ -56,7 +57,7 @@ test('where lines: symbol side typeset', () => {
   assert.equal(whereToMarked('V~p~ = primary voltage (V)'), '⟪V_{p}⟫ = primary voltage (V)');
 });
 
-test('every equation in all 17 books renders in KaTeX and no words are lost', () => {
+sourceTest('every equation in all 17 books renders in KaTeX and no words are lost', () => {
   const TUTOR = new Set(['tutor_session_plan', 'tutor_notes', 'past_paper_suggestions']);
   const SKIP = new Set(['path', 'img', 'type', 'code', 'date', 'week', 'label', 'file_prefix', 'widths']);
   const bad = [], lost = [];

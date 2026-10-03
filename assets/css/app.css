@@ -48,6 +48,10 @@ button{font:inherit;color:inherit}
 .topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;margin-inline:-16px;padding:8px 16px;display:flex;align-items:center;gap:10px;
   background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:saturate(1.4) blur(14px);-webkit-backdrop-filter:saturate(1.4) blur(14px);border-bottom:1px solid transparent}
 .topbar.scrolled{border-bottom-color:var(--line)}
+.topbar-tools{display:flex;align-items:center;gap:4px;min-width:0;overflow-x:auto;scrollbar-width:none}
+.topbar-tools::-webkit-scrollbar{display:none}
+.topbar-tools a{display:inline-flex;align-items:center;min-height:44px;padding:5px 9px;border-radius:999px;color:var(--muted);font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap}
+.topbar-tools a:hover{background:var(--surface);color:var(--accent)}
 .brand{display:flex;align-items:center;gap:9px;min-height:44px;text-decoration:none;color:var(--ink);font:700 16px var(--f-display);letter-spacing:-.01em;white-space:nowrap}
 .brand-mark{display:grid;place-items:center;width:32px;height:32px;border-radius:10px;background:var(--ink);color:var(--bg);font:800 13px var(--f-display)}
 .tb-right{margin-left:auto;display:flex;gap:6px;align-items:center}
@@ -275,11 +279,11 @@ details.more summary{cursor:pointer;font-weight:700;color:var(--accent);min-heig
 .mock-timeup .btn{margin:4px 8px 4px 0}
 .mock-answer-grid{display:grid;gap:3px;margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface)}
 .mock-answer-grid h2{margin:0 0 8px;font-size:20px}
-.mock-answer-row{display:grid;grid-template-columns:42px repeat(4,minmax(38px,44px));gap:5px;align-items:center}
-.mock-grid-cell{min-height:36px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--muted);font:700 13px var(--f-mono);cursor:pointer}
+.mock-answer-row{display:grid;grid-template-columns:44px repeat(4,minmax(44px,44px));gap:5px;align-items:center}
+.mock-grid-cell{min-height:44px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--muted);font:700 13px var(--f-mono);cursor:pointer}
 .mock-grid-cell.answered{background:var(--accent-soft);color:var(--accent)}
 .mock-grid-cell:hover{border-color:var(--accent);color:var(--accent)}
-.mock-bubble{display:grid;place-items:center;width:38px;height:38px;padding:0;border:1.5px solid var(--line);border-radius:50%;background:var(--surface-2);color:var(--ink);font:700 13px var(--f-mono);cursor:pointer}
+.mock-bubble{display:grid;place-items:center;width:44px;height:44px;padding:0;border:1.5px solid var(--line);border-radius:50%;background:var(--surface-2);color:var(--ink);font:700 13px var(--f-mono);cursor:pointer}
 .mock-bubble:hover:not(:disabled),.mock-bubble.selected{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
 .mock-bubble:disabled{cursor:not-allowed}
 .mock-active>.question-card,.mock-active>.structured-question{scroll-margin-top:150px}
@@ -289,6 +293,36 @@ details.more summary{cursor:pointer;font-weight:700;color:var(--accent);min-heig
 .mock-total{color:var(--accent);font:800 clamp(22px,5vw,30px) var(--f-mono);font-variant-numeric:tabular-nums}
 .mock-results-pending{background:var(--surface-2)}
 .mock-results .lesson-table td a{display:inline-block;margin:0 6px 4px 0}
+.reference-page,.teacher-page{margin-top:18px}
+.reference-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.reference-heading h1{font-size:clamp(30px,7vw,42px)}
+.reference-filters{display:grid;grid-template-columns:auto minmax(180px,1fr) auto minmax(220px,2fr);gap:8px 12px;align-items:center;margin:18px 0;padding:14px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface)}
+.reference-filters.single-filter{grid-template-columns:auto minmax(220px,1fr)}
+.reference-filters label,.teacher-actions label{font-weight:700;font-size:14px}
+.reference-filters select,.reference-filters input,.teacher-actions input[type=file]{width:100%;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2);color:var(--ink);font:inherit}
+.reference-count{color:var(--muted);font:600 13px var(--f-mono)}
+.reference-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:12px}
+.reference-card{min-width:0;padding:16px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);box-shadow:var(--shadow)}
+.reference-card[hidden]{display:none}
+.reference-card p{margin:8px 0 0}
+.reference-meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:10px;color:var(--muted);font-size:12px}
+.reference-meta a{font-weight:700;text-align:right}
+.formula-equation{overflow-x:auto;padding:12px;border-radius:8px;background:var(--surface-2);font:600 18px/1.6 var(--f-mono);color:var(--accent)}
+.reference-units{font-size:14px;color:var(--muted)}
+.keyword-entry h2{font-size:21px}
+.reference-empty{padding:20px;text-align:center;color:var(--muted)}
+.teacher-actions{display:grid;grid-template-columns:auto minmax(250px,1fr);gap:16px;margin:16px 0;padding:16px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface)}
+.teacher-actions form{display:grid;gap:8px}
+.teacher-actions input[type=file]{padding:6px}
+.teacher-actions .btn{justify-self:start}
+.import-status{margin:0;color:var(--muted);font-size:14px}
+.teacher-table-wrap{max-height:70vh}
+.teacher-table td{min-width:130px}
+.teacher-table td:first-child{min-width:210px}
+.teacher-table td small{display:block;color:var(--muted)}
+.lesson-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.lesson-head h1{min-width:0}
+.lesson-print{flex:none}
 .structured-question{margin:18px 0;padding:18px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
 .structured-question>h3{font-size:21px}
 .structured-stem{margin:12px 0 18px}
@@ -339,6 +373,9 @@ details.more summary{cursor:pointer;font-weight:700;color:var(--accent);min-heig
 .mistake-card small{color:var(--muted);font:12px var(--f-mono)}
 .mistake-actions{display:flex;flex-wrap:wrap;gap:8px;flex:none}
 .mistake-actions .btn{min-height:44px}
+.mistake-notes{margin-top:20px}
+.mistake-notes label{display:block;margin-bottom:6px;font-weight:700}
+.mistake-notes textarea{display:block;width:100%;min-height:110px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface-2);color:var(--ink);font:inherit;resize:vertical}
 .foot{gap:14px}
 .hint{margin-top:12px;padding:0 12px;border-radius:8px;background:var(--hint-bg)}
 .hint summary{display:flex;align-items:center;min-height:44px;color:var(--t7);font-weight:700;cursor:pointer}
@@ -357,6 +394,24 @@ details.more summary{cursor:pointer;font-weight:700;color:var(--accent);min-heig
 .lessonbody textarea:focus,.finish-card textarea:focus,.block-fill textarea:focus{outline:3px solid var(--accent);outline-offset:1px;border-color:transparent}
 
 @media print{
+  @page{margin:16mm}
+  body{background:#fff!important;color:#111!important;font-size:11pt}
+  #app{max-width:none;padding:0}
+  .topbar,.topbar-tools,.tb-right,.foot,.pager,.lesson-print,.btn,.reference-filters,.reference-count,
+  .teacher-actions,.mock-timerbar,.mock-warning,.mock-timeup,.mock-answer-grid,.finish-card,
+  .graph-actions,.graph-coordinate-controls,.graph-paper-toggle,.graph-status,.graph-gradient,
+  .hint,.feedback,.solution,.mark-scheme,.mock-locked-note{display:none!important}
+  .reference-page,.teacher-page,.bookhead,.lesson-section-body,.structured-question{margin:0;padding:0}
+  .panel,.card,.reference-card,.question-card,.structured-question,.mock-start,.mock-results,.past-log{
+    break-inside:avoid;background:#fff!important;color:#111!important;box-shadow:none;border-color:#999
+  }
+  a{color:#111!important;text-decoration:none}
+  .formula-equation{overflow:visible;background:#fff!important;color:#111!important}
+  .lesson-table,.teacher-table-wrap{max-height:none;overflow:visible}
+  textarea,.question-card textarea{min-height:50px!important;color:transparent!important;background:#fff!important;border:0!important;border-bottom:1px solid #777!important;border-radius:0!important}
+  input[type=radio],input[type=checkbox]{print-color-adjust:exact}
+  .interactive-graph,.graph-widget .interactive-graph{display:none!important}
+  .print-graph{display:block!important}
   .interactive-graph,.graph-actions,.graph-status,.graph-gradient,.graph-coordinate-controls,.graph-paper-toggle{display:none!important}
   .print-graph{display:block;margin:0}
   .print-graph .figure{box-shadow:none}
@@ -375,10 +430,16 @@ details.more summary{cursor:pointer;font-weight:700;color:var(--accent);min-heig
 /* ===== small screens ===== */
 @media (max-width:600px){
   body{font-size:16px}
+  .topbar{flex-wrap:wrap}
+  .topbar-tools{order:3;flex:1 1 100%;margin:0 -2px}
+  .topbar-tools a{padding-inline:8px;font-size:12px}
   .mock-timerbar{top:56px;gap:8px}
   .mock-timer-status{min-width:120px}
   .mock-submit{flex:1 1 100%}
   .mock-start,.mock-results,.mock-timeup{padding:16px}
+  .reference-filters,.reference-filters.single-filter{grid-template-columns:1fr;gap:6px}
+  .teacher-actions{grid-template-columns:1fr}
+  .lesson-head{align-items:flex-start}
   .hero{grid-template-columns:1fr;padding:20px}
   .ring{width:104px;height:104px;grid-row:1;justify-self:start}
   .stats{grid-template-columns:repeat(3,1fr)}

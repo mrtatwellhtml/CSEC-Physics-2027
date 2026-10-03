@@ -8,9 +8,10 @@
 
   // ---------- state (one versioned localStorage key, PLAN.md §8) ----------
   function freshState() {
-    return { v: 1, name: '', theme: '', xp: 0, streak: { last: '', n: 0 }, l: {}, log: {}, mistakes: [], queue: [] };
+    return { v: 1, name: '', theme: '', xp: 0, streak: { last: '', n: 0 }, l: {}, log: {}, mistakes: [], mistakeNotes: '', queue: [] };
   }
   var S = load();
+  var submissionStatus = '', queueFlushing = false;
   function load() {
     try {
       var raw = localStorage.getItem(KEY);
@@ -82,6 +83,8 @@
     var dark = effectiveTheme() === 'dark';
     return '<header class="topbar" id="topbar">' +
       '<a class="brand" href="#/"><span class="brand-mark" aria-hidden="true">P27</span><span class="bn">CSEC Physics 2027</span><span class="sr">Home</span></a>' +
+      '<nav class="topbar-tools" aria-label="Study tools">' +
+      '<a href="#/formulas">Formula cards</a><a href="#/keywords">Key words</a><a href="#/mistakes">Mistake log</a><a href="#/teacher">Teacher summary</a></nav>' +
       '<div class="tb-right">' +
       '<span class="chip xp" id="xpchip" title="XP: 10 for right first time, 5 after a retry">' + ico('bolt') + '<span>' + S.xp + '</span><span class="sr"> XP</span></span>' +
       '<span class="chip star" title="Stars from exit checks">' + ico('star') + '<span>' + stars() + '</span><span class="sr"> stars</span></span>' +
@@ -90,7 +93,106 @@
   }
   function footer() {
     return '<footer class="foot"><a href="#/mistakes">My Mistake Log</a><a href="#/teacher">Teacher summary</a>' +
-      '<span>' + (CFG.endpoint ? 'Your name and answers are sent to your teacher.' : 'Your work saves on this device only.') + '</span></footer>';
+      '<span>' + (CFG.endpoint ? 'Your name and answers are sent to your teacher.' : 'Your work saves on this device only.') + '</span>' +
+      '<span id="submission-status" role="status" aria-live="polite">' + esc(submissionStatus) + '</span></footer>';
+  }
+
+  function updateSubmissionStatus(text) {
+    submissionStatus = text;
+    var status = document.getElementById('submission-status');
+    if (status) status.textContent = text;
+  }
+
+  function makeSubmissionId() {
+    return (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+  }
+
+  function submissionPayload(lessonId, type) {
+    var lesson = fullLessonData(lessonId), state = lessonState(lessonId) || {}, items = lesson ? collectLessonItems(lesson) : [];
+    var answers = state.i || {}, right = 0, attempted = 0, selfMarks = 0, selfTotal = 0;
+    items.forEach(function (item) {
+      var answer = answers[item.id] || {};
+      if (answer.ans || answer.checked || answer.selfSubmitted) attempted++;
+      if (answer.right) right++;
+      if (item.kind === 'self') {
+        selfTotal += Number(item.marks || 1);
+        if (answer.selfSubmitted) selfMarks += Number(answer.score || 0);
+      }
+    });
+    var exitItems = lesson && lesson.kind === 'unit' ? lesson.exit || [] : [];
+    var exitRight = exitItems.filter(function (item) { return answers[item.id] && answers[item.id].right; }).length;
+    var payload = {
+      type: type,
+      submissionId: makeSubmissionId(),
+      name: S.name,
+      lessonId: lessonId,
+      lessonTitle: lesson ? lesson.titleText || lesson.title : lessonId,
+      book: LESSON[lessonId] ? LESSON[lessonId].book : '',
+      section: LESSON[lessonId] && BOOK[LESSON[lessonId].book] ? BOOK[LESSON[lessonId].book].section : '',
+      finishedAt: state.finishedAt || state.mock && state.mock.submittedAt || new Date().toISOString(),
+      secs: Number(state.secs || 0),
+      right: right,
+      total: items.length,
+      exitRight: exitRight,
+      exitTotal: exitItems.length,
+      selfMarks: selfMarks,
+      selfTotal: selfTotal,
+      xp: Number(S.xp || 0),
+      stars: Number(state.stars || 0),
+      feel: state.feel || '',
+      question: state.question || '',
+      answers: items.map(function (item) {
+        var saved = answers[item.id] || {};
+        return { id: item.id, q: item.q || '', ans: saved.ans || '', right: !!saved.right, ticks: saved.ticks || [] };
+      }),
+    };
+    if (type === 'mock' && state.mock) {
+      payload.paper = lesson.paper;
+      payload.overTime = !!state.mock.overTime;
+      payload.score = state.mock.final && Number(state.mock.final.score) || 0;
+      payload.mockTotal = Number(lesson.total || 0);
+      payload.sectionScores = state.mock.final && state.mock.final.sectionScores || {};
+    }
+    return payload;
+  }
+
+  function enqueueSubmission(payload) {
+    if (typeof CFG.endpoint !== 'string' || !CFG.endpoint.trim()) {
+      updateSubmissionStatus('Saved on this device. No teacher endpoint is configured.');
+      return;
+    }
+    if (!Array.isArray(S.queue)) S.queue = [];
+    S.queue.push({ id: payload.submissionId, payload: payload, queuedAt: new Date().toISOString(), attempts: 0 });
+    save();
+    updateSubmissionStatus('Submission queued. Sending to your teacher…');
+    flushSubmissionQueue();
+  }
+
+  function flushSubmissionQueue() {
+    if (queueFlushing || typeof CFG.endpoint !== 'string' || !CFG.endpoint.trim() || !Array.isArray(S.queue) || !S.queue.length) return;
+    queueFlushing = true;
+    var entry = S.queue[0];
+    Promise.resolve().then(function () {
+      return fetch(CFG.endpoint, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify(entry.payload),
+        keepalive: true,
+      });
+    }).then(function () {
+      S.queue = S.queue.filter(function (queued) { return queued.id !== entry.id; });
+      save();
+      queueFlushing = false;
+      updateSubmissionStatus(S.queue.length ? 'Submission sent; sending the next queued response…' : 'Submission sent to your teacher.');
+      flushSubmissionQueue();
+    }).catch(function (error) {
+      entry.attempts = Number(entry.attempts || 0) + 1;
+      entry.lastError = String(error && error.message || error);
+      save();
+      queueFlushing = false;
+      updateSubmissionStatus('Could not send yet: ' + entry.lastError + '. It is saved and will retry on the next visit.');
+    });
   }
 
   // ---------- Home ----------
@@ -938,7 +1040,7 @@
     var lessonData = bookData && bookData.lessons.find(function (x) { return x.id === id; });
     var i = LESSONS.indexOf(l), prev = LESSONS[i - 1], next = LESSONS[i + 1];
     var head = '<p class="crumb"><a href="#/book/' + b.id + '">' + (sec.id === 'X' ? 'Exam prep' : 'Section ' + sec.id) + ' · ' + esc(lessonLabel(l)) + '</a></p>' +
-      '<div class="lesson-head"><h1 tabindex="-1">Lesson ' + l.n + ' · ' + md(l.title) + '</h1></div>';
+      '<div class="lesson-head"><h1 tabindex="-1">Lesson ' + l.n + ' · ' + md(l.title) + '</h1><button class="btn ghost lesson-print" type="button" data-print-page>Print</button></div>';
     var body;
     if (!S.name) {
       body = '<section class="card"><h2 style="font-size:22px">Before you start</h2>' +
@@ -1150,6 +1252,8 @@
               };
             });
           }
+          var mockSubmission = submissionPayload(submitMock, 'mock');
+          enqueueSubmission(mockSubmission);
           save(); render(); return;
         }
         var overtimeMock = target && target.getAttribute('data-mock-overtime');
@@ -1417,10 +1521,12 @@
         var feeling = finish.querySelector('input[name="feel"]:checked');
         st.feel = feeling ? feeling.value : '';
         st.question = document.getElementById('teacher-question').value.trim();
+        var lessonSubmission = submissionPayload(id, 'lesson');
         save();
         render();
+        enqueueSubmission(lessonSubmission);
         var status = document.querySelector('.finish-status');
-        if (status) status.textContent = 'Lesson reflection saved.';
+        if (status) status.textContent = CFG.endpoint ? 'Lesson reflection saved; submission queued.' : 'Lesson reflection saved on this device.';
       });
     }
     document.querySelectorAll('[data-stepper]').forEach(function (button) {
@@ -1441,6 +1547,109 @@
   function notFound() {
     return '<main id="main"><section class="card"><h1 tabindex="-1" style="font-size:28px">Page not found</h1><p><a href="#/">Back to Home</a></p></section></main>';
   }
+  var extrasLoading = false, extrasError = null;
+  function extrasPageReady(title) {
+    if (extrasError) {
+      return '<main id="main"><section class="card"><h1 tabindex="-1">' + title + '</h1><p role="alert">Study-tool data could not be loaded: ' +
+        esc(extrasError.message) + '</p><button class="btn" type="button" data-retry-extras>Try again</button></section></main>';
+    }
+    if (!IDX.books.every(function (book) { return !!(window.WB_BOOK || {})[book.id]; })) {
+      return '<main id="main"><section class="card" aria-live="polite"><h1 tabindex="-1">' + title + '</h1><p>Loading reference data…</p></section></main>';
+    }
+    return null;
+  }
+  function formulasPage() {
+    var waiting = extrasPageReady('Formula cards');
+    if (waiting) return waiting;
+    var cards = IDX.books.map(function (meta) {
+      var book = window.WB_BOOK[meta.id], section = SECTIONS[book.section];
+      return (book.formulaCard || []).map(function (card) {
+        var equation = card.tex ? md('⟪' + card.tex + '⟫') : md(card.text || '');
+        return '<article class="reference-card formula-entry" data-formula-entry data-section="' + esc(book.section) +
+          '" data-search="' + esc([book.titleText, card.tex, card.text, card.meaning, card.units, book.section].join(' ').toLowerCase()) + '">' +
+          '<div class="reference-meta"><span>' + esc(section.id === 'X' ? 'Exam prep' : 'Section ' + section.id) + '</span><a href="#/book/' + esc(book.id) + '">' + md(book.title) + '</a></div>' +
+          '<div class="formula-equation">' + equation + '</div><p>' + md(card.meaning || '') + '</p>' +
+          (card.units ? '<p class="reference-units"><strong>Units:</strong> ' + md(card.units) + '</p>' : '') + '</article>';
+      }).join('');
+    }).join('');
+    var options = IDX.sections.map(function (section) {
+      return '<option value="' + esc(section.id) + '">' + (section.id === 'X' ? 'Exam prep' : 'Section ' + esc(section.id) + ' · ' + esc(section.name)) + '</option>';
+    }).join('');
+    return '<main id="main"><section class="reference-page"><div class="reference-heading"><div><span class="block-label">Quick reference</span><h1 tabindex="-1">Formula cards</h1></div>' +
+      '<button class="btn ghost" type="button" data-print-page>Print</button></div><p>Browse the formulas collected from all 17 books. Select a section to narrow the list.</p>' +
+      '<div class="reference-filters"><label for="formula-filter">Filter by section</label><select id="formula-filter"><option value="">All sections</option>' + options + '</select>' +
+      '<label for="formula-search">Search formulas</label><input id="formula-search" type="search" placeholder="Search equation, meaning or unit"></div>' +
+      '<p class="reference-count" aria-live="polite"></p><div class="reference-grid">' + cards + '</div><p class="reference-empty" hidden>No formula cards match these filters.</p></section></main>';
+  }
+  function keywordsPage() {
+    var waiting = extrasPageReady('Key words');
+    if (waiting) return waiting;
+    var words = IDX.books.map(function (meta) {
+      var book = window.WB_BOOK[meta.id], section = SECTIONS[book.section];
+      return (book.glossary || []).map(function (entry) {
+        return '<article class="reference-card keyword-entry" data-keyword-entry data-search="' +
+          esc([entry.term, entry.def, book.titleText, book.section].join(' ').toLowerCase()) + '">' +
+          '<div class="reference-meta"><span>' + esc(section.id === 'X' ? 'Exam prep' : 'Section ' + section.id) + '</span><a href="#/book/' + esc(book.id) + '">' + md(book.title) + '</a></div>' +
+          '<h2>' + md(entry.term) + '</h2><p>' + md(entry.def) + '</p></article>';
+      }).join('');
+    }).join('');
+    return '<main id="main"><section class="reference-page"><div class="reference-heading"><div><span class="block-label">Vocabulary</span><h1 tabindex="-1">Key words</h1></div>' +
+      '<button class="btn ghost" type="button" data-print-page>Print</button></div><p>Search definitions from every workbook topic.</p>' +
+      '<div class="reference-filters single-filter"><label for="keyword-search">Search key words</label><input id="keyword-search" type="search" placeholder="Search a term, definition or topic"></div>' +
+      '<p class="reference-count" aria-live="polite"></p><div class="reference-grid">' + words + '</div><p class="reference-empty" hidden>No key words match this search.</p></section></main>';
+  }
+  function collectLessonItems(lesson) {
+    var found = [], seen = new Set();
+    function visit(value) {
+      if (!value || typeof value !== 'object' || seen.has(value)) return;
+      seen.add(value);
+      if (Array.isArray(value)) { value.forEach(visit); return; }
+      if (value.id && ['mcq', 'num', 'short', 'self'].includes(value.kind)) found.push(value);
+      Object.keys(value).forEach(function (key) { visit(value[key]); });
+    }
+    visit(lesson);
+    return found;
+  }
+  function teacherPage() {
+    var rows = LESSONS.map(function (lesson) {
+      var state = lessonState(lesson.id), items = collectLessonItems(lesson), answers = state && state.i || {};
+      var attempted = 0, right = 0, selfScore = 0, selfTotal = 0;
+      items.forEach(function (item) {
+        var answer = answers[item.id];
+        if (!answer) return;
+        if (answer.ans || answer.checked || answer.selfSubmitted) attempted++;
+        if (answer.right) right++;
+        if (item.kind === 'self') {
+          selfTotal += Number(item.marks || 1);
+          if (answer.selfSubmitted) selfScore += Number(answer.score || 0);
+        }
+      });
+      var status = state && state.finished ? 'Complete' : state ? 'In progress' : 'Not started';
+      var details = [attempted + ' / ' + items.length + ' attempted', right + ' correct'];
+      if (selfTotal) details.push(selfScore + ' / ' + selfTotal + ' self-marked');
+      if (lesson.kind === 'mock' && state && state.mock && state.mock.final) {
+        details.push(state.mock.final.score + ' / ' + state.mock.final.total + ' mock result');
+      }
+      return '<tr><td><a href="#/lesson/' + esc(lesson.id) + '">' + esc(lesson.title) + '</a><small>' +
+        esc(lessonLabel(lesson)) + '</small></td><td>' + status + '</td><td>' + details.map(esc).join('<br>') +
+        '</td><td>' + (state ? Math.floor(Number(state.secs || 0) / 60) + ' min' : '—') +
+        '</td><td>' + (state && state.stars ? '★'.repeat(Math.min(3, Number(state.stars))) : '—') +
+        (state && state.feel ? '<br>' + esc(state.feel) : '') + (state && state.question ? '<br><em>' + esc(state.question) + '</em>' : '') +
+        '</td></tr>';
+    }).join('');
+    return '<main id="main"><section class="teacher-page"><div class="reference-heading"><div><span class="block-label">Saved on this device</span>' +
+      '<h1 tabindex="-1">Teacher summary</h1></div><button class="btn ghost" type="button" data-print-page>Print summary</button></div>' +
+      '<p>Progress and reflections for ' + (S.name ? '<strong>' + esc(S.name) + '</strong>' : 'this student') +
+      '. Your saved work remains on this device unless you export and share it.</p>' +
+      '<div class="teacher-actions"><button class="btn" type="button" data-export-state>Export progress</button>' +
+      '<form id="import-state-form"><label for="import-state-file">Import a saved progress file (replaces current device data)</label>' +
+      '<input id="import-state-file" type="file" accept="application/json,.json" required><button class="btn ghost" type="submit">Import progress</button>' +
+      '<p class="import-status" role="status" aria-live="polite"></p></form></div>' +
+      '<p class="tiny">XP: ' + Number(S.xp || 0) + ' · Stars: ' + stars() + ' · Completed lessons: ' + doneCount(LESSONS) + ' / ' + LESSONS.length + '</p>' +
+      '<div class="table-wrap teacher-table-wrap" role="region" aria-label="Progress for every lesson" tabindex="0"><table class="lesson-table teacher-table">' +
+      '<thead><tr><th scope="col">Lesson</th><th scope="col">Progress</th><th scope="col">Questions and marks</th><th scope="col">Time</th><th scope="col">Stars and reflection</th></tr></thead><tbody>' +
+      rows + '</tbody></table></div></section></main>';
+  }
   function mistakesPage() {
     var mistakes = S.mistakes.slice().reverse();
     var content = mistakes.length ? mistakes.map(function (mistake) {
@@ -1451,12 +1660,11 @@
     }).join('') : '<p class="empty-note">No questions in your Mistake Log yet. Questions you get wrong or self-mark below full marks will appear here.</p>';
     return '<main id="main"><section class="card mistakes-page"><h1 tabindex="-1" style="font-size:28px">My Mistake Log</h1>' +
       '<p>Review questions to strengthen your understanding. This log is saved on this device.</p>' +
-      content + '<p><a href="#/">Back to Home</a></p></section></main>';
+      content + '<section class="mistake-notes"><label for="mistake-notes">My revision notes</label>' +
+      '<textarea id="mistake-notes" rows="5" maxlength="5000" placeholder="Add reminders or topics to revisit…">' +
+      esc(S.mistakeNotes || '') + '</textarea><p class="tiny">Notes save on this device and are included in progress exports.</p></section>' +
+      '<p><a href="#/">Back to Home</a></p></section></main>';
   }
-  function teacherPage() {
-    return '<main id="main"><section class="card"><h1 tabindex="-1" style="font-size:28px">Teacher summary</h1><p class="tiny">Coming in Phase 7.</p><p><a href="#/">Back to Home</a></p></section></main>';
-  }
-
   // ---------- book data (lazy, one file per book) ----------
   var loading = {};
   var bookErrors = {};
@@ -1492,6 +1700,8 @@
     if (!h) return { view: 'home' };
     if ((m = /^book\/([\w]+)$/.exec(h))) return { view: 'book', id: m[1] };
     if ((m = /^lesson\/([\w.]+)$/.exec(h))) return { view: 'lesson', id: m[1] };
+    if (h === 'formulas') return { view: 'formulas' };
+    if (h === 'keywords') return { view: 'keywords' };
     if (h === 'teacher') return { view: 'teacher' };
     if (h === 'mistakes') return { view: 'mistakes' };
     return { view: '404' };
@@ -1511,7 +1721,9 @@
         activeLessonAt = Date.now();
       }
     }
-    var html = r.view === 'home' ? home() : r.view === 'book' ? bookPage(r.id) : r.view === 'lesson' ? lessonPage(r.id) : r.view === 'teacher' ? teacherPage() : r.view === 'mistakes' ? mistakesPage() : notFound();
+    var html = r.view === 'home' ? home() : r.view === 'book' ? bookPage(r.id) : r.view === 'lesson' ? lessonPage(r.id) :
+      r.view === 'formulas' ? formulasPage() : r.view === 'keywords' ? keywordsPage() :
+        r.view === 'teacher' ? teacherPage() : r.view === 'mistakes' ? mistakesPage() : notFound();
     app.innerHTML = topbar() + html + footer();
     document.getElementById('themebtn').addEventListener('click', toggleTheme);
     document.querySelectorAll('[data-retry-book]').forEach(function (button) {
@@ -1527,6 +1739,99 @@
         save(); render();
       });
     });
+    document.querySelectorAll('[data-retry-extras]').forEach(function (button) {
+      button.addEventListener('click', function () { extrasError = null; render(); });
+    });
+    document.querySelectorAll('[data-print-page]').forEach(function (button) {
+      button.addEventListener('click', function () { window.print(); });
+    });
+    var formulaSearch = document.getElementById('formula-search');
+    var formulaFilter = document.getElementById('formula-filter');
+    var keywordSearch = document.getElementById('keyword-search');
+    function applyReferenceFilters() {
+      var formulaTerm = formulaSearch ? formulaSearch.value.trim().toLowerCase() : '';
+      var selectedSection = formulaFilter ? formulaFilter.value : '';
+      var keywordTerm = keywordSearch ? keywordSearch.value.trim().toLowerCase() : '';
+      var entries = document.querySelectorAll('[data-formula-entry], [data-keyword-entry]'), visible = 0;
+      entries.forEach(function (entry) {
+        var isFormula = entry.hasAttribute('data-formula-entry');
+        var term = isFormula ? formulaTerm : keywordTerm;
+        var sectionMatch = !isFormula || !selectedSection || entry.getAttribute('data-section') === selectedSection;
+        var matches = sectionMatch && (!term || entry.getAttribute('data-search').includes(term));
+        entry.hidden = !matches;
+        if (matches) visible++;
+      });
+      var count = document.querySelector('.reference-count'), empty = document.querySelector('.reference-empty');
+      if (count) count.textContent = visible + (visible === 1 ? ' result' : ' results');
+      if (empty) empty.hidden = visible !== 0;
+    }
+    if (formulaSearch) formulaSearch.addEventListener('input', applyReferenceFilters);
+    if (formulaFilter) formulaFilter.addEventListener('change', applyReferenceFilters);
+    if (keywordSearch) keywordSearch.addEventListener('input', applyReferenceFilters);
+    if (formulaSearch || keywordSearch) applyReferenceFilters();
+    var mistakeNotes = document.getElementById('mistake-notes');
+    if (mistakeNotes) {
+      mistakeNotes.addEventListener('input', function () {
+        S.mistakeNotes = mistakeNotes.value.slice(0, 5000);
+        save();
+      });
+    }
+    var exportButton = document.querySelector('[data-export-state]');
+    if (exportButton) {
+      exportButton.addEventListener('click', function () {
+        var blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob), link = document.createElement('a');
+        link.href = url;
+        link.download = 'csec-physics-2027-progress.json';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      });
+    }
+    var importForm = document.getElementById('import-state-form');
+    if (importForm) {
+      importForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var status = importForm.querySelector('.import-status');
+        var file = document.getElementById('import-state-file').files[0];
+        if (!file) { status.textContent = 'Choose a JSON progress file to import.'; return; }
+        file.text().then(function (text) {
+          var imported;
+          try {
+            imported = JSON.parse(text);
+          } catch (error) {
+            status.textContent = 'This file is not valid JSON: ' + error.message;
+            return;
+          }
+          if (!imported || typeof imported !== 'object' || Array.isArray(imported) || imported.v !== 1 ||
+            !imported.l || typeof imported.l !== 'object' || Array.isArray(imported.l) ||
+            !imported.log || typeof imported.log !== 'object' || Array.isArray(imported.log) ||
+            !Array.isArray(imported.mistakes) || !Array.isArray(imported.queue)) {
+            status.textContent = 'This file is not a supported CSEC Physics progress export (version 1).';
+            return;
+          }
+          var restored = freshState();
+          restored.name = typeof imported.name === 'string' ? imported.name.slice(0, 60) : '';
+          restored.theme = ['light', 'dark'].includes(imported.theme) ? imported.theme : '';
+          restored.xp = Number.isFinite(Number(imported.xp)) ? Math.max(0, Number(imported.xp)) : 0;
+          restored.streak = imported.streak && typeof imported.streak === 'object' && !Array.isArray(imported.streak)
+            ? imported.streak : restored.streak;
+          restored.l = imported.l;
+          restored.log = imported.log;
+          restored.mistakes = imported.mistakes;
+          restored.mistakeNotes = typeof imported.mistakeNotes === 'string' ? imported.mistakeNotes.slice(0, 5000) : '';
+          restored.queue = imported.queue;
+          S = restored;
+          save();
+          applyTheme();
+          render();
+          flushSubmissionQueue();
+        }).catch(function (error) {
+          status.textContent = 'Could not read this progress file: ' + error.message;
+        });
+      });
+    }
     if (r.view === 'home') bindHome();
     if (r.view === 'lesson') bindLesson();
     WBD.typeset(app);
@@ -1546,6 +1851,18 @@
         render();
       });
     }
+    if ((r.view === 'formulas' || r.view === 'keywords') && !extrasError &&
+      !IDX.books.every(function (book) { return !!(window.WB_BOOK || {})[book.id]; }) && !extrasLoading) {
+      extrasLoading = true;
+      Promise.all(IDX.books.map(function (book) { return loadBook(book.id); })).then(function () {
+        extrasLoading = false;
+        render();
+      }, function (error) {
+        extrasLoading = false;
+        extrasError = error;
+        render();
+      });
+    }
   }
 
   window.addEventListener('hashchange', render);
@@ -1560,6 +1877,7 @@
   }
   applyTheme();
   render();
+  flushSubmissionQueue();
 
   // for tests / later phases
   window.WBAPP = { state: function () { return S; }, save: save, render: render, loadBook: loadBook, KEY: KEY };

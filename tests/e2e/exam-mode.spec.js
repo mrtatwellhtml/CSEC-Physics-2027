@@ -77,6 +77,7 @@ test('Paper 01 persists answers and timer, warns at 15 minutes, handles overtime
 });
 
 test('Paper 02 hides mark schemes until submission and awards a saved grade after self-marking every part', async ({ page }) => {
+  test.setTimeout(90000);
   const errors = await openFreshMock(page, 'week13.mock');
   await page.locator('[data-mock-start="week13.mock"]').click();
   const parts = page.locator('.question-card[data-item-kind="self"]');

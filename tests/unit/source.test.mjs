@@ -7,10 +7,11 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const WEEKS = path.join(ROOT, 'source', 'wb', 'weeks');
+const sourceTest = fs.existsSync(WEEKS) ? test : test.skip;
 const FOLDERS = ['week01', 'week02', 'week03', 'week04', 'week05', 'week06', 'week07', 'week08',
   'es01', 'week09', 'week10', 'week11', 'week12', 'week13', 'week14', 'week15', 'week16'];
 
-test('all 17 books have a parseable content.json with units', () => {
+sourceTest('all 17 books have a parseable content.json with units', () => {
   for (const f of FOLDERS) {
     const c = JSON.parse(fs.readFileSync(path.join(WEEKS, f, 'content.json'), 'utf8'));
     assert.ok(c.title, `${f} has a title`);
@@ -18,7 +19,7 @@ test('all 17 books have a parseable content.json with units', () => {
   }
 });
 
-test('every img path referenced in content.json exists', () => {
+sourceTest('every img path referenced in content.json exists', () => {
   const missing = [];
   for (const f of FOLDERS) {
     const raw = fs.readFileSync(path.join(WEEKS, f, 'content.json'), 'utf8');

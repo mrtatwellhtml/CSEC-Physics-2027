@@ -1,2 +1,3 @@
-// Paste the Google Apps Script /exec URL here (PLAN.md §9). Empty = nothing is sent; everything else works.
+// Paste the deployed Apps Script /exec URL here after following apps-script/README.md.
+// Leave blank to keep all progress on this device.
 window.WB_CONFIG = { endpoint: "" };
