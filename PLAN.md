@@ -202,6 +202,19 @@ The `answer` fields are mark-scheme text such as `"T = 28.4 ÷ 20 (1) = 1.42 s (
 
 `tools/overrides.json` is keyed by `<folder>:<unit>:<index>`. Use it to force a type, a correct value, a tolerance or accept-words. The converter applies it last. Never edit `source/`.
 
+> **As built (Phase 1):** overrides are keyed by the full **item id** (e.g. `week02.2.1.p4`, `week02.check.s1.b`). This also reaches MCQs, structured parts and recall items, which `<folder>:<unit>:<index>` could not. The converter refuses ids that don't exist.
+
+### 5.6 Phase 1 decisions (as built)
+- **Default to self-mark when unsure.** Numeric needs a calculate/find-type question that asks for ONE quantity (not "… and …", not "(a)…(b)…", not "state … and calculate …"). The mark scheme must end in one number plus a unit. Short text needs a 1-mark answer of one word (or a person's name, or "a.c./d.c."). Definitions ("What is an echo?") and multi-word phrases are self-marked.
+- **Structured / past-paper / mock Paper 02 parts are always self-marked** (§6.3). Where a number could be extracted, it is kept in the report (shown as "was num"), so Phase 5 could add an optional auto-check.
+- **Notes after the mark scheme** (lines after the last "(1)", e.g. "Common error: … → 0.01 A", "(Alternative: …)") are ignored when extracting the answer.
+- **Alternative accepted values** are only (a) bracketed equivalents in the scheme ("0.040 kg (40 g)", "(accept 5.3–5.7)") and (b) earlier values in the final line with the same unit ("257 500 Pa ≈ 2.6 × 10⁵ Pa").
+- **Warm-up:** a book's first lesson uses the *previous book's* `recall_quiz` (that is what it was written for). Later lessons take up to 3 one-mark items from the previous lesson, chosen deterministically. Book 1 Lesson 1 has no warm-up.
+- **Lesson split:** practice items 1–2 → Try it, last 2 → Exit, rest → Practice. Units with fewer than 5 practice items use 1 / 1.
+- **Hints** come from the most similar worked example in the same unit (word overlap ≥ 25 %): "Look back at Example n (title). Start like this: <first step>". There are none on Exit items.
+- **Mock books:** Mock Paper 02 lesson order is 13.2 Exam technique → **Mock** → 13.1 How to review. Mock Paper 01 order is **Mock** → 16.1 After the mock → 16.2 Last-week plan. The prior-knowledge pages become the mock's rules screen. Mock Paper 01 items carry section, topic and a "revise" book id from the item-by-item table. Mock Paper 02 carries the grade-guide bands.
+- **Blanks** (fill-the-gap Try-it items) were not generated: the workbook steps don't give a safe gap. Try-it items are self-mark or auto-checked, with the hint visible (allowed by §5.2).
+
 ---
 
 ### 5.5 Equations → KaTeX (amendment, 3 Oct 2026)

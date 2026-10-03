@@ -295,6 +295,14 @@ export function markMath(s) {
   return res.join('').replace(/\*\*\*\*/g, '');
 }
 
+// A unit on its own ("m s^−1^", "°C", "J kg^−1^ °C^−1^") → TeX, typeset as if it followed a number.
+export function unitToTeX(u) {
+  if (!u || !u.trim()) return '';
+  if (u.trim() === '%') return '\\%';
+  const tex = toTeX(tokenize('1 ' + u.trim()));
+  return tex.replace(/^1(\\,)?/, '');
+}
+
 export function whereToMarked(s) {
   const m = /^(\s*)([^=]{1,14}?)(\s*=\s+)([\s\S]*)$/.exec(s);
   if (m && !/[A-Za-z]{4,}|:/.test(m[2])) {

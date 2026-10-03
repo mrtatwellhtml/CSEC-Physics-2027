@@ -1,0 +1,4 @@
+{
+  "_comment": "Manual fixes to auto-checking (PLAN.md §5.4). Keyed by item id, e.g. \"week02.2.1.p4\". Fields: kind (mcq|num|short|self), value, unit, min, max, alt[], pct, signFree, accept[], note (WHY — required). Applied last. Never edit source/.",
+  "items": {}
+}
