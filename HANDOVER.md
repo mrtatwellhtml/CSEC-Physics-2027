@@ -1,6 +1,6 @@
 # HANDOVER — CSEC Physics Ultimate Workbook (1-to-1 student, January 2027)
 
-*Live document — update after every build session.* Last updated: 3 Oct 2026. **Status: ALL 17 BOOKS BUILT & SAVED. Website: Phases 0–4 done (setup, KaTeX, converter, shell + design, lesson renderer, interactive questions) — Phase 5 is next, pending tutor review.**
+*Live document — update after every build session.* Last updated: 3 Oct 2026. **Status: ALL 17 BOOKS BUILT & SAVED. Website: Phases 0–5 done (setup, KaTeX, converter, shell + design, lesson renderer, interactive questions, exam content) — Phase 6 is next, pending tutor review.**
 
 ## Context
 - Student: private 1-to-1, previously sat & FAILED CSEC Physics. 1 h/week with tutor, < 4 h/week self-study. Also in tutor's regular Fifth Form class.
@@ -54,7 +54,7 @@ Every CSEC Physics specific objective (A–E) is covered. Totals: 91 units, 284 
 | 2 Shell + design | ✅ Done 3 Oct | Responsive homepage and book pages, theme toggle, name gate, progress/stats/countdown, hash routing and Phase 2 browser tests |
 | 3 Lesson renderer | ✅ Done 3 Oct | Unit lessons: all blocks, KaTeX, images, worked-example stepper, vocabulary, question prompts, finish/reflection card and saved progress; Books 1 + 9 verified on desktop/mobile |
 | 4 Questions | ✅ Done 3 Oct | Auto-check, self-mark, XP, hints, keypad, exit stars and Mistake Log |
-| 5 Exam content | ⏳ Next — pending tutor review | |
+| 5 Exam content | ✅ Done 3 Oct | Book Checks, structured/Past-paper questions, graphing and Past Paper Log |
 | 6 Exam mode | — | |
 | 7 Extras | — | |
 | 8 Submissions | — | |
@@ -93,3 +93,4 @@ Every CSEC Physics specific objective (A–E) is covered. Totals: 91 units, 284 
 8. 3 Oct (VS Code) — **Phase 2 Shell + design**: responsive app shell and Foundation-inspired Home with all 123 lesson cards in A–E/exam-prep order, progress ring, XP/stars/question stats, exam countdowns, lesson-flow chips, saved name gate, dark-mode toggle and hash-routed book/lesson shells. Added desktop/mobile browser tests; `npm test` passes (17 unit, 12 browser tests), Home loads below 300 KB, and mobile checks show no horizontal overflow. Waiting for tutor review before Phase 3.
 9. 3 Oct (VS Code) — **Phase 3 Lesson renderer**: rendered all unit-lesson block types, objectives, vocabulary chips, quick-start recaps, worked examples with step-by-step reveal, question prompts and answer fields, hints, images and KaTeX. Added reflection/completion saving and active lesson-time tracking; made lazy book-data loading wait visibly and report/retry errors. Books 1 + 9 all render on desktop/mobile; every referenced image loads, equations typeset, and 360 px lesson view has no horizontal overflow. `npm test`: 17 unit + 22 desktop/mobile browser tests pass. Book check/past-paper/mock interactions remain for Phases 5–6. Waiting for tutor review before Phase 4.
 10. 3 Oct (VS Code) — **Phase 4 Questions**: wired MCQ, numeric and short-text checks to the shared `WBC` checkers; added retry feedback and model solutions after two wrong attempts; added self-mark ticks with XP capped at 10, cursor-aware symbol keypad, once-only Practice hint charges (never below zero), and a local Mistake Log with review/remove actions. Lesson exit stars follow the tutor's decision: **3 for perfect, 2 for ≥80%, 1 for any attempted check below 80%, 0 unanswered**. Added desktop/mobile tests for checking, retries, XP, hint costs, persistence, mistakes, keypad and all star thresholds. `npm test`: 17 unit + 32 desktop/mobile browser tests pass. Phase 5 (exam content) is next, pending tutor review.
+11. 3 Oct (VS Code) — **Phase 5 Exam content**: activated every Book Check and Past-paper lesson; added MCQ and multi-part Paper 02 rendering, per-part self-marking with running totals, a saved Past Paper Log, and responsive table-driven SVG graphing with tap-to-plot, coordinate inputs, editable best-fit line, keyboard handles, gradient triangle and print grid. Graph axes/data are inferred from converted tables, including transformed or explicitly derivable columns. Opened every Book Check and Past-paper lesson in browser tests; all 13 data-analysis graphs render and graph interactions persist on desktop/mobile. `npm test`: 17 unit + 42 desktop/mobile browser tests pass. Phase 6 (Exam mode) is next, pending tutor review.

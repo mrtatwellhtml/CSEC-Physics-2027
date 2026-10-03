@@ -254,6 +254,52 @@ details.more summary{cursor:pointer;font-weight:700;color:var(--accent);min-heig
 .mark-point input{width:18px;height:18px;margin-top:2px;accent-color:var(--accent);flex:none}
 .mark-point span{line-height:1.45}
 .self-score{margin:10px 0!important;color:var(--accent);font:600 14px var(--f-mono)}
+.exam-intro,.past-log{margin:16px 0;padding:18px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface)}
+.exam-intro>p:first-child,.past-log>p{margin-top:0}
+.structured-question{margin:18px 0;padding:18px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.structured-question>h3{font-size:21px}
+.structured-stem{margin:12px 0 18px}
+.structured-stem>p{margin:8px 0}
+.multi-total{position:sticky;top:60px;z-index:2;margin:12px 0;padding:9px 12px;border-radius:9px;background:var(--accent-soft);color:var(--ink);font-size:14px}
+.multi-total b{color:var(--accent);font:700 14px var(--f-mono)}
+.multi-part{margin:18px 0;padding-top:10px;border-top:1px solid var(--line)}
+.multi-part .question-card{margin-bottom:0}
+.multi-part .question-card textarea{margin-bottom:8px}
+.graph-widget{margin:16px 0;padding:14px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface-2)}
+.graph-widget>p:first-child{margin:0 0 10px}
+.graph-plotted,.graph-gradient{color:var(--accent);font:600 14px var(--f-mono)}
+.interactive-graph{display:block;width:100%;height:auto;overflow:visible;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface)}
+.graph-paper{fill:var(--surface)}
+.graph-gridline{stroke:var(--line);stroke-width:1}
+.graph-axis{stroke:var(--ink-2);stroke-width:1.5}
+.graph-tick{fill:var(--muted);font:12px var(--f-mono)}
+.graph-axis-label{fill:var(--ink);font:600 13px var(--f-body)}
+.graph-hit{fill:transparent;cursor:crosshair;touch-action:none}
+.graph-overlay{pointer-events:none}
+.graph-point{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.best-fit-line{stroke:var(--no);stroke-width:3}
+.graph-handle{fill:var(--no);stroke:var(--surface);stroke-width:2;cursor:move;pointer-events:all;touch-action:none}
+.gradient-triangle{fill:color-mix(in srgb,var(--accent) 18%,transparent);stroke:var(--accent);stroke-width:2}
+.graph-triangle-label{fill:var(--accent);font:700 13px var(--f-mono)}
+.graph-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.graph-actions .btn{min-height:44px}
+.graph-actions .btn:disabled{opacity:.5;cursor:not-allowed}
+.graph-coordinate-controls{display:grid;grid-template-columns:minmax(100px,1fr) minmax(90px,150px) minmax(100px,1fr) minmax(90px,150px) auto;align-items:end;gap:8px;margin-top:12px}
+.graph-coordinate-controls label{font-size:13px;font-weight:700;color:var(--muted)}
+.graph-coordinate-controls input{width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:500 14px var(--f-mono)}
+.graph-coordinate-controls .btn{min-height:44px;padding-inline:12px}
+.graph-status,.graph-unavailable{margin:8px 0 0;color:var(--muted);font-size:14px}
+.graph-gradient{margin:7px 0 0}
+.print-graph{display:none}
+.graph-paper-toggle{margin-top:8px}
+.graph-widget.paper-mode .interactive-graph,.graph-widget.paper-mode .graph-actions,
+.graph-widget.paper-mode .graph-coordinate-controls,.graph-widget.paper-mode .graph-status,
+.graph-widget.paper-mode .graph-gradient{display:none}
+.graph-widget.paper-mode .print-graph{display:block}
+.past-log .table-wrap{margin:12px 0}
+.past-log input{width:100%;min-width:75px;min-height:42px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);font:inherit}
+.past-log td{min-width:100px}
+.log-remove{min-height:40px;padding-inline:12px}
 .hint-cost{padding-top:6px!important;color:var(--muted);font-size:13px}
 .mistakes-page>.mistake-card{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:14px 0;padding:16px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface-2)}
 .mistake-card p{margin:6px 0}
@@ -276,6 +322,13 @@ details.more summary{cursor:pointer;font-weight:700;color:var(--accent);min-heig
 .finish-card form>.btn{margin-top:14px}
 .finish-status{min-height:1.5em;margin:5px 0 0;font-size:13px}
 .lessonbody textarea:focus,.finish-card textarea:focus,.block-fill textarea:focus{outline:3px solid var(--accent);outline-offset:1px;border-color:transparent}
+
+@media print{
+  .interactive-graph,.graph-actions,.graph-status,.graph-gradient,.graph-coordinate-controls,.graph-paper-toggle{display:none!important}
+  .print-graph{display:block;margin:0}
+  .print-graph .figure{box-shadow:none}
+  .multi-total{position:static}
+}
 
 /* ===== maths (KaTeX) ===== */
 .tex{white-space:nowrap}
@@ -307,6 +360,10 @@ details.more summary{cursor:pointer;font-weight:700;color:var(--accent);min-heig
   .mistakes-page>.mistake-card{align-items:stretch;flex-direction:column}
   .mistake-actions{width:100%}
   .mistake-actions .btn{flex:1;text-align:center}
+  .graph-coordinate-controls{grid-template-columns:1fr 1fr}
+  .graph-coordinate-controls label:nth-of-type(2){grid-column:1}
+  .graph-coordinate-controls input:nth-of-type(2){grid-column:2;grid-row:2}
+  .graph-coordinate-controls .btn{grid-column:1/-1}
 }
 @media (max-width:360px){
   .chip.streak{display:none}

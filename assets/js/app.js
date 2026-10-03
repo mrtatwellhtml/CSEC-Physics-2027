@@ -309,6 +309,237 @@
     }).join('') + '</div>';
   }
 
+  function plainMath(text) {
+    return String(text || '').replace(/⟪([^⟫]+)⟫/g, '$1').replace(/\*\*|__/g, '').replace(/\^([^ ^]+)\^/g, '$1').replace(/~([^ ~]+)~/g, '$1');
+  }
+
+  function axisDefinition(expression) {
+    var source = plainMath(expression).toLowerCase().replace(/[()[\]]/g, ' ').replace(/\s+/g, ' ').trim();
+    var transform = 'identity', power = 1, symbolMatch;
+    if ((symbolMatch = /sin\s+([a-zθλρ])/i.exec(source))) {
+      transform = 'sin';
+    } else if ((symbolMatch = /1\s*\/\s*([a-zθλρ])\s*(\^?\s*2)?/i.exec(source))) {
+      transform = symbolMatch[2] ? 'inverse-square' : 'inverse';
+    } else {
+      symbolMatch = /,\s*([a-zθλρ])/i.exec(source) ||
+        (/^[a-zθλρ]\s*[a-z]?$/.test(source) ? [source, source.trim()[0]] : null);
+    }
+    return { source: source, symbol: symbolMatch ? symbolMatch[1].toLowerCase() : '', transform: transform, power: power };
+  }
+
+  function labelHasSymbol(label, symbol) {
+    var text = plainMath(label).toLowerCase();
+    return new RegExp('(?:^|[^a-zθλρ])' + symbol + '(?:s)?(?:$|[^a-zθλρ])').test(text);
+  }
+
+  function sourceValues(tables, axis, multi) {
+    var values = [];
+    function numbers(cells) {
+      return cells.map(function (cell) {
+        var number = window.WBC.parseNumber(plainMath(cell));
+        return number ? number.value : null;
+      });
+    }
+    tables.forEach(function (table) {
+      var header = table.headers || [], rows = table.rows || [], headerSource = axis.symbol && labelHasSymbol(header[0], axis.symbol);
+      var row = null;
+      if (!headerSource) {
+        row = rows.find(function (cells) { return axis.symbol && labelHasSymbol(cells[0], axis.symbol); });
+        if (!row && !axis.symbol) {
+          var search = axis.source.replace(/[^a-z ]/g, ' ').replace(/\b(the|of|against|graph|axis|y|x)\b/g, '').trim();
+          if (search.length > 3) {
+            var headerLabel = plainMath(header[0] || '').toLowerCase().replace(/[^a-z ]/g, '').trim();
+            headerSource = headerLabel.indexOf(search) >= 0 || search.indexOf(headerLabel) >= 0;
+            if (!headerSource) row = rows.find(function (cells) {
+              var rowLabel = plainMath(cells[0]).toLowerCase().replace(/[^a-z ]/g, '').trim();
+              return rowLabel.indexOf(search) >= 0 || search.indexOf(rowLabel) >= 0;
+            });
+          }
+        }
+      }
+      if (!headerSource && !row && /\bextension\b/.test(axis.source)) {
+        var lengthRow = rows.find(function (cells) { return /\blength\b/i.test(plainMath(cells[0])); });
+        if (lengthRow) {
+          var lengths = numbers(lengthRow.slice(1)), initialLength = lengths.find(function (value) { return value != null; });
+          values = values.concat(lengths.map(function (value) { return value == null ? null : value - initialLength; }));
+          return;
+        }
+      }
+      if (!headerSource && !row) return;
+      var cells = headerSource ? header.slice(1) : row.slice(1);
+      var current = numbers(cells);
+      if (current.every(function (value) { return value == null; }) && /\bextension\b/.test(axis.source)) {
+        var lengthRow = rows.find(function (cells) { return /\blength\b/i.test(plainMath(cells[0])); });
+        if (lengthRow) {
+          var lengths = numbers(lengthRow.slice(1)), initialLength = lengths.find(function (value) { return value != null; });
+          current = lengths.map(function (value) { return value == null ? null : value - initialLength; });
+        }
+      }
+      if (current.some(function (value) { return value == null; })) {
+        if (/\bcorrected count rate\b/.test(axis.source)) {
+          var measured = rows.find(function (cells) { return /\bmeasured count rate\b/i.test(plainMath(cells[0])); });
+          var backgroundMatch = /background count rate as\s+(\d+(?:\.\d+)?)/i.exec((multi.stem || []).join(' '));
+          if (measured && backgroundMatch) {
+            var measuredValues = numbers(measured.slice(1)), background = Number(backgroundMatch[1]);
+            current = current.map(function (value, index) { return value == null && measuredValues[index] != null ? measuredValues[index] - background : value; });
+          }
+        } else if (/^f$/.test(axis.symbol || '')) {
+          var mass = rows.find(function (cells) { return /Δm/i.test(plainMath(cells[0])); });
+          if (mass) {
+            var masses = numbers(mass.slice(1));
+            current = current.map(function (value, index) { return value == null && masses[index] != null ? masses[index] * 10 : value; });
+          }
+        } else if (/^r$/.test(axis.symbol || '')) {
+          var voltage = rows.find(function (cells) { return labelHasSymbol(cells[0], 'v'); });
+          var currentRow = rows.find(function (cells) { return labelHasSymbol(cells[0], 'i'); });
+          if (voltage && currentRow) {
+            var volts = numbers(voltage.slice(1)), amps = numbers(currentRow.slice(1));
+            current = current.map(function (value, index) { return value == null && amps[index] ? volts[index] / amps[index] : value; });
+          }
+        }
+      }
+      current.forEach(function (rawValue) {
+        if (rawValue == null) { values.push(null); return; }
+        var value = rawValue;
+        if (axis.transform === 'sin') value = Math.sin(value * Math.PI / 180);
+        else if (axis.transform === 'inverse') value = 1 / value;
+        else if (axis.transform === 'inverse-square') value = 1 / (value * value);
+        values.push(Number.isFinite(value) ? value : null);
+      });
+    });
+    return values;
+  }
+
+  function niceAxis(values) {
+    var low = Math.min.apply(Math, values), high = Math.max.apply(Math, values);
+    if (low === high) { low -= 1; high += 1; }
+    var rough = (high - low) / 5, magnitude = Math.pow(10, Math.floor(Math.log10(rough)));
+    var factor = rough / magnitude, step = (factor <= 1 ? 1 : factor <= 2 ? 2 : factor <= 5 ? 5 : 10) * magnitude;
+    var min = Math.floor(low / step) * step, max = Math.ceil(high / step) * step;
+    if (min === max) max += step;
+    return { min: min, max: max, step: step };
+  }
+
+  function graphConfig(multi, part) {
+    var question = plainMath(part.q), xMatch = /against\s+(.+?)\s*\(x-axis\)/i.exec(question);
+    var yMatch = /graph of\s+(.+?)\s*\(y-axis\)/i.exec(question);
+    if (!xMatch || !yMatch) return null;
+    var xAxis = axisDefinition(xMatch[1]), yAxis = axisDefinition(yMatch[1]);
+    var tables = (multi.stemBlocks || []).filter(function (block) { return block.type === 'table'; });
+    var xValues = sourceValues(tables, xAxis, multi), yValues = sourceValues(tables, yAxis, multi);
+    var points = [];
+    for (var i = 0; i < Math.min(xValues.length, yValues.length); i++) {
+      if (xValues[i] != null && yValues[i] != null) points.push({ x: xValues[i], y: yValues[i] });
+    }
+    if (points.length < 2) return null;
+    return {
+      xLabel: plainMath(xMatch[1]).trim(), yLabel: plainMath(yMatch[1]).trim(),
+      points: points, x: niceAxis(points.map(function (point) { return point.x; })),
+      y: niceAxis(points.map(function (point) { return point.y; })),
+    };
+  }
+
+  function graphXY(config, x, y) {
+    var left = 62, top = 18, width = 546, height = 322;
+    return {
+      x: left + (x - config.x.min) / (config.x.max - config.x.min) * width,
+      y: top + height - (y - config.y.min) / (config.y.max - config.y.min) * height,
+    };
+  }
+
+  function graphHTML(multi, part, saved) {
+    var config = graphConfig(multi, part);
+    if (!config) return '<p class="graph-unavailable">Interactive graph axes could not be determined from the question table. Use the grid image below and self-mark the graph.</p>' +
+      imageHTML(part.img, 'Printable graph grid');
+    var state = saved.graph || { points: [] };
+    var graphId = 'graph-' + part.id;
+    var xTicks = [], yTicks = [], i;
+    for (i = 0; i <= 5; i++) {
+      xTicks.push(config.x.min + (config.x.max - config.x.min) * i / 5);
+      yTicks.push(config.y.min + (config.y.max - config.y.min) * i / 5);
+    }
+    var grid = xTicks.map(function (value) {
+      var x = graphXY(config, value, config.y.min).x;
+      return '<line class="graph-gridline" x1="' + x + '" y1="18" x2="' + x + '" y2="340"/>' +
+        '<text class="graph-tick" x="' + x + '" y="360">' + Number(value.toPrecision(3)) + '</text>';
+    }).join('') + yTicks.map(function (value) {
+      var y = graphXY(config, config.x.min, value).y;
+      return '<line class="graph-gridline" x1="62" y1="' + y + '" x2="608" y2="' + y + '"/>' +
+        '<text class="graph-tick" x="53" y="' + (y + 4) + '" text-anchor="end">' + Number(value.toPrecision(3)) + '</text>';
+    }).join('');
+    var labels = '<text class="graph-axis-label" x="335" y="400" text-anchor="middle">' + esc(config.xLabel) + '</text>' +
+      '<text class="graph-axis-label" x="16" y="180" text-anchor="middle" transform="rotate(-90 16 180)">' + esc(config.yLabel) + '</text>';
+    var overlay = '<g class="graph-overlay"></g>';
+    var encoded = esc(JSON.stringify(config));
+    return '<section class="graph-widget' + (state.paperMode ? ' paper-mode' : '') + '" data-graph-widget="' + esc(part.id) + '">' +
+      '<p>Tap the grid to plot the table values: <b class="graph-plotted">' + (state.points || []).length + ' / ' + config.points.length + '</b> points plotted.</p>' +
+      '<svg class="interactive-graph" viewBox="0 0 640 420" role="img" aria-label="Interactive graph grid for ' + esc(config.yLabel) + ' against ' + esc(config.xLabel) + '"' +
+      ' data-graph-svg="' + esc(part.id) + '" data-config="' + encoded + '">' +
+      '<rect class="graph-paper" x="0" y="0" width="640" height="420"/>' + grid +
+      '<line class="graph-axis" x1="62" y1="18" x2="62" y2="340"/><line class="graph-axis" x1="62" y1="340" x2="608" y2="340"/>' +
+      '<rect class="graph-hit" data-graph-hit="' + esc(part.id) + '" x="62" y="18" width="546" height="322"/>' +
+      labels + overlay + '</svg>' +
+      '<div class="graph-actions"><button class="btn ghost" type="button" data-graph-line="' + esc(part.id) + '">Set best-fit line</button>' +
+      '<button class="btn ghost" type="button" data-graph-triangle="' + esc(part.id) + '"' + (state.line ? '' : ' disabled') + '>Show gradient triangle</button>' +
+      '<button class="btn ghost" type="button" data-graph-clear="' + esc(part.id) + '">Clear graph</button></div>' +
+      '<button class="btn ghost graph-paper-toggle" type="button" data-graph-paper="' + esc(part.id) + '">' +
+      (state.paperMode ? 'Return to interactive graph' : 'I’ll do this on paper') + '</button>' +
+      '<div class="graph-coordinate-controls"><label for="' + graphId + '-x">x coordinate (' + esc(config.xLabel) + ')</label>' +
+      '<input id="' + graphId + '-x" type="number" step="any" data-graph-coordinate="x" aria-label="x coordinate for plotted point">' +
+      '<label for="' + graphId + '-y">y coordinate (' + esc(config.yLabel) + ')</label>' +
+      '<input id="' + graphId + '-y" type="number" step="any" data-graph-coordinate="y" aria-label="y coordinate for plotted point">' +
+      '<button class="btn ghost" type="button" data-graph-add-point="' + esc(part.id) + '">Plot coordinates</button></div>' +
+      '<p class="graph-status" role="status" aria-live="polite">' + (state.lineMode ? 'Tap two points on the grid to set the line.' : state.line ? 'Drag the line handles to adjust the best-fit line.' : 'Plot the points, then set a best-fit line.') + '</p>' +
+      '<p class="graph-gradient" aria-live="polite">' + (state.line ? 'Gradient: ' + (state.gradient == null ? '—' : Number(state.gradient.toPrecision(4))) : '') + '</p>' +
+      '<div class="print-graph">' + imageHTML(part.img, 'Printable graph grid') + '</div></section>';
+  }
+
+  function drawGraph(svg, config, state) {
+    var group = svg.querySelector('.graph-overlay');
+    if (!group) return;
+    group.innerHTML = '';
+    var ns = 'http://www.w3.org/2000/svg';
+    function element(name, attrs) {
+      var node = document.createElementNS(ns, name);
+      Object.keys(attrs).forEach(function (key) { node.setAttribute(key, attrs[key]); });
+      group.appendChild(node);
+      return node;
+    }
+    (state.points || []).forEach(function (point, index) {
+      var position = graphXY(config, point.x, point.y);
+      element('circle', { class: 'graph-point', cx: position.x, cy: position.y, r: 6, 'aria-label': 'Plotted point ' + (index + 1) });
+    });
+    if (state.line) {
+      var a = graphXY(config, state.line[0].x, state.line[0].y), b = graphXY(config, state.line[1].x, state.line[1].y);
+      element('line', { class: 'best-fit-line', x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+      [a, b].forEach(function (position, index) {
+        element('circle', { class: 'graph-handle', cx: position.x, cy: position.y, r: 9, tabindex: 0,
+          role: 'slider', 'aria-label': 'Best-fit line handle ' + (index + 1),
+          'aria-valuetext': Number(state.line[index].x.toPrecision(4)) + ', ' + Number(state.line[index].y.toPrecision(4)),
+          'data-graph-handle': String(index) });
+      });
+      if (state.triangle) {
+        element('path', { class: 'gradient-triangle', d: 'M ' + a.x + ' ' + a.y + ' L ' + b.x + ' ' + a.y + ' L ' + b.x + ' ' + b.y + ' Z' });
+        var dxLabel = element('text', { class: 'graph-triangle-label', x: (a.x + b.x) / 2, y: a.y + 18, 'text-anchor': 'middle' });
+        dxLabel.textContent = 'Δx';
+        var dyLabel = element('text', { class: 'graph-triangle-label', x: b.x - 8, y: (a.y + b.y) / 2, 'text-anchor': 'end' });
+        dyLabel.textContent = 'Δy';
+      }
+    }
+    var count = svg.closest('.graph-widget').querySelector('.graph-plotted');
+    if (count) count.textContent = (state.points || []).length + ' / ' + config.points.length;
+    var status = svg.closest('.graph-widget').querySelector('.graph-status');
+    if (status) status.textContent = state.lineMode ? 'Tap two points on the grid to set the line.' : state.line ? 'Drag the line handles to adjust the best-fit line.' : 'Plot the points, then set a best-fit line.';
+    var gradient = svg.closest('.graph-widget').querySelector('.graph-gradient');
+    if (gradient && state.line) {
+      var deltaX = state.line[1].x - state.line[0].x, deltaY = state.line[1].y - state.line[0].y;
+      gradient.textContent = deltaX
+        ? 'Gradient = Δy / Δx = ' + Number(deltaY.toPrecision(4)) + ' / ' + Number(deltaX.toPrecision(4)) +
+          ' = ' + Number(state.gradient.toPrecision(4))
+        : 'Gradient undefined: Δx is zero.';
+    } else if (gradient) gradient.textContent = '';
+  }
+
   function questionHTML(item, label, showHint, lessonId) {
     var controlId = 'answer-' + item.id;
     var lesson = lessonState(lessonId), saved = lesson && lesson.i ? lesson.i[item.id] || {} : {};
@@ -370,12 +601,78 @@
       '<div class="question-head"><span class="q-number">' + esc(label) + '</span><span class="q-marks">' + marks + ' mark' +
       (marks === 1 ? '' : 's') + '</span><span class="level" role="img" aria-label="Level ' + dots + ' of 3">' +
       '<span aria-hidden="true">' + '●'.repeat(dots) + '<span class="level-off">' + '●'.repeat(3 - dots) + '</span></span></span></div>' +
-      '<div class="question-prompt">' + md(item.q) + '</div>' + blocksHTML(item.blocks, lessonId) + imageHTML(item.img, '') +
+      '<div class="question-prompt">' + md(item.q) + '</div>' + blocksHTML(item.blocks, lessonId) + (item.grid ? '' : imageHTML(item.img, '')) +
       input + actions + '<div class="feedback-slot" role="status" aria-live="polite">' + feedback + '</div>' + solution + hint + '</article>';
   }
 
   function questionList(items, prefix, showHint, lessonId) {
     return (items || []).map(function (item, i) { return questionHTML(item, prefix + (i + 1), showHint, lessonId); }).join('');
+  }
+
+  function multiHTML(question, lessonId) {
+    var lesson = lessonState(lessonId) || {}, itemState = lesson.i || {};
+    var earned = question.parts.reduce(function (sum, part) {
+      var saved = itemState[part.id];
+      return sum + (saved && saved.selfSubmitted ? Number(saved.score || 0) : 0);
+    }, 0);
+    var parts = question.parts.map(function (part) {
+      var saved = itemState[part.id] || {};
+      var graph = part.grid ? graphHTML(question, part, saved) : '';
+      return '<section class="multi-part" data-multi-part="' + esc(part.id) + '">' + graph +
+        questionHTML(part, part.label, false, lessonId) + '</section>';
+    }).join('');
+    return '<article class="structured-question" data-structured="' + esc(question.id) + '">' +
+      (question.title ? '<h3>' + md(question.title) + '</h3>' : '') +
+      '<div class="structured-stem">' + (question.stem || []).map(function (line) { return '<p>' + md(line) + '</p>'; }).join('') +
+      blocksHTML(question.stemBlocks, lessonId) + '</div>' +
+      '<p class="multi-total">Self-mark total: <b data-multi-score>' + earned + ' / ' + Number(question.total || 0) + '</b> marks</p>' +
+      parts + '</article>';
+  }
+
+  function finishHTML(lessonId, st) {
+    return '<section class="finish-card"><div><span class="block-label">Show your teacher</span>' +
+      '<h2>' + (st.finished ? 'Lesson complete' : 'Finish & show your teacher') + '</h2>' +
+      '<p>' + (st.finished ? 'Your progress is saved on this device. You can revisit any part of this lesson.' : 'Take a moment to say how today went. Your progress saves on this device.') + '</p></div>' +
+      '<form id="finish-form"><fieldset class="feelings"><legend>How do you feel about today?</legend>' +
+      [['can', 'I can do this'], ['nearly', 'Nearly there'], ['help', 'I need help']].map(function (x) {
+        return '<label><input type="radio" name="feel" value="' + x[0] + '"' + (st.feel === x[0] ? ' checked' : '') + '><span>' + x[1] + '</span></label>';
+      }).join('') + '</fieldset><label class="answer-label" for="teacher-question">My question for my teacher</label>' +
+      '<textarea id="teacher-question" rows="3" maxlength="1000">' + esc(st.question || '') + '</textarea>' +
+      '<button class="btn" type="submit">' + (st.finished ? 'Update lesson reflection' : 'Finish this day') + '</button>' +
+      '<p class="finish-status" role="status" aria-live="polite"></p></form></section>';
+  }
+
+  function logHTML(lessonId) {
+    var meta = LESSON[lessonId], rows = S.log && S.log[meta.book] || [];
+    var body = rows.map(function (entry, i) {
+      return '<tr><td><label class="sr" for="log-year-' + i + '">Year</label><input id="log-year-' + i + '" data-log-index="' + i + '" data-log-field="year" value="' + esc(entry.year || '') + '" inputmode="numeric"></td>' +
+        '<td><label class="sr" for="log-question-' + i + '">Question</label><input id="log-question-' + i + '" data-log-index="' + i + '" data-log-field="question" value="' + esc(entry.question || '') + '"></td>' +
+        '<td><label class="sr" for="log-topic-' + i + '">Topic</label><input id="log-topic-' + i + '" data-log-index="' + i + '" data-log-field="topic" value="' + esc(entry.topic || '') + '"></td>' +
+        '<td><label class="sr" for="log-score-' + i + '">Score</label><input id="log-score-' + i + '" data-log-index="' + i + '" data-log-field="score" value="' + esc(entry.score || '') + '" inputmode="decimal"></td>' +
+        '<td><label class="sr" for="log-total-' + i + '">Marks available</label><input id="log-total-' + i + '" data-log-index="' + i + '" data-log-field="outOf" value="' + esc(entry.outOf || '') + '" inputmode="decimal"></td>' +
+        '<td><button class="btn ghost log-remove" type="button" data-remove-log="' + i + '" aria-label="Remove log row ' + (i + 1) + '">Remove</button></td></tr>';
+    }).join('');
+    return '<section class="past-log"><h2>Past Paper Log</h2><p>Record a real past-paper question you practise from your booklet.</p>' +
+      '<div class="table-wrap" role="region" aria-label="Past Paper Log" tabindex="0"><table class="lesson-table"><thead><tr><th scope="col">Year</th><th scope="col">Question</th><th scope="col">Topic</th><th scope="col">Score</th><th scope="col">Out of</th><th scope="col">Action</th></tr></thead>' +
+      '<tbody>' + body + '</tbody></table></div><button class="btn ghost" type="button" data-add-log="' + esc(meta.book) + '">Add log entry</button></section>';
+  }
+
+  function checkLessonHTML(lesson, lessonId) {
+    var mcq = (lesson.mcq || []).map(function (item, i) { return questionHTML(item, 'MCQ ' + (i + 1), false, lessonId); }).join('');
+    var structured = (lesson.structured || []).map(function (question) { return multiHTML(question, lessonId); }).join('');
+    var watchOut = (lesson.watchOut || []).length
+      ? '<aside class="block-warn"><strong>Watch out</strong><ul>' + lesson.watchOut.map(function (text) { return '<li>' + md(text) + '</li>'; }).join('') + '</ul></aside>' : '';
+    return '<div id="lessonbody" data-loaded="true"><section class="exam-intro"><p>Work through the Paper 01 multiple-choice and Paper 02 structured questions. Check answers after you have tried them.</p>' +
+      watchOut + '</section>' +
+      (mcq ? '<section class="lesson-section"><header class="lesson-section-head"><div><span class="block-label">Paper 01</span><h2>Multiple choice</h2></div><p>Choose one answer, then check it.</p></header><div class="lesson-section-body">' + mcq + '</div></section>' : '') +
+      (structured ? '<section class="lesson-section"><header class="lesson-section-head"><div><span class="block-label">Paper 02</span><h2>Structured questions</h2></div><p>Write your response, then compare it with the mark scheme and self-mark.</p></header><div class="lesson-section-body">' + structured + '</div></section>' : '') +
+      finishHTML(lessonId, lessonState(lessonId) || {}) + '</div>';
+  }
+
+  function pastLessonHTML(lesson, lessonId) {
+    var questions = (lesson.questions || []).map(function (question) { return multiHTML(question, lessonId); }).join('');
+    return '<div id="lessonbody" data-loaded="true"><section class="exam-intro"><p>Practise the original CSEC-style questions. Show each mark scheme after attempting the part, then tick the marks you earned.</p></section>' +
+      questions + logHTML(lessonId) + finishHTML(lessonId, lessonState(lessonId) || {}) + '</div>';
   }
 
   function fullLessonData(id) {
@@ -389,6 +686,15 @@
     for (var i = 0; i < groups.length; i++) {
       var found = (groups[i] || []).find(function (item) { return item.id === id; });
       if (found) return found;
+    }
+    var collections = [lesson.mcq, lesson.structured, lesson.questions];
+    for (var j = 0; j < collections.length; j++) {
+      for (var k = 0; k < (collections[j] || []).length; k++) {
+        var parent = collections[j][k];
+        if (parent.id === id) return parent;
+        var part = (parent.parts || []).find(function (item) { return item.id === id; });
+        if (part) return part;
+      }
     }
     return null;
   }
@@ -474,17 +780,7 @@
       return '<li><code>' + esc(goal.code) + '</code><span>' + md(goal.text) + '</span></li>';
     }).join('');
     return '<div class="lesson-goal"><span class="block-label">Today’s goal · I can…</span><ul>' + goals + '</ul></div>' +
-      vocab + content +
-      '<section class="finish-card"><div><span class="block-label">Show your teacher</span>' +
-      '<h2>' + (st.finished ? 'Lesson complete' : 'Finish & show your teacher') + '</h2>' +
-      '<p>' + (st.finished ? 'Your progress is saved on this device. You can revisit any part of this lesson.' : 'Take a moment to say how today went. Your progress saves on this device.') + '</p></div>' +
-      '<form id="finish-form"><fieldset class="feelings"><legend>How do you feel about today?</legend>' +
-      [['can', 'I can do this'], ['nearly', 'Nearly there'], ['help', 'I need help']].map(function (x) {
-        return '<label><input type="radio" name="feel" value="' + x[0] + '"' + (st.feel === x[0] ? ' checked' : '') + '><span>' + x[1] + '</span></label>';
-      }).join('') + '</fieldset><label class="answer-label" for="teacher-question">My question for my teacher</label>' +
-      '<textarea id="teacher-question" rows="3" maxlength="1000">' + esc(st.question || '') + '</textarea>' +
-      '<button class="btn" type="submit">' + (st.finished ? 'Update lesson reflection' : 'Finish this day') + '</button>' +
-      '<p class="finish-status" role="status" aria-live="polite"></p></form></section>';
+      vocab + content + finishHTML(l.id, st);
   }
 
   function lessonPage(id) {
@@ -504,16 +800,20 @@
         '<input id="gate-name" type="text" autocomplete="name" required aria-required="true" placeholder="Type your name">' +
         '<button class="btn" type="submit">Start lesson</button></form></section>';
     } else {
-      if (l.kind === 'unit' && bookErrors[b.id]) {
+      if (bookErrors[b.id]) {
         body = '<section class="card" id="lessonbody" role="alert"><h2>Lesson content could not be loaded</h2><p>' + esc(bookErrors[b.id].message) + '</p><button class="btn" type="button" data-retry-book="' + esc(b.id) + '">Try again</button></section>';
-      } else if (l.kind === 'unit' && !bookData) {
+      } else if (!bookData) {
         body = '<section class="card" id="lessonbody" aria-live="polite"><p class="tiny">Loading lesson content…</p></section>';
-      } else if (l.kind === 'unit' && !lessonData) {
+      } else if (!lessonData) {
         body = '<section class="card" id="lessonbody" role="alert"><p>Lesson data is missing for ' + esc(id) + '.</p></section>';
       } else if (l.kind === 'unit') {
         body = '<div id="lessonbody" data-loaded="true">' + unitLessonHTML(lessonData) + '</div>';
+      } else if (l.kind === 'check') {
+        body = checkLessonHTML(lessonData, id);
+      } else if (l.kind === 'past') {
+        body = pastLessonHTML(lessonData, id);
       } else {
-        body = '<section class="card" id="lessonbody"><p class="tiny">This lesson type will be available in a later build phase. The questions and answers remain unchanged in the workbook data.</p></section>';
+        body = '<section class="card" id="lessonbody"><p class="tiny">This lesson type will be available in a later build phase.</p></section>';
       }
     }
     var pager = '<nav class="pager" aria-label="Lessons">' +
@@ -534,6 +834,53 @@
     var lessonBody = document.getElementById('lessonbody');
     if (lessonBody) {
       var lessonId = route().id;
+      if (!lessonState(lessonId).i) lessonState(lessonId).i = {};
+      var graphDrag = null;
+      function storedItemState(itemId) {
+        var st = lessonState(lessonId);
+        if (!st.i) st.i = {};
+        if (!st.i[itemId]) st.i[itemId] = { tries: 0, right: false, xp: 0 };
+        return st.i[itemId];
+      }
+      function graphPoint(svg, event) {
+        var bounds = svg.getBoundingClientRect(), config = JSON.parse(svg.getAttribute('data-config'));
+        var px = Math.max(62, Math.min(608, (event.clientX - bounds.left) / bounds.width * 640));
+        var py = Math.max(18, Math.min(340, (event.clientY - bounds.top) / bounds.height * 420));
+        return {
+          x: config.x.min + (px - 62) / 546 * (config.x.max - config.x.min),
+          y: config.y.min + (340 - py) / 322 * (config.y.max - config.y.min),
+        };
+      }
+      function setGraphPoint(svg, point, index) {
+        var item = storedItemState(svg.getAttribute('data-graph-svg'));
+        if (!item.graph) item.graph = { points: [] };
+        if (index == null) item.graph.points.push(point);
+        else item.graph.line[index] = point;
+        if (item.graph.line && item.graph.line.length === 2) {
+          var run = item.graph.line[1].x - item.graph.line[0].x;
+          item.graph.gradient = run ? (item.graph.line[1].y - item.graph.line[0].y) / run : null;
+        }
+        save();
+        drawGraph(svg, JSON.parse(svg.getAttribute('data-config')), item.graph);
+      }
+      function refreshMultiTotals() {
+        var lesson = fullLessonData(lessonId), state = lessonState(lessonId);
+        if (!lesson || !state) return;
+        lessonBody.querySelectorAll('[data-structured]').forEach(function (element) {
+          var question = findQuestion(lesson, element.getAttribute('data-structured'));
+          if (!question) return;
+          var score = question.parts.reduce(function (sum, part) {
+            var saved = state.i && state.i[part.id];
+            return sum + (saved && saved.selfSubmitted ? Number(saved.score || 0) : 0);
+          }, 0);
+          var node = element.querySelector('[data-multi-score]');
+          if (node) node.textContent = score + ' / ' + Number(question.total || 0);
+        });
+      }
+      lessonBody.querySelectorAll('[data-graph-svg]').forEach(function (svg) {
+        var item = lessonState(lessonId).i[svg.getAttribute('data-graph-svg')];
+        if (item && item.graph) drawGraph(svg, JSON.parse(svg.getAttribute('data-config')), item.graph);
+      });
       function showQuestionMessage(card, className, text) {
         var slot = card.querySelector('.feedback-slot');
         if (!slot) return;
@@ -567,6 +914,7 @@
         if (Number(st.i[itemId].tries) < 2) {
           card.querySelectorAll('.solution').forEach(function (solution) { solution.remove(); });
         }
+        refreshMultiTotals();
       }
       lessonBody.addEventListener('input', saveAnswer);
       lessonBody.addEventListener('change', saveAnswer);
@@ -579,21 +927,103 @@
         var ticks = Array.prototype.map.call(card.querySelectorAll('[data-mark-index]:checked'), function (input) {
           return Number(input.getAttribute('data-mark-index'));
         });
-        if (!st.i) st.i = {};
-        if (!st.i[item.id]) st.i[item.id] = { tries: 0, right: false, xp: 0 };
-        st.i[item.id].ticks = ticks;
-        st.i[item.id].selfSubmitted = false;
+        var saved = storedItemState(item.id);
+        saved.ticks = ticks;
+        saved.selfSubmitted = false;
         var score = card.querySelector('.self-score');
         if (score) score.textContent = selfMarks(item, ticks) + ' / ' + Number(item.marks || 1) + ' marks selected';
         showQuestionMessage(card, '', '');
         save();
+        refreshMultiTotals();
       });
       lessonBody.addEventListener('click', function (e) {
         var target = e.target.closest('button');
+        var addLog = e.target.closest('[data-add-log]');
+        if (addLog) {
+          if (!S.log) S.log = {};
+          var bookId = addLog.getAttribute('data-add-log');
+          if (!S.log[bookId]) S.log[bookId] = [];
+          S.log[bookId].push({ year: '', question: '', topic: '', score: '', outOf: '' });
+          save(); render(); return;
+        }
+        var removeLog = e.target.closest('[data-remove-log]');
+        if (removeLog) {
+          var book = BOOK[LESSON[lessonId].book];
+          if (S.log && S.log[book.id]) S.log[book.id].splice(Number(removeLog.getAttribute('data-remove-log')), 1);
+          save(); render(); return;
+        }
+        var addGraphPoint = target && target.getAttribute('data-graph-add-point');
+        if (addGraphPoint) {
+          var pointSvg = lessonBody.querySelector('[data-graph-svg="' + addGraphPoint + '"]');
+          var widget = target.closest('.graph-widget'), graphConfigData = JSON.parse(pointSvg.getAttribute('data-config'));
+          var xInput = widget.querySelector('[data-graph-coordinate="x"]'), yInput = widget.querySelector('[data-graph-coordinate="y"]');
+          var xValue = Number(xInput.value), yValue = Number(yInput.value);
+          var status = widget.querySelector('.graph-status');
+          if (!xInput.value || !yInput.value || !Number.isFinite(xValue) || !Number.isFinite(yValue) ||
+            xValue < graphConfigData.x.min || xValue > graphConfigData.x.max || yValue < graphConfigData.y.min || yValue > graphConfigData.y.max) {
+            status.textContent = 'Enter finite coordinates within the displayed axis ranges.';
+            (!xInput.value ? xInput : !yInput.value ? yInput : xInput).focus();
+            return;
+          }
+          var pointState = storedItemState(addGraphPoint);
+          if (!pointState.graph) pointState.graph = { points: [] };
+          if (pointState.graph.points.length >= graphConfigData.points.length) {
+            status.textContent = 'All table points have been plotted. Clear the graph to start again.';
+            return;
+          }
+          pointState.graph.points.push({ x: xValue, y: yValue });
+          save(); drawGraph(pointSvg, graphConfigData, pointState.graph);
+          return;
+        }
+        var graphButton = target && (target.getAttribute('data-graph-line') || target.getAttribute('data-graph-triangle') || target.getAttribute('data-graph-clear'));
+        var graphPaperButton = target && target.getAttribute('data-graph-paper');
+        if (graphPaperButton) {
+          var paperState = storedItemState(graphPaperButton);
+          if (!paperState.graph) paperState.graph = { points: [] };
+          paperState.graph.paperMode = !paperState.graph.paperMode;
+          save(); render(); return;
+        }
+        if (graphButton) {
+          var graphId = graphButton, graphSvg = lessonBody.querySelector('[data-graph-svg="' + graphId + '"]');
+          if (!graphSvg) return;
+          var graphState = storedItemState(graphId).graph || { points: [] };
+          if (target.hasAttribute('data-graph-line')) {
+            graphState.lineMode = true; graphState.pendingLine = null;
+          } else if (target.hasAttribute('data-graph-triangle')) {
+            graphState.triangle = !graphState.triangle;
+          } else {
+            graphState = { points: [] };
+          }
+          storedItemState(graphId).graph = graphState;
+          save(); drawGraph(graphSvg, JSON.parse(graphSvg.getAttribute('data-config')), graphState);
+          var triangleButton = lessonBody.querySelector('[data-graph-triangle="' + graphId + '"]');
+          if (triangleButton) triangleButton.disabled = !graphState.line;
+          return;
+        }
+        var graphHit = e.target.closest('[data-graph-hit]');
+        if (graphHit) {
+          var svg = graphHit.closest('svg'), partId = graphHit.getAttribute('data-graph-hit');
+          var config = JSON.parse(svg.getAttribute('data-config')), savedGraph = storedItemState(partId);
+          if (!savedGraph.graph) savedGraph.graph = { points: [] };
+          var graph = savedGraph.graph, point = graphPoint(svg, e);
+          if (graph.lineMode) {
+            if (!graph.pendingLine) graph.pendingLine = point;
+            else {
+              graph.line = [graph.pendingLine, point]; graph.pendingLine = null; graph.lineMode = false;
+              var run = point.x - graph.line[0].x;
+              graph.gradient = run ? (point.y - graph.line[0].y) / run : null;
+            }
+          } else if (graph.points.length < config.points.length) graph.points.push(point);
+          save(); drawGraph(svg, config, graph);
+          var triangle = lessonBody.querySelector('[data-graph-triangle="' + partId + '"]');
+          if (triangle) triangle.disabled = !graph.line;
+          return;
+        }
         if (!target) return;
         var card = target.closest('.question-card');
+        if (!card) return;
         var st = lessonState(lessonId);
-        if (!card || !st) return;
+        if (!st) return;
         var item = findQuestion(fullLessonData(lessonId), card.getAttribute('data-item'));
         if (!item) return;
         if (target.hasAttribute('data-keypad-for')) {
@@ -670,6 +1100,43 @@
           if (!current.right) recordMistake(lessonId, item);
           save(); render();
         }
+      });
+      lessonBody.addEventListener('input', function (e) {
+        if (!e.target.hasAttribute('data-log-index')) return;
+        var meta = LESSON[lessonId], log = S.log && S.log[meta.book], entry = log && log[Number(e.target.getAttribute('data-log-index'))];
+        if (!entry) return;
+        entry[e.target.getAttribute('data-log-field')] = e.target.value;
+        save();
+      });
+      lessonBody.addEventListener('pointerdown', function (e) {
+        var handle = e.target.closest('[data-graph-handle]');
+        if (!handle) return;
+        var svg = handle.closest('svg'), index = Number(handle.getAttribute('data-graph-handle'));
+        graphDrag = { svg: svg, index: index };
+        if (svg.setPointerCapture) svg.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+      lessonBody.addEventListener('pointermove', function (e) {
+        if (!graphDrag) return;
+        setGraphPoint(graphDrag.svg, graphPoint(graphDrag.svg, e), graphDrag.index);
+      });
+      lessonBody.addEventListener('pointerup', function () { graphDrag = null; });
+      lessonBody.addEventListener('keydown', function (e) {
+        var handle = e.target.closest('[data-graph-handle]');
+        if (!handle || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+        var svg = handle.closest('svg'), config = JSON.parse(svg.getAttribute('data-config'));
+        var partId = svg.getAttribute('data-graph-svg'), index = Number(handle.getAttribute('data-graph-handle'));
+        var graph = storedItemState(partId).graph;
+        var point = graph.line[index], dx = (config.x.max - config.x.min) / 50, dy = (config.y.max - config.y.min) / 50;
+        if (e.key === 'ArrowLeft') point.x -= dx;
+        if (e.key === 'ArrowRight') point.x += dx;
+        if (e.key === 'ArrowUp') point.y += dy;
+        if (e.key === 'ArrowDown') point.y -= dy;
+        point.x = Math.max(config.x.min, Math.min(config.x.max, point.x));
+        point.y = Math.max(config.y.min, Math.min(config.y.max, point.y));
+        graph.triangle = false;
+        setGraphPoint(svg, point, index);
+        e.preventDefault();
       });
       lessonBody.querySelectorAll('details.hint').forEach(function (hint) {
         hint.addEventListener('toggle', function () {
@@ -788,7 +1255,7 @@
   var lastView = '';
   function render() {
     var r = route();
-    var currentLesson = r.view === 'lesson' && S.name && LESSON[r.id] && LESSON[r.id].kind === 'unit' && !isDone(r.id) ? r.id : null;
+    var currentLesson = r.view === 'lesson' && S.name && LESSON[r.id] && LESSON[r.id].kind !== 'mock' && !isDone(r.id) ? r.id : null;
     if (currentLesson !== activeLessonId) {
       stopActiveLesson();
       if (currentLesson) {

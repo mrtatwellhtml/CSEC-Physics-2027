@@ -251,9 +251,11 @@ A card with the question first and a **"Show step"** button that reveals one ste
 - The stem (and any table or image) appears once, then parts (a), (b)… each with its marks badge, an answer textarea and "Show mark scheme" (self-mark ticks).
 - A running total shows "x / total".
 - For **data-analysis** questions (graph grids):
-  - Render an **interactive SVG graph grid**: he taps to plot points, drags a ruler for the best-fit line, and draws a gradient triangle with a readout of Δy/Δx.
-  - The axes are set by the converter from the data table (choose a "nice" scale using more than half the grid).
+  - Render an **interactive SVG graph grid**: he taps to plot points (or enters coordinates), adjusts the best-fit line by dragging or keyboard, and draws a gradient triangle with a readout of Δy/Δx.
+  - Infer axes from the converted data table and choose a "nice" scale. Apply only unambiguous table-derived transformations (e.g. extension from length, reciprocal/sine axes, resistance from V/I); use the provided background-rate correction for corrected count-rate values.
   - Also offer **"I'll do this on paper"**, which shows the printable grid image and goes straight to self-mark.
+
+**As built (Phase 5):** Book Check and Past-paper lessons render their converted MCQs and multi-part questions. Each structured part saves its answer, mark-scheme ticks and score; questions show a running self-mark total. The Past Paper Log is editable and saved locally by book. Data-analysis lessons use responsive SVG grids with tap-to-plot, coordinate-entry, adjustable best-fit lines, gradient triangles, persistence and print-grid fallback.
 
 ### 6.4 Exam mode (Mock Paper 02 and Mock Paper 01)
 - A start screen gives the rules (from `prior_knowledge`), the time allowed and a **Start timer** button. The countdown is sticky; there is a 15-minute warning, and time-up offers "submit / keep going but mark as over time".
@@ -346,6 +348,8 @@ Keep a `#printarea` like the reference site. "Print this lesson" renders a clean
 - Every `<img>` loads (naturalWidth > 0).
 - The name gate blocks lesson start until a name is entered.
 - XP is +10 on a right first try and +5 after a retry. State survives a reload.
+- Every Book Check and Past-paper lesson opens with its converted questions; every data-analysis question with a graph grid has an interactive graph.
+- Structured-question mark ticks update the running score; graph points/line and Past Paper Log entries survive a reload.
 - A mock locks its answers until submit, and the timer counts down.
 - Mobile viewport 375×812 has no horizontal overflow on Home, a lesson or a mock.
 
