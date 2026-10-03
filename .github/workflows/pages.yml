@@ -44,6 +44,8 @@ jobs:
           node --check < apps-script/Physics_Responses.gs
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - name: Assemble public static site
         run: |
           mkdir _site

@@ -4,11 +4,9 @@ The student workbook is a static site. Its GitHub Pages artifact contains only `
 
 ## First-time GitHub Pages setup
 
-1. In the repository, open **Settings → Pages**.
-2. Under **Build and deployment**, set **Source** to **GitHub Actions**.
-3. Push to `main`, or run **Actions → Build and deploy workbook → Run workflow** on `main`.
-4. Wait for the `quality` job to finish. It installs Chromium, runs the unit and desktop/mobile browser tests, checks JavaScript syntax and uploads the static site.
-5. The Pages URL appears in the completed workflow and under **Settings → Pages**.
+The workflow attempts to initialize GitHub Pages with **GitHub Actions** as its source. Push to `main`, or run **Actions → Build and deploy workbook → Run workflow** on `main`. The `quality` job installs Chromium, runs the unit and desktop/mobile browser tests, checks JavaScript syntax and deploys the static site. The Pages URL appears in the completed workflow and under **Settings → Pages**.
+
+If repository or organization permissions prevent automatic initialization, open **Settings → Pages** and set **Build and deployment → Source** to **GitHub Actions**, then rerun the workflow.
 
 Later pushes to `main` automatically test and deploy the site. Pull requests do not deploy. The workflow checks out only committed files; the tutor-only `source/` directory is ignored and is not required to serve the generated student data.
 
