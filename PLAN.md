@@ -264,6 +264,8 @@ A card with the question first and a **"Show step"** button that reveals one ste
   - Mock Paper 02: opens self-mark mode for all 38 parts, then shows the total /100 and the grade-guide band.
 - The answer grid from week16 becomes clickable A/B/C/D bubbles.
 
+**As built (Phase 6):** Both mocks have a rules screen and a persisted start timestamp/deadline. The sticky timer survives reloads, warns at 15 minutes, and offers submit or explicitly marked overtime after time-up. Paper 01 saves selections from both question cards and its A/B/C/D answer grid; submission reveals automatic scoring, A–E breakdowns, explanations and revision links. Paper 02 saves written responses while locked, then opens its mark schemes and self-mark controls on submission; it saves a capped /100 total and displays the matching grade-guide band after all parts are marked. Mock attempts do not grant practice XP or create Mistake Log entries.
+
 ---
 
 ## 7. Gamification and motivation (keep it light)
@@ -333,7 +335,7 @@ Keep a `#printarea` like the reference site. "Print this lesson" renders a clean
 | **3 Lesson renderer** | All block types, worked-example stepper, vocab chips, Warm-up/Learn/Try/Practice/Exit sections, Finish card, KaTeX rendering of `⟪tex⟫` | Lessons from Book 1 and Book 9 render with every image, every equation typeset by KaTeX (no `⟪`, no `.katex-error`), and no raw `**`, `^` or `~` |
 | **4 Questions** | MCQ, numeric, short-text, self-mark ticks, hints, keypad, XP and stars, Mistake Log | Unit tests for `WBC` pass (numbers, standard form, units, minus signs, fractions) |
 | **5 Exam content** | Book check and Past-paper lessons, multi-part questions, interactive graph grid, Past Paper Log table | A data-analysis question can be plotted, fitted and self-marked |
-| **6 Exam mode** | Timed mocks, locked answers, submit, section breakdown, revise links | A full Mock Paper 01 can be completed and scored |
+| **6 Exam mode** | Timed mocks, locked answers, submit, section breakdown, revise links, Paper 02 self-mark and grade band | Paper 01 and Paper 02 flows persist, time out correctly, and score on desktop/mobile |
 | **7 Extras** | Formula cards, Key words, Teacher summary, export/import, print view, `teacher.html` | All pages reachable from the menu |
 | **8 Submissions** | `config.js`, POST + retry queue, `Physics_Responses.gs` + README | A test POST lands in a test Sheet (I'll deploy the script) |
 | **9 QA + deploy** | Playwright tests, Lighthouse pass, GitHub Pages enabled | All tests green. Live URL works on my phone. |
@@ -350,7 +352,7 @@ Keep a `#printarea` like the reference site. "Print this lesson" renders a clean
 - XP is +10 on a right first try and +5 after a retry. State survives a reload.
 - Every Book Check and Past-paper lesson opens with its converted questions; every data-analysis question with a graph grid has an interactive graph.
 - Structured-question mark ticks update the running score; graph points/line and Past Paper Log entries survive a reload.
-- A mock locks its answers until submit, and the timer counts down.
+- Paper 01 and Paper 02 mocks keep answer keys and mark schemes hidden until submit; answers and timer persist, timeout/overtime works, and results show score breakdowns, revision links or the Paper 02 grade band.
 - Mobile viewport 375×812 has no horizontal overflow on Home, a lesson or a mock.
 
 ## 15. Rules for Claude Code

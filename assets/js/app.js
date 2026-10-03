@@ -294,9 +294,10 @@
   }
 
   function selfMarks(item, ticks) {
-    return selfMarkPoints(item).reduce(function (sum, point, i) {
+    var earned = selfMarkPoints(item).reduce(function (sum, point, i) {
       return ticks && ticks.indexOf(i) >= 0 ? sum + Number(point.marks || 1) : sum;
     }, 0);
+    return Math.min(Number(item.marks || 1), earned);
   }
 
   function keypadHTML(controlId, disabled) {
@@ -540,10 +541,12 @@
     } else if (gradient) gradient.textContent = '';
   }
 
-  function questionHTML(item, label, showHint, lessonId) {
+  function questionHTML(item, label, showHint, lessonId, behavior) {
+    behavior = behavior || {};
     var controlId = 'answer-' + item.id;
     var lesson = lessonState(lessonId), saved = lesson && lesson.i ? lesson.i[item.id] || {} : {};
-    var answer = saved.ans || '', disabled = !!saved.right;
+    var answer = saved.ans || '', disabled = !!saved.right ||
+      ((behavior.mockPaper === 'P02' || behavior.mockPaper === 'P01') && behavior.mockSubmitted);
     var marks = Number(item.marks || 1), dots = Math.max(1, Math.min(3, Number(item.level) || 1));
     var input = item.options && item.options.length
       ? '<fieldset class="answer-options"><legend class="sr">Choose an answer</legend>' + item.options.map(function (option, i) {
@@ -555,32 +558,37 @@
         Math.max(2, Math.min(6, Number(item.lines) || 3)) + '"' + (disabled ? ' disabled' : '') + '>' + esc(answer) + '</textarea>' +
         keypadHTML(controlId, disabled);
     var feedback = '';
-    if (saved.selfSubmitted) {
+    if (saved.selfSubmitted && !behavior.mockPaper) {
       var score = Number(saved.score || 0), earned = Number(saved.xpEarned || 0);
       feedback = '<div class="feedback ' + (saved.right ? 'correct' : 'self-result') + '">' +
         (saved.right ? '✓ Full marks — ' : 'Self-mark recorded — ') + score + ' / ' + marks + ' marks. +' + earned + ' XP.</div>';
-    } else if (saved.checked) {
+    } else if (saved.checked && !behavior.mockPaper) {
       feedback = saved.right
         ? '<div class="feedback correct">✓ Correct — +' + Number(saved.xpEarned || 0) + ' XP.</div>'
         : '<div class="feedback incorrect">Not quite — try again.' + (Number(saved.tries) >= 2 ? ' The model solution is shown below.' : '') + '</div>';
     }
     var actions = '';
     if (item.kind === 'self') {
-      var shown = !!saved.schemeShown, points = selfMarkPoints(item);
+      var shown = !!saved.schemeShown || (behavior.mockPaper === 'P02' && behavior.mockSubmitted);
+      var points = selfMarkPoints(item);
       var ticks = saved.ticks || [];
       var pointsHTML = points.map(function (point, i) {
         var pointMarks = Number(point.marks || 1);
         return '<label class="mark-point"><input type="checkbox" data-mark-index="' + i + '"' +
-          (ticks.indexOf(i) >= 0 ? ' checked' : '') + (disabled ? ' disabled' : '') + '><span><b>' + pointMarks +
+          (ticks.indexOf(i) >= 0 ? ' checked' : '') + (saved.right ? ' disabled' : '') + '><span><b>' + pointMarks +
           ' mark' + (pointMarks === 1 ? '' : 's') + ':</b> ' + md(point.text) + '</span></label>';
       }).join('');
       actions = (shown
         ? '<div class="mark-scheme"><p>Tick the mark points you earned; each point’s mark value is shown.</p>' + pointsHTML +
           '<p class="self-score" aria-live="polite">' + selfMarks(item, ticks) + ' / ' + marks + ' marks selected</p>' +
-          '<button class="btn" type="button" data-self-mark="' + esc(item.id) + '"' + (disabled ? ' disabled' : '') + '>Save self-mark</button></div>'
-        : '<button class="btn ghost" type="button" data-show-scheme="' + esc(item.id) + '">Show mark scheme</button>');
+          '<button class="btn" type="button" data-self-mark="' + esc(item.id) + '"' + (behavior.mockPaper === 'P02' && !behavior.mockSubmitted ? ' disabled' : '') + '>Save self-mark</button></div>'
+        : behavior.mockPaper === 'P02' && !behavior.mockSubmitted
+          ? '<p class="mock-locked-note">The mark scheme opens after you submit the paper.</p>'
+          : '<button class="btn ghost" type="button" data-show-scheme="' + esc(item.id) + '">Show mark scheme</button>');
     } else {
-      actions = '<button class="btn" type="button" data-check-item="' + esc(item.id) + '"' + (disabled ? ' disabled' : '') + '>Check answer</button>';
+      actions = behavior.mockPaper === 'P01'
+        ? ''
+        : '<button class="btn" type="button" data-check-item="' + esc(item.id) + '"' + (disabled ? ' disabled' : '') + '>Check answer</button>';
     }
     var hint = showHint && item.hint
       ? '<details class="hint"' + (saved.hint ? ' open' : '') + ' data-hint-cost="' + (item.section === 'practice' ? '2' : '0') + '">' +
@@ -588,8 +596,14 @@
         (saved.hint && item.section === 'practice' ? '<p class="hint-cost">' + (Number(saved.hintCost || 0) ? Number(saved.hintCost) + ' XP spent.' : 'No XP available to deduct; this hint was free.') + '</p>' : '') +
         '<p>' + md(item.hint.text) + '</p></details>' : '';
     var solution = '';
-    if (item.kind === 'mcq' && saved.checked) {
+    if (item.kind === 'mcq' && saved.checked && !behavior.mockPaper) {
       solution += '<div class="solution"><strong>Explanation</strong><p>' + md(item.explanation || '') + '</p></div>';
+    }
+    if (behavior.mockPaper === 'P01' && behavior.mockSubmitted) {
+      var isCorrect = String(saved.ans || '').toUpperCase() === String(item.answer || '').toUpperCase();
+      solution += '<div class="feedback ' + (isCorrect ? 'correct' : 'incorrect') + '">' +
+        (isCorrect ? '✓ Correct.' : 'Incorrect. Correct answer: ' + esc(item.answer) + '.') + '</div>' +
+        '<div class="solution"><strong>Explanation</strong><p>' + md(item.explanation || '') + '</p></div>';
     }
     if (item.kind !== 'self' && item.kind !== 'mcq' && (saved.right || Number(saved.tries) >= 2)) {
       solution += '<details class="solution"' + (saved.right ? '' : ' open') + '><summary>Model solution</summary><p>' + md(item.scheme || '') + '</p></details>';
@@ -602,14 +616,15 @@
       (marks === 1 ? '' : 's') + '</span><span class="level" role="img" aria-label="Level ' + dots + ' of 3">' +
       '<span aria-hidden="true">' + '●'.repeat(dots) + '<span class="level-off">' + '●'.repeat(3 - dots) + '</span></span></span></div>' +
       '<div class="question-prompt">' + md(item.q) + '</div>' + blocksHTML(item.blocks, lessonId) + (item.grid ? '' : imageHTML(item.img, '')) +
-      input + actions + '<div class="feedback-slot" role="status" aria-live="polite">' + feedback + '</div>' + solution + hint + '</article>';
+      input + actions + '<div class="feedback-slot" role="status" aria-live="polite">' + feedback + '</div>' + solution +
+      (behavior.mockPaper ? '' : hint) + '</article>';
   }
 
   function questionList(items, prefix, showHint, lessonId) {
     return (items || []).map(function (item, i) { return questionHTML(item, prefix + (i + 1), showHint, lessonId); }).join('');
   }
 
-  function multiHTML(question, lessonId) {
+  function multiHTML(question, lessonId, behavior) {
     var lesson = lessonState(lessonId) || {}, itemState = lesson.i || {};
     var earned = question.parts.reduce(function (sum, part) {
       var saved = itemState[part.id];
@@ -619,7 +634,7 @@
       var saved = itemState[part.id] || {};
       var graph = part.grid ? graphHTML(question, part, saved) : '';
       return '<section class="multi-part" data-multi-part="' + esc(part.id) + '">' + graph +
-        questionHTML(part, part.label, false, lessonId) + '</section>';
+        questionHTML(part, part.label, false, lessonId, behavior) + '</section>';
     }).join('');
     return '<article class="structured-question" data-structured="' + esc(question.id) + '">' +
       (question.title ? '<h3>' + md(question.title) + '</h3>' : '') +
@@ -673,6 +688,138 @@
     var questions = (lesson.questions || []).map(function (question) { return multiHTML(question, lessonId); }).join('');
     return '<div id="lessonbody" data-loaded="true"><section class="exam-intro"><p>Practise the original CSEC-style questions. Show each mark scheme after attempting the part, then tick the marks you earned.</p></section>' +
       questions + logHTML(lessonId) + finishHTML(lessonId, lessonState(lessonId) || {}) + '</div>';
+  }
+
+  function mockState(lessonId) {
+    var state = lessonState(lessonId);
+    if (!state) {
+      state = { i: {}, started: false, finished: false };
+      S.l[lessonId] = state;
+    }
+    if (!state.mock) state.mock = { answers: {} };
+    if (!state.mock.answers) state.mock.answers = {};
+    if (!state.i) state.i = {};
+    return state.mock;
+  }
+
+  function mockRemaining(mock, lesson) {
+    if (!mock.startedAt) return Number(lesson.minutes || 0) * 60;
+    return Math.ceil((new Date(mock.startedAt).getTime() + Number(lesson.minutes || 0) * 60000 - Date.now()) / 1000);
+  }
+
+  function clockText(seconds) {
+    var n = Math.max(0, Math.abs(seconds)), hours = Math.floor(n / 3600);
+    var minutes = Math.floor((n % 3600) / 60), rest = n % 60;
+    var clock = (hours ? String(hours).padStart(2, '0') + ':' : '') +
+      String(minutes).padStart(2, '0') + ':' + String(rest).padStart(2, '0');
+    return seconds < 0 ? '−' + clock : clock;
+  }
+
+  function mockResults(lesson, state) {
+    if (lesson.paper === 'P01') {
+      var bySection = {}, score = 0, answered = 0;
+      (lesson.mcq || []).forEach(function (item) {
+        var saved = state.i && state.i[item.id], correct = saved && String(saved.ans || '').toUpperCase() === String(item.answer || '').toUpperCase();
+        var section = item.section || '?';
+        if (!bySection[section]) bySection[section] = { score: 0, total: 0, revise: new Set() };
+        bySection[section].total++;
+        if (item.revise) bySection[section].revise.add(item.revise);
+        if (saved && saved.ans) answered++;
+        if (correct) { score++; bySection[section].score++; }
+      });
+      return { score: score, total: Number(lesson.total || lesson.mcq.length), answered: answered, sections: bySection };
+    }
+    var marks = 0, total = 0, marked = 0;
+    (lesson.questions || []).forEach(function (question) {
+      (question.parts || []).forEach(function (part) {
+        total += Number(part.marks || 1);
+        var saved = state.i && state.i[part.id];
+        if (saved && saved.selfSubmitted) { marked++; marks += Number(saved.score || 0); }
+      });
+    });
+    return { score: marks, total: Number(lesson.total || total), answered: marked, parts: marked, partTotal: (lesson.questions || []).reduce(function (n, q) { return n + q.parts.length; }, 0) };
+  }
+
+  function p01AnswerGrid(lesson, state, submitted) {
+    var nav = (lesson.mcq || []).map(function (item, index) {
+      var answer = state.i && state.i[item.id] && state.i[item.id].ans;
+      var letters = ['A', 'B', 'C', 'D'].map(function (letter) {
+        return '<button type="button" class="mock-bubble' + (answer === letter ? ' selected' : '') + '"' +
+          ' data-mock-choice-for="' + esc(item.id) + '" data-mock-choice="' + letter + '"' +
+          ' aria-label="Question ' + (index + 1) + ', choose ' + letter + '" aria-pressed="' + (answer === letter) + '"' +
+          (submitted ? ' disabled' : '') + '>' + letter + '</button>';
+      }).join('');
+      return '<div class="mock-answer-row"><button type="button" class="mock-grid-cell' + (answer ? ' answered' : '') + '"' +
+        ' data-mock-jump="' + esc(item.id) + '" aria-label="Go to question ' + (index + 1) +
+        (answer ? ', answered ' + answer : ', unanswered') + '">' + (index + 1) + '</button>' + letters + '</div>';
+    }).join('');
+    return '<section class="mock-answer-grid" aria-label="Paper 01 answer grid"><h2>Answer grid</h2>' + nav + '</section>';
+  }
+
+  function p01ResultsHTML(lesson, result) {
+    var rows = Object.keys(result.sections).sort().map(function (section) {
+      var data = result.sections[section];
+      var links = Array.from(data.revise).map(function (bookId) {
+        return BOOK[bookId] ? '<a href="#/book/' + esc(bookId) + '">' + esc(BOOK[bookId].title) + '</a>' : '';
+      }).filter(Boolean).join(', ');
+      return '<tr><th scope="row">Section ' + esc(section) + '</th><td>' + data.score + ' / ' + data.total + '</td><td>' + (links || 'Review your notes') + '</td></tr>';
+    }).join('');
+    return '<section class="mock-results" data-mock-results><h2>Paper 01 results</h2>' +
+      '<p class="mock-total">' + result.score + ' / ' + result.total + ' correct · ' + result.answered + ' / ' + result.total + ' answered</p>' +
+      '<div class="table-wrap" role="region" aria-label="Scores and revision links" tabindex="0"><table class="lesson-table">' +
+      '<thead><tr><th scope="col">Section</th><th scope="col">Score</th><th scope="col">What to revise</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<p>Review the explanations below, then use the section links to choose your next revision topic.</p></section>';
+  }
+
+  function p02ResultsHTML(lesson, result) {
+    if (result.parts < result.partTotal) {
+      return '<section class="mock-results mock-results-pending"><h2>Self-mark your paper</h2><p>You have marked ' +
+        result.parts + ' of ' + result.partTotal + ' parts. The total and grade guide appear when every part has been marked.</p>' +
+        '<p class="mock-total">' + result.score + ' / ' + result.total + ' marks recorded so far</p></section>';
+    }
+    var grade = lesson.grades.find(function (band) { return result.score >= band.min && result.score <= band.max; });
+    return '<section class="mock-results" data-mock-results><h2>Paper 02 results</h2>' +
+      '<p class="mock-total">' + result.score + ' / ' + result.total + ' marks</p>' +
+      (grade ? '<p><strong>Grade-guide band ' + esc(grade.grade) + '</strong> · ' + md(grade.todo) + '</p>' : '') +
+      '<p>Use your mark breakdown to pick the next topic to practise with your teacher.</p></section>';
+  }
+
+  function mockLessonHTML(lesson, lessonId) {
+    var st = lessonState(lessonId) || {}, mock = st.mock || { answers: {} };
+    var submitted = !!mock.submittedAt, started = !!mock.startedAt, remaining = started ? mockRemaining(mock, lesson) : lesson.minutes * 60;
+    if (!started) {
+      return '<div id="lessonbody" data-loaded="true"><section class="mock-start"><span class="block-label">' + esc(lesson.paper === 'P01' ? 'Paper 01 · Multiple choice' : 'Paper 02 · Structured') + '</span>' +
+        '<h2>' + md(lesson.title) + '</h2><p><strong>Time allowed:</strong> ' + Number(lesson.minutes) + ' minutes · <strong>Total:</strong> ' + Number(lesson.total) + ' marks</p>' +
+        '<div class="mock-rules">' + blocksHTML(lesson.rules || [], lessonId) + '</div>' +
+        '<button class="btn" type="button" data-mock-start="' + esc(lessonId) + '">Start timer and begin</button></section></div>';
+    }
+    var timer = '<div class="mock-timerbar" role="region" aria-label="Mock examination timer">' +
+      '<strong>' + esc(lesson.paper) + ' timer</strong><output class="mock-timer" data-mock-timer aria-live="off">' + clockText(remaining) + '</output>' +
+      '<span class="mock-timer-status" data-mock-timer-status>' + (submitted ? 'Submitted' : remaining <= 0 ? (mock.overTime ? 'Overtime · continue working' : 'Time is up') : remaining <= 900 ? '15 minutes or less' : 'In progress') + '</span>' +
+      (!submitted ? '<button class="btn mock-submit" type="button" data-mock-submit="' + esc(lessonId) + '">Submit paper</button>' : '') +
+      '</div>' +
+      (!submitted && remaining <= 0 && !mock.overTime
+        ? '<section class="mock-timeup" role="alert"><h2>Time is up</h2><p>Submit now, or keep working and mark this attempt as over time.</p>' +
+          '<button class="btn" type="button" data-mock-submit="' + esc(lessonId) + '">Submit now</button>' +
+          '<button class="btn ghost" type="button" data-mock-overtime="' + esc(lessonId) + '">Keep going (over time)</button></section>'
+        : !submitted && remaining > 0 && remaining <= 900
+          ? '<p class="mock-warning" role="status">15-minute warning: plan your remaining answers.</p>' : '');
+    var questions;
+    var result = submitted ? mockResults(lesson, st) : null;
+    if (lesson.paper === 'P01') {
+      questions = p01AnswerGrid(lesson, st, submitted) + (submitted ? p01ResultsHTML(lesson, result) : '') +
+        (lesson.mcq || []).map(function (item, i) {
+          return questionHTML(item, 'Question ' + (i + 1), false, lessonId,
+            { mockPaper: 'P01', mockStarted: started, mockSubmitted: submitted });
+        }).join('');
+    } else {
+      questions = submitted ? p02ResultsHTML(lesson, result) : '';
+      questions += (lesson.questions || []).map(function (question) {
+        return multiHTML(question, lessonId, { mockPaper: 'P02', mockStarted: started, mockSubmitted: submitted });
+      }).join('');
+    }
+    return '<div id="lessonbody" data-loaded="true" class="mock-active" data-mock-paper="' + esc(lesson.paper) + '">' +
+      timer + questions + '</div>';
   }
 
   function fullLessonData(id) {
@@ -748,7 +895,7 @@
     }
     if (!S.l[id].i) S.l[id].i = {};
   }
-  var activeLessonId = null, activeLessonAt = 0;
+  var activeLessonId = null, activeLessonAt = 0, mockTimerInterval = null;
   function stopActiveLesson() {
     if (!activeLessonId) return;
     var st = lessonState(activeLessonId);
@@ -812,6 +959,8 @@
         body = checkLessonHTML(lessonData, id);
       } else if (l.kind === 'past') {
         body = pastLessonHTML(lessonData, id);
+      } else if (l.kind === 'mock') {
+        body = mockLessonHTML(lessonData, id);
       } else {
         body = '<section class="card" id="lessonbody"><p class="tiny">This lesson type will be available in a later build phase.</p></section>';
       }
@@ -834,7 +983,33 @@
     var lessonBody = document.getElementById('lessonbody');
     if (lessonBody) {
       var lessonId = route().id;
-      if (!lessonState(lessonId).i) lessonState(lessonId).i = {};
+      var initialLessonState = lessonState(lessonId);
+      if (initialLessonState && !initialLessonState.i) initialLessonState.i = {};
+      var mockLesson = fullLessonData(lessonId);
+      if (mockLesson && mockLesson.kind === 'mock' && initialLessonState && initialLessonState.mock && !initialLessonState.mock.submittedAt) {
+        var tickingMock = initialLessonState.mock;
+        function updateMockClock() {
+          var remaining = mockRemaining(tickingMock, mockLesson);
+          var output = lessonBody.querySelector('[data-mock-timer]'), status = lessonBody.querySelector('[data-mock-timer-status]');
+          if (!output || !status) return;
+          output.textContent = clockText(remaining);
+          status.textContent = remaining <= 0 ? (tickingMock.overTime ? 'Overtime · continue working' : 'Time is up') :
+            remaining <= 900 ? '15 minutes or less' : 'In progress';
+          if (remaining <= 900 && remaining > 0 && !lessonBody.querySelector('.mock-warning')) {
+            output.closest('.mock-timerbar').insertAdjacentHTML('afterend',
+              '<p class="mock-warning" role="status">15-minute warning: plan your remaining answers.</p>');
+          }
+          if (remaining <= 0 && !tickingMock.overTime && !lessonBody.querySelector('.mock-timeup')) {
+            output.closest('.mock-timerbar').insertAdjacentHTML('afterend',
+              '<section class="mock-timeup" role="alert"><h2>Time is up</h2><p>Submit now, or keep working and mark this attempt as over time.</p>' +
+              '<button class="btn" type="button" data-mock-submit="' + esc(lessonId) + '">Submit now</button>' +
+              '<button class="btn ghost" type="button" data-mock-overtime="' + esc(lessonId) + '">Keep going (over time)</button></section>');
+          }
+        }
+        if (typeof mockTimerInterval !== 'undefined' && mockTimerInterval) clearInterval(mockTimerInterval);
+        updateMockClock();
+        mockTimerInterval = setInterval(updateMockClock, 1000);
+      }
       var graphDrag = null;
       function storedItemState(itemId) {
         var st = lessonState(lessonId);
@@ -910,6 +1085,21 @@
         if (st.i[itemId].checked && !st.i[itemId].right) st.i[itemId].checked = false;
         if (card.getAttribute('data-item-kind') === 'self') st.i[itemId].selfSubmitted = false;
         save();
+        if (st.mock && LESSON[lessonId].kind === 'mock' && fullLessonData(lessonId).paper === 'P01') {
+          var gridCell = Array.prototype.find.call(lessonBody.querySelectorAll('[data-mock-jump]'), function (cell) {
+            return cell.getAttribute('data-mock-jump') === itemId;
+          });
+          if (gridCell) {
+            gridCell.classList.add('answered');
+            gridCell.setAttribute('aria-label', gridCell.textContent.trim() + ', answered');
+          }
+          lessonBody.querySelectorAll('[data-mock-choice-for]').forEach(function (bubble) {
+            if (bubble.getAttribute('data-mock-choice-for') !== itemId) return;
+            var selected = bubble.getAttribute('data-mock-choice') === e.target.value;
+            bubble.classList.toggle('selected', selected);
+            bubble.setAttribute('aria-pressed', String(selected));
+          });
+        }
         showQuestionMessage(card, '', '');
         if (Number(st.i[itemId].tries) < 2) {
           card.querySelectorAll('.solution').forEach(function (solution) { solution.remove(); });
@@ -938,6 +1128,55 @@
       });
       lessonBody.addEventListener('click', function (e) {
         var target = e.target.closest('button');
+        var startMock = target && target.getAttribute('data-mock-start');
+        if (startMock) {
+          var startState = mockState(startMock);
+          if (!startState.startedAt) startState.startedAt = new Date().toISOString();
+          save(); render(); return;
+        }
+        var submitMock = target && target.getAttribute('data-mock-submit');
+        if (submitMock) {
+          var submitState = mockState(submitMock);
+          if (submitState.submittedAt) return;
+          submitState.submittedAt = new Date().toISOString();
+          var submittedLesson = fullLessonData(submitMock);
+          if (submittedLesson.paper === 'P01') {
+            var paperOneResult = mockResults(submittedLesson, lessonState(submitMock));
+            submitState.final = { score: paperOneResult.score, total: paperOneResult.total, answered: paperOneResult.answered, sectionScores: {} };
+            Object.keys(paperOneResult.sections).forEach(function (key) {
+              submitState.final.sectionScores[key] = {
+                score: paperOneResult.sections[key].score,
+                total: paperOneResult.sections[key].total,
+              };
+            });
+          }
+          save(); render(); return;
+        }
+        var overtimeMock = target && target.getAttribute('data-mock-overtime');
+        if (overtimeMock) {
+          mockState(overtimeMock).overTime = true;
+          save(); render(); return;
+        }
+        var jumpToMockQuestion = target && target.getAttribute('data-mock-jump');
+        if (jumpToMockQuestion) {
+          var destination = lessonBody.querySelector('[data-item="' + jumpToMockQuestion + '"]');
+          if (destination) {
+            destination.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            var firstControl = destination.querySelector('input[type="radio"]');
+            if (firstControl) firstControl.focus({ preventScroll: true });
+          }
+          return;
+        }
+        var mockChoice = target && target.getAttribute('data-mock-choice');
+        if (mockChoice) {
+          var choiceCard = lessonBody.querySelector('[data-item="' + target.getAttribute('data-mock-choice-for') + '"]');
+          var choiceInput = choiceCard && choiceCard.querySelector('input[type="radio"][value="' + mockChoice + '"]');
+          if (choiceInput && !choiceInput.disabled) {
+            choiceInput.checked = true;
+            choiceInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          return;
+        }
         var addLog = e.target.closest('[data-add-log]');
         if (addLog) {
           if (!S.log) S.log = {};
@@ -1052,7 +1291,8 @@
           }
           var saved = st.i[item.id] || { tries: 0, right: false, xp: 0 };
           var score = selfMarks(item, saved.ticks || []);
-          var targetXP = Math.min(10, 2 + 3 * score);
+          var mockMode = !!(st.mock && st.mock.submittedAt);
+          var targetXP = mockMode ? 0 : Math.min(10, 2 + 3 * score);
           var priorXP = Number(saved.xp || 0);
           var earned = Math.max(0, targetXP - priorXP);
           saved.tries = Number(saved.tries || 0) + 1;
@@ -1062,8 +1302,14 @@
           saved.xpEarned = earned;
           saved.xp = Math.max(priorXP, targetXP);
           st.i[item.id] = saved;
-          S.xp += earned;
-          if (!saved.right) recordMistake(lessonId, item);
+          if (!mockMode) {
+            S.xp += earned;
+            if (!saved.right) recordMistake(lessonId, item);
+          }
+          if (mockMode) {
+            var mockData = fullLessonData(lessonId), resultData = mockResults(mockData, st);
+            if (resultData.parts === resultData.partTotal) st.mock.final = { score: resultData.score, total: resultData.total };
+          }
           save(); render();
           return;
         }
@@ -1254,6 +1500,7 @@
   var app = document.getElementById('app');
   var lastView = '';
   function render() {
+    if (mockTimerInterval) { clearInterval(mockTimerInterval); mockTimerInterval = null; }
     var r = route();
     var currentLesson = r.view === 'lesson' && S.name && LESSON[r.id] && LESSON[r.id].kind !== 'mock' && !isDone(r.id) ? r.id : null;
     if (currentLesson !== activeLessonId) {
