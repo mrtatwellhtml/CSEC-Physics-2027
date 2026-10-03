@@ -125,7 +125,11 @@ The router uses hashes (`#day1`). State is saved in `localStorage` under one ver
 ```
 - Lazy-load `data/books/<id>.js` when a book is opened, so the first load stays small.
 - Keep one `localStorage` key, `csec-phys-2027-v1`, wrapped in try/catch (§8).
-- No external JS libraries. Draw any extra graphs as inline SVG with `WBD`.
+- No external JS libraries, **except KaTeX** (see §5.5). Draw any extra graphs as inline SVG with `WBD`.
+
+> **Amendment (3 Oct 2026, tutor request): every equation is typeset with KaTeX.** KaTeX is self-hosted in
+> `/assets/vendor/katex/` (no CDN, so it works offline) and lazy-loaded only when a page contains maths, so
+> Home stays inside the 300 KB budget. Details in §5.5.
 
 ---
 
@@ -177,7 +181,7 @@ The router uses hashes (`#day1`). State is saved in `localStorage` under one ver
 
 **Block types to render:** `h`, `p`, `bullets`, `steps`, `def` (Key definition box), `formula` (formula box with "where" lines), `tip` (green, Exam tip), `warn` (red, Common mistake), `remember` (amber), `img` (figure + caption), `table`, `fill` (inline input, self-checked), `lines` (textarea), `pagebreak` (ignore).
 
-**Inline markup:** `**bold**`, `*italic*`, `^sup^`, `~sub~`, `__underline__`. Convert it to HTML in `WBD.md()`. Keep the Unicode symbols. Never use LaTeX.
+**Inline markup:** `**bold**`, `*italic*`, `^sup^`, `~sub~`, `__underline__`. Convert it to HTML in `WBD.md()`. Keep the Unicode symbols. The *source* never contains LaTeX; the converter generates TeX for the maths (§5.5).
 
 ### 5.2 Auto-checking (this is the hard part — do it carefully)
 
@@ -199,6 +203,22 @@ The `answer` fields are mark-scheme text such as `"T = 28.4 ÷ 20 (1) = 1.42 s (
 `tools/overrides.json` is keyed by `<folder>:<unit>:<index>`. Use it to force a type, a correct value, a tolerance or accept-words. The converter applies it last. Never edit `source/`.
 
 ---
+
+### 5.5 Equations → KaTeX (amendment, 3 Oct 2026)
+
+`tools/tex.mjs` converts the workbook markup into TeX. The converter runs it on every student-facing string:
+
+| Where | Function | Result |
+|---|---|---|
+| `formula` blocks, `formula_card[].formula` | `formulaToTeX(s)` | The whole string as one TeX formula, or `null` when it holds no maths (then it is shown as text) |
+| formula `where[]` lines | `whereToMarked(s)` | Symbol side typeset (`⟪F⟫ = force in newtons (N)`) |
+| all other text: notes, steps, questions, answers, options, tables | `markMath(s)` | Each equation span inside the sentence is replaced by `⟪tex⟫`; the words stay as they are |
+
+- Data files carry TeX between `⟪ ⟫`. `WBD.md()` pulls those out first and renders them with `katex.render` (inline mode). It then applies the normal markup to the rest.
+- Rules: units are upright and get a thin space after a number (`2.0\,\mathrm{m}\,\mathrm{s}^{-2}`). Variables are italic. `sin/cos/tan` are operators. `½` becomes `\tfrac12` and `√(…)` becomes `\sqrt{…}`. Nuclides stack (`{}^{A}_{Z}X`). Bold final answers use `\boldsymbol`. Mark-scheme `(1)` markers and part labels `(a)` stay outside the maths. `CO~2~`-style chemistry and lone quantities ("13 A fuse") stay as text.
+- Every span is checked with KaTeX at build time (`throwOnError`). A span that fails falls back to the plain text and is listed in `tools/report.html`. Fixes go in `overrides.json` (key → `tex`).
+- `npm run tex:audit` writes `tools/katex-preview.html` (source text next to the rendered result for all ~3,900 equations) for eyeballing. It is not deployed.
+- `tests/unit/tex.test.mjs` covers the rules above. It also checks that every equation in all 17 books renders and that no word of 4+ letters is lost.
 
 ## 6. Question UI behaviour
 
@@ -295,7 +315,7 @@ Keep a `#printarea` like the reference site. "Print this lesson" renders a clean
 | **0 Setup** | Repo, folders, `source/` extracted, `npm init`, Playwright installed, `.gitignore` (ignore `source/` if I say so, since it is 13 MB) | `npm run convert` and `npm test` exist |
 | **1 Converter** | `tools/convert.mjs`, `data/index.js`, `data/books/*.js`, `tools/report.html` | All 17 books convert. Type counts and 20 numeric samples shown to me. Item ids are stable on re-run. |
 | **2 Shell + design** | `index.html`, `app.css` tokens, top bar, dark mode, Home with sections and lesson cards, name gate, stat tiles, progress ring, countdown | Home matches the Foundation layout on desktop and at 375 px |
-| **3 Lesson renderer** | All block types, worked-example stepper, vocab chips, Warm-up/Learn/Try/Practice/Exit sections, Finish card | Lessons from Book 1 and Book 9 render with every image and no raw `**`, `^` or `~` |
+| **3 Lesson renderer** | All block types, worked-example stepper, vocab chips, Warm-up/Learn/Try/Practice/Exit sections, Finish card, KaTeX rendering of `⟪tex⟫` | Lessons from Book 1 and Book 9 render with every image, every equation typeset by KaTeX (no `⟪`, no `.katex-error`), and no raw `**`, `^` or `~` |
 | **4 Questions** | MCQ, numeric, short-text, self-mark ticks, hints, keypad, XP and stars, Mistake Log | Unit tests for `WBC` pass (numbers, standard form, units, minus signs, fractions) |
 | **5 Exam content** | Book check and Past-paper lessons, multi-part questions, interactive graph grid, Past Paper Log table | A data-analysis question can be plotted, fitted and self-marked |
 | **6 Exam mode** | Timed mocks, locked answers, submit, section breakdown, revise links | A full Mock Paper 01 can be completed and scored |
@@ -308,7 +328,8 @@ Keep a `#printarea` like the reference site. "Print this lesson" renders a clean
 ## 14. Tests (Playwright + Node)
 - `wbc.test`: numbers like `1.42`, `1.42 s`, `3.0×10^10`, `3e10`, `−2.5`, `1/2`, `$31.35` and `1 200`, plus tolerance edges.
 - Every lesson in `data/index.js` opens without console errors (loop through all of them).
-- No rendered text contains `**`, `^` or `~` (scan `#app` innerText).
+- No rendered text contains `**`, `^` or `~` (scan `#app` innerText, excluding KaTeX's hidden MathML annotations).
+- Every lesson: no `⟪`/`⟫` left in the page, no `.katex-error` elements.
 - Every `<img>` loads (naturalWidth > 0).
 - The name gate blocks lesson start until a name is entered.
 - XP is +10 on a right first try and +5 after a retry. State survives a reload.

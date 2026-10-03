@@ -10,13 +10,15 @@
     "serve": "node tools/serve.mjs",
     "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "node --test \"tests/unit/*.test.mjs\"",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "tex:audit": "node tools/tex-audit.mjs"
   },
   "author": "Mr. Tatwell",
   "license": "UNLICENSED",
   "type": "commonjs",
   "devDependencies": {
-    "@playwright/test": "^1.63.0"
+    "@playwright/test": "^1.63.0",
+    "katex": "^0.19.0"
   },
   "private": true
 }

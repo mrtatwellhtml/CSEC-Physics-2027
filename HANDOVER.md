@@ -1,6 +1,6 @@
 # HANDOVER — CSEC Physics Ultimate Workbook (1-to-1 student, January 2027)
 
-*Live document — update after every build session.* Last updated: 3 Oct 2026. **Status: ALL 17 BOOKS BUILT & SAVED. Website: Phase 0 (Setup) done — waiting for tutor OK before Phase 1 (Converter).**
+*Live document — update after every build session.* Last updated: 3 Oct 2026. **Status: ALL 17 BOOKS BUILT & SAVED. Website: Phase 0 (Setup) done + KaTeX equation pipeline added (tutor request) — waiting for tutor OK before Phase 1 (Converter).**
 
 ## Context
 - Student: private 1-to-1, previously sat & FAILED CSEC Physics. 1 h/week with tutor, < 4 h/week self-study. Also in tutor's regular Fifth Form class.
@@ -41,13 +41,15 @@ Every CSEC Physics specific objective (A–E) is covered. Totals: 91 units, 284 
 - **Repo (local):** `D:\School Work (Pictures)\2026-2027 Mathematics\Fifth Form Physics\CSEC-Physics-2027\` (git, branch `main`, no remote yet). Kept in its own subfolder so it doesn't mix with the older single-topic pages (vectors.html etc.) in `Fifth Form Physics\`.
 - **Plan:** `PLAN.md` in the repo root (copy of `CSEC_Physics_Website_PLAN.md`). Build phase by phase and stop after each one for the tutor's OK.
 - Decisions: new GitHub Pages repo (e.g. mrtatwellhtml/CSEC-Physics-2027); copy layout + design tokens of the tutor's Foundation site (mrtatwellhtml.github.io/Lower-School-Mathematics-2029/foundation — vanilla JS SPA, window.WB data, WBD/WBC helpers, hash router, localStorage, Apps Script endpoint in config.js); **syllabus order A→E** then exam prep; **submissions ON** via Google Apps Script with name gate.
+- **Equations: KaTeX (tutor request, 3 Oct).** `tools/tex.mjs` turns the books' ^sup^/~sub~/Unicode maths into TeX: whole formulas (formula boxes/cards), symbol side of "where" lines, and equation spans detected inside sentences (stored as `⟪tex⟫`). KaTeX 0.16 self-hosted in `assets/vendor/katex/` (76 KB gz JS, woff2 fonts), lazy-loaded only on pages with maths. Audit: 281 formulas + ~3,600 inline equations across all 17 books, **0 KaTeX failures**, no words lost. PLAN.md §3/§5.5/§13/§14 amended.
 - Approach: converter `tools/convert.mjs` turns each content.json into site data (unit = lesson with Warm-up/Learn/Try/Practice/Exit; plus Book check + Past-paper lessons per book). Auto-check MCQ / numeric / short text; everything else self-marked by mark points split on "(1)". Mocks in timed exam mode. Tutor-only content kept out of student pages (separate teacher.html). 9 phases, review after each.
 
 ### Website phase tracker
 | Phase | Status | Notes |
 |---|---|---|
 | 0 Setup | ✅ Done 3 Oct | Repo, folders, `source/` extracted, npm, Playwright (Chromium), `npm run convert` (inventory only), `npm test` (2 unit + 1 e2e, green) |
-| 1 Converter | ⏳ Next | |
+| ↳ KaTeX pipeline | ✅ Done 3 Oct | `tools/tex.mjs`, `tools/tex-audit.mjs` → `tools/katex-preview.html`, `tests/unit/tex.test.mjs` (7 tests). Renderer hook (`WBD.md()` → `katex.render`) lands in Phase 3 |
+| 1 Converter | ⏳ Next | Will call tex.mjs on every string |
 | 2 Shell + design | — | |
 | 3 Lesson renderer | — | |
 | 4 Questions | — | |
@@ -60,6 +62,7 @@ Every CSEC Physics specific objective (A–E) is covered. Totals: 91 units, 284 
 ### Website commands (run in the repo folder)
 - `npm run convert`: content.json → site data (Phase 0: prints an inventory of all 17 books)
 - `npm run serve`: local preview at http://localhost:4173/
+- `npm run tex:audit`: re-checks every equation; then open http://localhost:4173/tools/katex-preview.html (with `npm run serve` running) to see source vs rendered side by side
 - `npm test`: unit tests (`node --test`) then Playwright e2e (desktop + 375 px mobile)
 
 ## Build system (books; resume in a new session)
@@ -83,3 +86,4 @@ Every CSEC Physics specific objective (A–E) is covered. Totals: 91 units, 284 
 2. 2 Oct — weeks 7–10 (S2, S3); final wave dispatched.
 3. 3 Oct — S4, S5, Mock1, FinalPrep, P01Drill (verified), Mock2 built & saved; source backup saved; action plan doc updated to D-first schedule. Website build plan written after inspecting the Foundation site.
 4. 3 Oct (VS Code) — Website **Phase 0 Setup** done: repo `CSEC-Physics-2027/` created, PLAN.md copied in, source extracted (17 books, 240 PNGs; totals match the table above), npm + Playwright installed, inventory converter + smoke tests green. Committed.
+5. 3 Oct (VS Code) — Tutor asked for proper equation rendering with KaTeX. Built `tools/tex.mjs` (markup → TeX: units upright, variables italic, fractions/roots/nuclides, bold answers, mark-scheme (1) kept outside maths), audit page + 7 unit tests (all equations in all 17 books render), KaTeX self-hosted, PLAN.md amended (§5.5). Committed.

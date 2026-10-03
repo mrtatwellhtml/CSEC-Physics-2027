@@ -1,0 +1,1 @@
+KaTeX 0.19.0 — copied from node_modules/katex/dist by hand (woff2 fonts only). Loaded lazily by the app when a page has maths.
