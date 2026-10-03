@@ -103,7 +103,11 @@ test('Paper 02 hides mark schemes until submission and awards a saved grade afte
     const card = page.locator('.question-card[data-item-kind="self"]').nth(index);
     const markPoints = card.locator('[data-mark-index]');
     for (let point = 0; point < await markPoints.count(); point++) {
-      await markPoints.nth(point).check({ force: true });
+      const markPoint = markPoints.nth(point);
+      if (!(await markPoint.isChecked())) {
+        await card.locator('.mark-point').nth(point).click();
+      }
+      await expect(markPoint).toBeChecked();
     }
     await card.locator('[data-self-mark]').click();
   }
