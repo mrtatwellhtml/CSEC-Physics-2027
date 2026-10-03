@@ -39,7 +39,7 @@ Every CSEC Physics specific objective (A–E) is covered. Totals: 91 units, 284 
 - Past papers: copyrighted → ORIGINAL CSEC-style questions + a Past Paper Log for real questions from his booklet.
 
 ## Website
-- **Repo (local):** `D:\School Work (Pictures)\2026-2027 Mathematics\Fifth Form Physics\CSEC-Physics-2027\` (git, branch `main`, no remote yet). Kept in its own subfolder so it doesn't mix with the older single-topic pages (vectors.html etc.) in `Fifth Form Physics\`.
+- **Repo (local):** `D:\School Work (Pictures)\2026-2027 Mathematics\Fifth Form Physics\CSEC-Physics-2027\` (git, branch `main` → https://github.com/mrtatwellhtml/CSEC-Physics-2027, public; Pages not enabled yet — Phase 9). Kept in its own subfolder so it doesn't mix with the older single-topic pages (vectors.html etc.) in `Fifth Form Physics\`.
 - **Plan:** `PLAN.md` in the repo root (copy of `CSEC_Physics_Website_PLAN.md`). Build phase by phase and stop after each one for the tutor's OK.
 - Decisions: new GitHub Pages repo (e.g. mrtatwellhtml/CSEC-Physics-2027); copy layout + design tokens of the tutor's Foundation site (mrtatwellhtml.github.io/Lower-School-Mathematics-2029/foundation — vanilla JS SPA, window.WB data, WBD/WBC helpers, hash router, localStorage, Apps Script endpoint in config.js); **syllabus order A→E** then exam prep; **submissions ON** via Google Apps Script with name gate.
 - **Equations: KaTeX (tutor request, 3 Oct).** `tools/tex.mjs` turns the books' ^sup^/~sub~/Unicode maths into TeX: whole formulas (formula boxes/cards), symbol side of "where" lines, and equation spans detected inside sentences (stored as `⟪tex⟫`). KaTeX 0.19.0 self-hosted in `assets/vendor/katex/` (76 KB gz JS, woff2 fonts), lazy-loaded only on pages with maths. Audit: 281 formulas + ~3,600 inline equations across all 17 books, **0 KaTeX failures**, no words lost. PLAN.md §3/§5.5/§13/§14 amended.
@@ -78,7 +78,6 @@ Every CSEC Physics specific objective (A–E) is covered. Totals: 91 units, 284 
 
 ## Open items
 - Confirm Paper 032 applicability and which sections class covers before January (decides the two "gap topic" sessions).
-- Website: tutor to create the empty repo `mrtatwellhtml/CSEC-Physics-2027` on github.com (public, no README); then Claude adds the remote and pushes (Git Credential Manager opens a browser sign-in). `gh`/winget are not installed on this PC.
 - Git identity on this PC is "CSEC Dev <dev@csec-papers.local>" (global config from another project), so commits show that name. Tutor to decide whether to set a repo-local name/email.
 - Deploy Apps Script and paste /exec URL into config.js (Phase 8).
 
@@ -88,3 +87,4 @@ Every CSEC Physics specific objective (A–E) is covered. Totals: 91 units, 284 
 3. 3 Oct — S4, S5, Mock1, FinalPrep, P01Drill (verified), Mock2 built & saved; source backup saved; action plan doc updated to D-first schedule. Website build plan written after inspecting the Foundation site.
 4. 3 Oct (VS Code) — Website **Phase 0 Setup** done: repo `CSEC-Physics-2027/` created, PLAN.md copied in, source extracted (17 books, 240 PNGs; totals match the table above), npm + Playwright installed, inventory converter + smoke tests green. Committed.
 5. 3 Oct (VS Code) — Tutor asked for proper equation rendering with KaTeX. Built `tools/tex.mjs` (markup → TeX: units upright, variables italic, fractions/roots/nuclides, bold answers, mark-scheme (1) kept outside maths), audit page + 7 unit tests (all equations in all 17 books render), KaTeX self-hosted, PLAN.md amended (§5.5). Committed.
+6. 3 Oct — Tutor: keep `source/` out of git; repo CLAUDE.md added. Tutor created GitHub repo; remote added and `main` pushed (40 files, no source/ or tutor content).
