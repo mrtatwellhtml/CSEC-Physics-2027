@@ -89,7 +89,7 @@
       '</div></header>';
   }
   function footer() {
-    return '<footer class="foot"><a href="#/teacher">Teacher summary</a>' +
+    return '<footer class="foot"><a href="#/mistakes">My Mistake Log</a><a href="#/teacher">Teacher summary</a>' +
       '<span>' + (CFG.endpoint ? 'Your name and answers are sent to your teacher.' : 'Your work saves on this device only.') + '</span></footer>';
   }
 
@@ -289,30 +289,143 @@
       '<button class="btn ghost step-btn" type="button" data-stepper>Show next step</button></article>';
   }
 
+  function selfMarkPoints(item) {
+    return item.points && item.points.length ? item.points : [{ text: item.scheme || '', marks: Number(item.marks || 1) }];
+  }
+
+  function selfMarks(item, ticks) {
+    return selfMarkPoints(item).reduce(function (sum, point, i) {
+      return ticks && ticks.indexOf(i) >= 0 ? sum + Number(point.marks || 1) : sum;
+    }, 0);
+  }
+
+  function keypadHTML(controlId, disabled) {
+    var keys = [['×', '×'], ['÷', '÷'], ['−', '−'], ['²', '²'], ['³', '³'], ['√', '√'],
+      ['π', 'π'], ['θ', 'θ'], ['λ', 'λ'], ['ρ', 'ρ'], ['Ω', 'Ω'], ['μ', 'μ'],
+      ['Δ', 'Δ'], ['°', '°'], ['⁻¹', '⁻¹'], ['×10ⁿ', '×10^']];
+    return '<div class="keypad" role="group" aria-label="Symbol keypad">' + keys.map(function (key) {
+      return '<button type="button" data-keypad-for="' + esc(controlId) + '" data-keypad-value="' + esc(key[1]) + '"' +
+        (disabled ? ' disabled' : '') + '>' + key[0] + '</button>';
+    }).join('') + '</div>';
+  }
+
   function questionHTML(item, label, showHint, lessonId) {
     var controlId = 'answer-' + item.id;
-    var saved = lessonState(lessonId), answer = saved && saved.i && saved.i[item.id] ? saved.i[item.id].ans : '';
+    var lesson = lessonState(lessonId), saved = lesson && lesson.i ? lesson.i[item.id] || {} : {};
+    var answer = saved.ans || '', disabled = !!saved.right;
+    var marks = Number(item.marks || 1), dots = Math.max(1, Math.min(3, Number(item.level) || 1));
     var input = item.options && item.options.length
       ? '<fieldset class="answer-options"><legend class="sr">Choose an answer</legend>' + item.options.map(function (option, i) {
-        var optionId = controlId + '-' + i;
-        var value = String.fromCharCode(65 + i);
-        return '<label for="' + optionId + '"><input id="' + optionId + '" type="radio" name="' + controlId + '" value="' + value + '"' + (answer === value ? ' checked' : '') + '>' +
-          '<span>' + String.fromCharCode(65 + i) + '.</span> ' + md(option) + '</label>';
+        var optionId = controlId + '-' + i, value = String.fromCharCode(65 + i);
+        return '<label for="' + optionId + '"><input id="' + optionId + '" type="radio" name="' + controlId + '" value="' + value + '"' +
+          (answer === value ? ' checked' : '') + (disabled ? ' disabled' : '') + '><span>' + value + '.</span> ' + md(option) + '</label>';
       }).join('') + '</fieldset>'
       : '<label class="answer-label" for="' + controlId + '">Your answer</label><textarea id="' + controlId + '" rows="' +
-        Math.max(2, Math.min(6, Number(item.lines) || 3)) + '">' + esc(answer || '') + '</textarea>';
-    var dots = Math.max(1, Math.min(3, Number(item.level) || 1));
+        Math.max(2, Math.min(6, Number(item.lines) || 3)) + '"' + (disabled ? ' disabled' : '') + '>' + esc(answer) + '</textarea>' +
+        keypadHTML(controlId, disabled);
+    var feedback = '';
+    if (saved.selfSubmitted) {
+      var score = Number(saved.score || 0), earned = Number(saved.xpEarned || 0);
+      feedback = '<div class="feedback ' + (saved.right ? 'correct' : 'self-result') + '">' +
+        (saved.right ? '✓ Full marks — ' : 'Self-mark recorded — ') + score + ' / ' + marks + ' marks. +' + earned + ' XP.</div>';
+    } else if (saved.checked) {
+      feedback = saved.right
+        ? '<div class="feedback correct">✓ Correct — +' + Number(saved.xpEarned || 0) + ' XP.</div>'
+        : '<div class="feedback incorrect">Not quite — try again.' + (Number(saved.tries) >= 2 ? ' The model solution is shown below.' : '') + '</div>';
+    }
+    var actions = '';
+    if (item.kind === 'self') {
+      var shown = !!saved.schemeShown, points = selfMarkPoints(item);
+      var ticks = saved.ticks || [];
+      var pointsHTML = points.map(function (point, i) {
+        var pointMarks = Number(point.marks || 1);
+        return '<label class="mark-point"><input type="checkbox" data-mark-index="' + i + '"' +
+          (ticks.indexOf(i) >= 0 ? ' checked' : '') + (disabled ? ' disabled' : '') + '><span><b>' + pointMarks +
+          ' mark' + (pointMarks === 1 ? '' : 's') + ':</b> ' + md(point.text) + '</span></label>';
+      }).join('');
+      actions = (shown
+        ? '<div class="mark-scheme"><p>Tick the mark points you earned; each point’s mark value is shown.</p>' + pointsHTML +
+          '<p class="self-score" aria-live="polite">' + selfMarks(item, ticks) + ' / ' + marks + ' marks selected</p>' +
+          '<button class="btn" type="button" data-self-mark="' + esc(item.id) + '"' + (disabled ? ' disabled' : '') + '>Save self-mark</button></div>'
+        : '<button class="btn ghost" type="button" data-show-scheme="' + esc(item.id) + '">Show mark scheme</button>');
+    } else {
+      actions = '<button class="btn" type="button" data-check-item="' + esc(item.id) + '"' + (disabled ? ' disabled' : '') + '>Check answer</button>';
+    }
+    var hint = showHint && item.hint
+      ? '<details class="hint"' + (saved.hint ? ' open' : '') + ' data-hint-cost="' + (item.section === 'practice' ? '2' : '0') + '">' +
+        '<summary>Hint' + (item.section === 'practice' ? ' · 2 XP in Practice' : '') + '</summary>' +
+        (saved.hint && item.section === 'practice' ? '<p class="hint-cost">' + (Number(saved.hintCost || 0) ? Number(saved.hintCost) + ' XP spent.' : 'No XP available to deduct; this hint was free.') + '</p>' : '') +
+        '<p>' + md(item.hint.text) + '</p></details>' : '';
+    var solution = '';
+    if (item.kind === 'mcq' && saved.checked) {
+      solution += '<div class="solution"><strong>Explanation</strong><p>' + md(item.explanation || '') + '</p></div>';
+    }
+    if (item.kind !== 'self' && item.kind !== 'mcq' && (saved.right || Number(saved.tries) >= 2)) {
+      solution += '<details class="solution"' + (saved.right ? '' : ' open') + '><summary>Model solution</summary><p>' + md(item.scheme || '') + '</p></details>';
+    }
+    if (item.kind === 'mcq' && Number(saved.tries) >= 2 && !saved.right) {
+      solution += '<details class="solution" open><summary>Model solution</summary><p>' + md(item.scheme || '') + '</p></details>';
+    }
     return '<article class="question-card" data-item="' + esc(item.id) + '" data-item-kind="' + esc(item.kind) + '">' +
-      '<div class="question-head"><span class="q-number">' + esc(label) + '</span><span class="q-marks">' + Number(item.marks || 1) + ' mark' +
-      (Number(item.marks || 1) === 1 ? '' : 's') + '</span><span class="level" role="img" aria-label="Level ' + dots + ' of 3">' +
+      '<div class="question-head"><span class="q-number">' + esc(label) + '</span><span class="q-marks">' + marks + ' mark' +
+      (marks === 1 ? '' : 's') + '</span><span class="level" role="img" aria-label="Level ' + dots + ' of 3">' +
       '<span aria-hidden="true">' + '●'.repeat(dots) + '<span class="level-off">' + '●'.repeat(3 - dots) + '</span></span></span></div>' +
       '<div class="question-prompt">' + md(item.q) + '</div>' + blocksHTML(item.blocks, lessonId) + imageHTML(item.img, '') +
-      input + (showHint && item.hint ? '<details class="hint"><summary>Need a hint?</summary><p>' + md(item.hint.text) + '</p></details>' : '') +
-      '</article>';
+      input + actions + '<div class="feedback-slot" role="status" aria-live="polite">' + feedback + '</div>' + solution + hint + '</article>';
   }
 
   function questionList(items, prefix, showHint, lessonId) {
     return (items || []).map(function (item, i) { return questionHTML(item, prefix + (i + 1), showHint, lessonId); }).join('');
+  }
+
+  function fullLessonData(id) {
+    var meta = LESSON[id], book = meta && (window.WB_BOOK || {})[meta.book];
+    return book && book.lessons.find(function (lesson) { return lesson.id === id; });
+  }
+
+  function findQuestion(lesson, id) {
+    if (!lesson) return null;
+    var groups = [lesson.warmup, lesson.tryit, lesson.practice, lesson.exit];
+    for (var i = 0; i < groups.length; i++) {
+      var found = (groups[i] || []).find(function (item) { return item.id === id; });
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function exitResults(lesson, state) {
+    var result = { score: 0, total: 0, attempted: 0 };
+    (lesson.exit || []).forEach(function (item) {
+      var saved = state.i && state.i[item.id];
+      result.total += Number(item.marks || 1);
+      if (item.kind === 'self') {
+        if (saved && saved.selfSubmitted) {
+          result.attempted++;
+          result.score += Number(saved.score || 0);
+        }
+      } else if (saved && saved.checked) {
+        result.attempted++;
+        if (saved.right) result.score += Number(item.marks || 1);
+      }
+    });
+    return result;
+  }
+
+  function starsForExit(lesson, state) {
+    var result = exitResults(lesson, state);
+    if (!result.attempted || !result.total) return 0;
+    if (result.score >= result.total) return 3;
+    if (result.score / result.total >= 0.8) return 2;
+    return 1;
+  }
+
+  function recordMistake(lessonId, item) {
+    if (S.mistakes.some(function (mistake) { return mistake.itemId === item.id; })) return;
+    var meta = LESSON[lessonId];
+    S.mistakes.push({
+      lessonId: lessonId, itemId: item.id, when: new Date().toISOString(),
+      question: item.q, lessonTitle: meta ? meta.title : 'Physics lesson',
+    });
   }
 
   function lessonSection(title, minutes, blurb, content, cls) {
@@ -420,10 +533,17 @@
     }
     var lessonBody = document.getElementById('lessonbody');
     if (lessonBody) {
+      var lessonId = route().id;
+      function showQuestionMessage(card, className, text) {
+        var slot = card.querySelector('.feedback-slot');
+        if (!slot) return;
+        slot.className = 'feedback-slot' + (className ? ' ' + className : '');
+        slot.textContent = text;
+      }
       function saveAnswer(e) {
         var fillKey = e.target.getAttribute('data-fill-key');
         if (fillKey) {
-          var lesson = lessonState(route().id);
+          var lesson = lessonState(lessonId);
           if (lesson) {
             if (!lesson.fills) lesson.fills = {};
             lesson.fills[fillKey] = e.target.value;
@@ -431,18 +551,143 @@
           }
           return;
         }
+        if (e.target.hasAttribute('data-mark-index')) return;
         var card = e.target.closest('.question-card');
         if (!card) return;
-        var st = lessonState(route().id);
+        var st = lessonState(lessonId);
         if (!st) return;
         if (!st.i) st.i = {};
         var itemId = card.getAttribute('data-item');
         if (!st.i[itemId]) st.i[itemId] = { tries: 0, right: false, xp: 0 };
         st.i[itemId].ans = e.target.value;
+        if (st.i[itemId].checked && !st.i[itemId].right) st.i[itemId].checked = false;
+        if (card.getAttribute('data-item-kind') === 'self') st.i[itemId].selfSubmitted = false;
         save();
+        showQuestionMessage(card, '', '');
+        if (Number(st.i[itemId].tries) < 2) {
+          card.querySelectorAll('.solution').forEach(function (solution) { solution.remove(); });
+        }
       }
       lessonBody.addEventListener('input', saveAnswer);
       lessonBody.addEventListener('change', saveAnswer);
+      lessonBody.addEventListener('change', function (e) {
+        if (!e.target.hasAttribute('data-mark-index')) return;
+        var card = e.target.closest('.question-card'), st = lessonState(lessonId);
+        if (!card || !st) return;
+        var item = findQuestion(fullLessonData(lessonId), card.getAttribute('data-item'));
+        if (!item) return;
+        var ticks = Array.prototype.map.call(card.querySelectorAll('[data-mark-index]:checked'), function (input) {
+          return Number(input.getAttribute('data-mark-index'));
+        });
+        if (!st.i) st.i = {};
+        if (!st.i[item.id]) st.i[item.id] = { tries: 0, right: false, xp: 0 };
+        st.i[item.id].ticks = ticks;
+        st.i[item.id].selfSubmitted = false;
+        var score = card.querySelector('.self-score');
+        if (score) score.textContent = selfMarks(item, ticks) + ' / ' + Number(item.marks || 1) + ' marks selected';
+        showQuestionMessage(card, '', '');
+        save();
+      });
+      lessonBody.addEventListener('click', function (e) {
+        var target = e.target.closest('button');
+        if (!target) return;
+        var card = target.closest('.question-card');
+        var st = lessonState(lessonId);
+        if (!card || !st) return;
+        var item = findQuestion(fullLessonData(lessonId), card.getAttribute('data-item'));
+        if (!item) return;
+        if (target.hasAttribute('data-keypad-for')) {
+          var control = document.getElementById(target.getAttribute('data-keypad-for'));
+          if (!control || control.disabled) return;
+          var start = control.selectionStart == null ? control.value.length : control.selectionStart;
+          var end = control.selectionEnd == null ? start : control.selectionEnd;
+          control.setRangeText(target.getAttribute('data-keypad-value'), start, end, 'end');
+          control.focus();
+          control.dispatchEvent(new Event('input', { bubbles: true }));
+          return;
+        }
+        if (target.hasAttribute('data-show-scheme')) {
+          if (!st.i) st.i = {};
+          if (!st.i[item.id]) st.i[item.id] = { tries: 0, right: false, xp: 0 };
+          st.i[item.id].schemeShown = true;
+          save(); render();
+          return;
+        }
+        if (target.hasAttribute('data-self-mark')) {
+          var answer = card.querySelector('textarea');
+          if (answer && !answer.value.trim()) {
+            showQuestionMessage(card, 'needs-answer', 'Write your response before saving your self-mark.');
+            answer.focus();
+            return;
+          }
+          var saved = st.i[item.id] || { tries: 0, right: false, xp: 0 };
+          var score = selfMarks(item, saved.ticks || []);
+          var targetXP = Math.min(10, 2 + 3 * score);
+          var priorXP = Number(saved.xp || 0);
+          var earned = Math.max(0, targetXP - priorXP);
+          saved.tries = Number(saved.tries || 0) + 1;
+          saved.score = score;
+          saved.right = score >= Number(item.marks || 1);
+          saved.selfSubmitted = true;
+          saved.xpEarned = earned;
+          saved.xp = Math.max(priorXP, targetXP);
+          st.i[item.id] = saved;
+          S.xp += earned;
+          if (!saved.right) recordMistake(lessonId, item);
+          save(); render();
+          return;
+        }
+        if (target.hasAttribute('data-check-item')) {
+          var control = item.options && item.options.length
+            ? card.querySelector('input[type="radio"]:checked') : card.querySelector('textarea');
+          var typed = control ? control.value.trim() : '';
+          if (!typed) {
+            showQuestionMessage(card, 'needs-answer', 'Choose or write an answer before checking.');
+            if (control) control.focus();
+            return;
+          }
+          var current = st.i[item.id] || { tries: 0, right: false, xp: 0 };
+          if (current.right) return;
+          var result;
+          if (item.kind === 'mcq') {
+            result = { ok: typed.toUpperCase() === String(item.answer || '').toUpperCase() };
+          } else if (item.kind === 'num') {
+            result = window.WBC.checkNumber(typed, item.num || {});
+          } else if (item.kind === 'short') {
+            result = window.WBC.checkShort(typed, item.accept || []);
+          } else {
+            throw new Error('Unsupported auto-check question kind: ' + item.kind);
+          }
+          var previousTries = Number(current.tries || 0);
+          current.tries = previousTries + 1;
+          current.ans = typed;
+          current.checked = true;
+          current.right = !!result.ok;
+          current.xpEarned = current.right ? (previousTries === 0 ? 10 : 5) : 0;
+          current.xp = Number(current.xp || 0) + current.xpEarned;
+          st.i[item.id] = current;
+          S.xp += current.xpEarned;
+          if (!current.right) recordMistake(lessonId, item);
+          save(); render();
+        }
+      });
+      lessonBody.querySelectorAll('details.hint').forEach(function (hint) {
+        hint.addEventListener('toggle', function () {
+          if (!hint.open) return;
+          var card = hint.closest('.question-card'), st = lessonState(lessonId);
+          if (!card || !st) return;
+          var item = findQuestion(fullLessonData(lessonId), card.getAttribute('data-item'));
+          if (!item) return;
+          if (!st.i) st.i = {};
+          if (!st.i[item.id]) st.i[item.id] = { tries: 0, right: false, xp: 0 };
+          var saved = st.i[item.id];
+          if (saved.hint) return;
+          saved.hint = true;
+          saved.hintCost = item.section === 'practice' ? Math.min(2, S.xp) : 0;
+          S.xp -= saved.hintCost;
+          save(); render();
+        });
+      });
     }
     var finish = document.getElementById('finish-form');
     if (finish) {
@@ -454,6 +699,8 @@
           st.finished = true;
           st.finishedAt = new Date().toISOString();
         }
+        var lessonData = fullLessonData(id);
+        if (lessonData) st.stars = starsForExit(lessonData, st);
         var feeling = finish.querySelector('input[name="feel"]:checked');
         st.feel = feeling ? feeling.value : '';
         st.question = document.getElementById('teacher-question').value.trim();
@@ -480,6 +727,18 @@
 
   function notFound() {
     return '<main id="main"><section class="card"><h1 tabindex="-1" style="font-size:28px">Page not found</h1><p><a href="#/">Back to Home</a></p></section></main>';
+  }
+  function mistakesPage() {
+    var mistakes = S.mistakes.slice().reverse();
+    var content = mistakes.length ? mistakes.map(function (mistake) {
+      return '<article class="mistake-card"><div><span class="block-label">' + esc(mistake.lessonTitle || 'Physics lesson') + '</span>' +
+        '<p>' + md(mistake.question || 'Question text unavailable.') + '</p><small>' + esc(mistake.itemId) + '</small></div>' +
+        '<div class="mistake-actions"><a class="btn ghost" href="#/lesson/' + esc(mistake.lessonId) + '">Review lesson</a>' +
+        '<button class="btn ghost" type="button" data-remove-mistake="' + esc(mistake.itemId) + '">Remove</button></div></article>';
+    }).join('') : '<p class="empty-note">No questions in your Mistake Log yet. Questions you get wrong or self-mark below full marks will appear here.</p>';
+    return '<main id="main"><section class="card mistakes-page"><h1 tabindex="-1" style="font-size:28px">My Mistake Log</h1>' +
+      '<p>Review questions to strengthen your understanding. This log is saved on this device.</p>' +
+      content + '<p><a href="#/">Back to Home</a></p></section></main>';
   }
   function teacherPage() {
     return '<main id="main"><section class="card"><h1 tabindex="-1" style="font-size:28px">Teacher summary</h1><p class="tiny">Coming in Phase 7.</p><p><a href="#/">Back to Home</a></p></section></main>';
@@ -521,6 +780,7 @@
     if ((m = /^book\/([\w]+)$/.exec(h))) return { view: 'book', id: m[1] };
     if ((m = /^lesson\/([\w.]+)$/.exec(h))) return { view: 'lesson', id: m[1] };
     if (h === 'teacher') return { view: 'teacher' };
+    if (h === 'mistakes') return { view: 'mistakes' };
     return { view: '404' };
   }
 
@@ -537,13 +797,20 @@
         activeLessonAt = Date.now();
       }
     }
-    var html = r.view === 'home' ? home() : r.view === 'book' ? bookPage(r.id) : r.view === 'lesson' ? lessonPage(r.id) : r.view === 'teacher' ? teacherPage() : notFound();
+    var html = r.view === 'home' ? home() : r.view === 'book' ? bookPage(r.id) : r.view === 'lesson' ? lessonPage(r.id) : r.view === 'teacher' ? teacherPage() : r.view === 'mistakes' ? mistakesPage() : notFound();
     app.innerHTML = topbar() + html + footer();
     document.getElementById('themebtn').addEventListener('click', toggleTheme);
     document.querySelectorAll('[data-retry-book]').forEach(function (button) {
       button.addEventListener('click', function () {
         delete bookErrors[button.getAttribute('data-retry-book')];
         render();
+      });
+    });
+    document.querySelectorAll('[data-remove-mistake]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var itemId = button.getAttribute('data-remove-mistake');
+        S.mistakes = S.mistakes.filter(function (mistake) { return mistake.itemId !== itemId; });
+        save(); render();
       });
     });
     if (r.view === 'home') bindHome();

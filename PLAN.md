@@ -240,7 +240,7 @@ The `answer` fields are mark-scheme text such as `"T = 28.4 ÷ 20 (1) = 1.42 s (
   - Right → green box with ✓ and "+10 XP". Show the model solution, collapsed.
   - Wrong → red box with "Not quite — try again". After 2 wrong tries, show the full solution and give 0 XP. Add the question to the Mistake Log.
 - **XP:** 10 for right first time, 5 for right after a retry, 2 for completing a self-marked item honestly (plus 3 per mark ticked, capped at 10).
-- **Stars:** 1–3 per lesson from the exit check: 3 = all right, 2 = ≥ 50 %, 1 = attempted.
+- **Stars (tutor decision):** 3 for a perfect exit check, 2 for ≥ 80 %, 1 for any attempted exit check below 80 %, and 0 when unanswered. A self-marked exit question contributes its ticked marks to the score.
 - **Hint** button only when `hint` exists, or when the converter generated one from the first step of a related worked example. A hint does not reduce XP in Try it, but costs 2 XP in Practice.
 - **Symbol keypad** under focused inputs. It inserts at the cursor: × ÷ − ² ³ √ π θ λ ρ Ω μ Δ ° ⁻¹ ×10ⁿ.
 
@@ -275,10 +275,10 @@ A card with the question first and a **"Show step"** button that reveals one ste
 ```js
 // localStorage['csec-phys-2027-v1']
 { v:1, name:'', theme:'light', xp:0, streak:{last:'2026-10-03', n:0},
-  l: { '<lessonId>': { started, finished, secs, feel:'can|nearly|help', question:'',
-        i: { '<itemId>': { tries, right, xp, ans, ticks:[0,1,1], hint:true } } } },
+  l: { '<lessonId>': { started, finished, finishedAt, secs, stars, feel:'can|nearly|help', question:'',
+        i: { '<itemId>': { tries, checked, right, xp, xpEarned, ans, ticks:[0,1], schemeShown, selfSubmitted, score, hint, hintCost } } } },
   log: { '<bookId>': [ {year,question,topic,score,outOf} ] },   // Past Paper Log
-  mistakes: [ {lessonId,itemId,when} ] }
+  mistakes: [ {lessonId,itemId,when,question,lessonTitle} ] }
 ```
 - Item ids must be **stable**: `<folder>.<unitId>.<kind><index>` (e.g. `week02.2.3.p4`), so re-running the converter keeps progress.
 - **Export / import progress** (JSON download and upload) on the Teacher summary page, for when he changes device.
