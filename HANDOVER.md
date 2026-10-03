@@ -1,6 +1,6 @@
 # HANDOVER — CSEC Physics Ultimate Workbook (1-to-1 student, January 2027)
 
-*Live document — update after every build session.* Last updated: 3 Oct 2026. **Status: ALL 17 BOOKS BUILT & SAVED. Website: Phases 0 + 1 done (setup, KaTeX, converter) — waiting for tutor OK before Phase 2 (Shell + design).**
+*Live document — update after every build session.* Last updated: 3 Oct 2026. **Status: ALL 17 BOOKS BUILT & SAVED. Website: Phases 0–2 done (setup, KaTeX, converter, shell + design) — waiting for tutor OK before Phase 3 (Lesson renderer).**
 
 ## Context
 - Student: private 1-to-1, previously sat & FAILED CSEC Physics. 1 h/week with tutor, < 4 h/week self-study. Also in tutor's regular Fifth Form class.
@@ -51,8 +51,8 @@ Every CSEC Physics specific objective (A–E) is covered. Totals: 91 units, 284 
 | 0 Setup | ✅ Done 3 Oct | Repo, folders, `source/` extracted, npm, Playwright (Chromium), `npm run convert` (inventory only), `npm test` (2 unit + 1 e2e, green) |
 | ↳ KaTeX pipeline | ✅ Done 3 Oct | `tools/tex.mjs`, `tools/tex-audit.mjs` → `tools/katex-preview.html`, `tests/unit/tex.test.mjs` (7 tests). Renderer hook (`WBD.md()` → `katex.render`) lands in Phase 3 |
 | 1 Converter | ✅ Done 3 Oct | 17 books → 123 lessons, 240 images (PNG + WebP), `data/index.js` 18 KB, books ~28 KB gz each. 1,596 questions: 367 MCQ · 158 numeric · 7 short text · 1,064 self-mark (72 low-confidence, amber in `tools/report.html`). All 252 numeric values cross-checked against their mark schemes; re-run is byte-identical; 0 tutor-content leaks; 17 unit tests. Decisions in PLAN.md §5.6 |
-| 2 Shell + design | ⏳ Next | |
-| 3 Lesson renderer | — | |
+| 2 Shell + design | ✅ Done 3 Oct | Responsive homepage and book pages, theme toggle, name gate, progress/stats/countdown, hash routing and Phase 2 browser tests |
+| 3 Lesson renderer | ⏳ Next — awaiting tutor OK | |
 | 4 Questions | — | |
 | 5 Exam content | — | |
 | 6 Exam mode | — | |
@@ -90,3 +90,4 @@ Every CSEC Physics specific objective (A–E) is covered. Totals: 91 units, 284 
 5. 3 Oct (VS Code) — Tutor asked for proper equation rendering with KaTeX. Built `tools/tex.mjs` (markup → TeX: units upright, variables italic, fractions/roots/nuclides, bold answers, mark-scheme (1) kept outside maths), audit page + 7 unit tests (all equations in all 17 books render), KaTeX self-hosted, PLAN.md amended (§5.5). Committed.
 6. 3 Oct — Tutor: keep `source/` out of git; repo CLAUDE.md added. Tutor created GitHub repo; remote added and `main` pushed (40 files, no source/ or tutor content). Commit author set (repo-local) to "Mr. Tatwell <mrtatwellhtml@users.noreply.github.com>".
 7. 3 Oct — **Phase 1 Converter**: `tools/convert.mjs` + `tools/classify.mjs` + `assets/js/wbc.js` (shared number parser). Found & fixed while checking: multi-line mark schemes (notes after the scheme), "1/T" being accepted as an answer, "State … and calculate …" questions, ×/÷ in TeX. Showed tutor type counts + 20 numeric samples (all correct). Committed + pushed.
+8. 3 Oct (VS Code) — **Phase 2 Shell + design**: responsive app shell and Foundation-inspired Home with all 123 lesson cards in A–E/exam-prep order, progress ring, XP/stars/question stats, exam countdowns, lesson-flow chips, saved name gate, dark-mode toggle and hash-routed book/lesson shells. Added desktop/mobile browser tests; `npm test` passes (17 unit, 12 browser tests), Home loads below 300 KB, and mobile checks show no horizontal overflow. Waiting for tutor review before Phase 3.

@@ -2,11 +2,28 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>CSEC Physics 2027</title>
+<meta name="description" content="CSEC Physics 2027 interactive workbook: lessons, practice and mock exams for Paper 01 and Paper 02.">
+<meta name="theme-color" content="#F3F4F8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0D0F14" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%2312141C'/%3E%3Ctext x='16' y='21' font-family='Arial' font-weight='800' font-size='12' text-anchor='middle' fill='%23F3F4F8'%3EP27%3C/text%3E%3C/svg%3E">
+<script>
+  // Apply the saved theme before first paint (no flash). Same key as app.js.
+  try { var t = (JSON.parse(localStorage.getItem('csec-phys-2027-v1') || '{}') || {}).theme; if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="assets/css/app.css">
 </head>
 <body>
-<!-- Placeholder (Phase 0). The app shell replaces this in Phase 2. -->
-<p>CSEC Physics 2027 — site under construction.</p>
+<div id="app"><noscript><p style="padding:24px">This workbook needs JavaScript. Please turn it on, or open the site in Chrome.</p></noscript></div>
+<div id="printarea" aria-hidden="true"></div>
+<script src="config.js"></script>
+<script src="data/index.js"></script>
+<script src="assets/js/wbc.js"></script>
+<script src="assets/js/wbd.js"></script>
+<script src="assets/js/app.js"></script>
 </body>
 </html>
