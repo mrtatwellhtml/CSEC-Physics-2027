@@ -145,7 +145,7 @@
       N: ['N = A − Z', 'subtract Z from both sides', 'N = {A} − {Z}', function (x) { return x.A - x.Z; }],
       Z: ['Z = A − N', 'subtract N from both sides', 'Z = {A} − {N}', function (x) { return x.A - x.N; }] } },
     { id: 'halflife', sec: 'E', name: 'Half-life', eq: 'amount left = start × (½)ⁿ, n = time ÷ half-life', vars: { left: ['amount left', ''], N0: ['starting amount', ''], t: ['time passed', 'days'], h: ['half-life', 'days'] }, forms: {
-      left: ['left = N0 × (½)^(t ÷ h)', 'find the number of half-lives n = t ÷ h, then halve n times', 'left = {N0} × (½)^({t} ÷ {h})', function (x) { return x.N0 * Math.pow(0.5, x.t / x.h); }],
+      left: ['left = N0 × (½)^n^ with n = t ÷ h', 'find the number of half-lives n = t ÷ h, then halve n times', 'left = {N0} × (½)^n^ with n = {t} ÷ {h}', function (x) { return x.N0 * Math.pow(0.5, x.t / x.h); }],
       h: ['h = t ÷ n, with n = log₂(N0 ÷ left)', 'count how many halvings take N0 down to "left", then divide the time by that number', 'h = {t} ÷ log₂({N0} ÷ {left})', function (x) { return x.t / (Math.log(x.N0 / x.left) / Math.log(2)); }] }, notes: 'Use the same unit for the time and the half-life.' },
     { id: 'emc2', sec: 'E', name: 'Mass–energy equation', eq: 'E = m c²', vars: { E: ['energy', 'J'], m: ['mass converted', 'kg'], c: ['speed of light', 'm/s', 3e8] }, forms: {
       E: ['E = m c²', 'it is already the subject', 'E = {m} × ({c})²', function (x) { return x.m * x.c * x.c; }],

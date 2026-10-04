@@ -111,7 +111,7 @@
   function calc() {
     var n = st.cT / st.cHL, left = st.cN / Math.pow(2, n), steps = [['Number of half-lives', st.cT + ' ÷ ' + st.cHL + ' = <b>' + Lab.sf(n, 3) + '</b>']];
     if (Math.abs(n - Math.round(n)) < 1e-9 && n <= 6) { var chain = [st.cN], v = st.cN; for (var k = 0; k < n; k++) { v /= 2; chain.push(Lab.sf(v, 4)); } steps.push(['Halve it ' + n + ' times', chain.join(' → ')]); }
-    steps.push(['Amount left', st.cN + ' × (½)^' + Lab.sf(n, 3) + ' = <b>' + Lab.sf(left, 3) + '</b>']);
+    steps.push(['Amount left', st.cN + ' × (½)^' + Lab.sf(n, 3) + '^ = <b>' + Lab.sf(left, 3) + '</b>']);
     Lab.math(Lab.$('#cmath'), 'Show the maths', steps);
   }
 

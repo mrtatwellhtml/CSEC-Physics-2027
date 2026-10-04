@@ -157,9 +157,9 @@
     Lab.readout(Lab.$('#live'), [['Length l', st.l.toFixed(2) + ' m'], ['Your time ÷ 20', st.watch ? (st.watch / 20).toFixed(3) + ' s' : '—'], ['True period T', Tp.toFixed(3) + ' s', true]]);
     var g = fitGrad();
     var steps = [
-      ['Period from your timing', 'T = t ÷ 20 = ' + (st.watch ? st.watch.toFixed(2) : 't') + ' ÷ 20 = <b>' + (st.watch ? (st.watch / 20).toFixed(3) + ' s' : '?') + '</b>'],
+      ['Period from your timing', st.watch ? 'T = t ÷ 20 = ' + st.watch.toFixed(2) + ' ÷ 20 = <b>' + (st.watch / 20).toFixed(3) + ' s</b>' : 'T = t ÷ 20 (time 20 oscillations first)'],
       ['Formula (given in the exam)', 'T = 2π √(l ÷ g)'],
-      ['Square both sides', 'T² = (4π² ÷ g) × l → a straight line through the origin'],
+      ['Square both sides', 'T² = (4π² ÷ g) × l, so T² against l is a straight line through the origin'],
     ];
     if (st.fit && g) steps.push(['From your graph', 'gradient = ' + g.toFixed(2) + ' s²/m, so g = 4π² ÷ gradient = 39.5 ÷ ' + g.toFixed(2) + ' = <b>' + (4 * Math.PI * Math.PI / g).toFixed(1) + ' m/s²</b>']);
     Lab.math(Lab.$('#maths'), 'Show the maths', steps);

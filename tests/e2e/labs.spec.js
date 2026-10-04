@@ -86,20 +86,24 @@ test('formula coach rearranges, substitutes and checks', async ({ page }) => {
   await page.locator('input[data-v="F"]').fill('6');
   await page.locator('input[data-v="k"]').fill('40');
   await page.getByRole('button', { name: 'Solve step by step' }).click();
-  await expect(page.locator('#steps')).toContainText('x = F ÷ k');
-  await expect(page.locator('#steps')).toContainText('x = 6 ÷ 40');
-  await expect(page.locator('#steps')).toContainText('0.150 m');
+  // every step is typeset with KaTeX; the TeX source is kept on each equation
+  await expect(page.locator('#steps .katex').first()).toBeVisible();
+  const tex = await page.locator('#steps .tex[data-tex]').evaluateAll(els => els.map(e => e.getAttribute('data-tex')).join(' | '));
+  expect(tex).toContain(String.raw`x=F\div k`);
+  expect(tex).toContain(String.raw`x=6\div 40`);
+  expect(tex).toContain(String.raw`\boldsymbol{0.150\,\mathrm{m}}`);
   await expect(page.locator('#steps')).toContainText('✓');
+  await expect(page.locator('#steps .katex-error')).toHaveCount(0);
 });
 
 test('maths help marks answers and shows full solutions', async ({ page }) => {
   await page.goto('/labs/maths.html#rearrange');
   const box = page.locator('[data-practice="rearrange"]');
-  // find the right option from the worked solution, then answer
-  await box.getByRole('button', { name: 'Show solution' }).click();
-  const answer = (await box.locator('.mathbox li').last().locator('b').textContent()).trim();
-  await box.locator('.qopts button', { hasText: answer }).click();
+  // the options are typeset equations; try them until the right one is marked correct
+  await expect(box.locator('.qopts button .katex').first()).toBeVisible();
+  for (let i = 0; i < 4 && !(await box.locator('.qfb.ok').count()); i++) await box.locator('.qopts button').nth(i).click();
   await expect(box.locator('.qfb.ok')).toBeVisible();
+  await expect(box.locator('.mathbox .katex').first()).toBeVisible();
   const units = page.locator('[data-practice="units"]');
   await units.locator('input').fill('nonsense');
   await units.getByRole('button', { name: 'Check' }).click();
@@ -113,3 +117,18 @@ test('home links to labs and tools; book pages list their labs', async ({ page }
   await page.goto('/#/book/week09');
   await expect(page.locator('.lab-card')).toHaveCount(3);
 });
+
+test('lab maths is typeset: no plain-text equations in Show the maths, no KaTeX errors', async ({ page }) => {
+  for (const id of ['thermometer', 'hookes-law', 'transformer', 'lenses', 'half-life']) {
+    await page.goto('/labs/' + id + '.html');
+    await expect(page.locator('.mathbox .katex').first()).toBeVisible();
+    expect(await page.locator('.katex-error').count(), id).toBe(0);
+    // a working line that still contains "=" as plain text would mean an equation was missed
+    const plainEq = await page.locator('.mathbox .work').evaluateAll(ws => ws.filter(w => {
+      const t = [...w.childNodes].filter(n => n.nodeType === 3).map(n => n.nodeValue).join('');
+      return /[A-Za-z0-9]\s*=\s*[A-Za-z0-9(]/.test(t);
+    }).length);
+    expect(plainEq, id).toBe(0);
+  }
+});
+

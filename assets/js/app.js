@@ -1028,11 +1028,13 @@
   }
   function labCards(labs, lessonId) {
     return labs.map(function (lab) {
-      return '<a class="lab-card" href="labs/' + lab.id + '.html' + fromParam(lessonId) + '"><b>' + esc(lab.title) + '</b><span>' + esc(lab.blurb) + '</span><em>Open the lab →</em></a>';
+      return '<a class="lab-card" href="labs/' + lab.id + '.html' + fromParam(lessonId) + '"><b>' + esc(lab.title) + '</b><span>' + md(withTeX(lab.blurb)) + '</span><em>Open the lab →</em></a>';
     }).join('');
   }
   function mathsTitle(id) { var m = (window.WB_MATHS || []).find(function (x) { return x.id === id; }); return m ? m.title : id; }
   function supportFor(id) { return (window.WB_SUPPORT || {})[id] || {}; }
+  // Authored text (support, lab blurbs) → markup with ⟪tex⟫ equations, so md() typesets them like the books.
+  function withTeX(s) { return window.TEX ? window.TEX.markMath(String(s)) : String(s); }
 
   function unitLessonHTML(l) {
     blockHTML.nextFill = 0;
@@ -1045,10 +1047,10 @@
         '</div></section>' : '';
     var sup = supportFor(l.id), labs = labsFor([l.id]);
     var labHTML = labs.length ? '<div class="lab-links"><span class="block-label">Explore it in the lab · see it happen, then try it yourself</span><div class="lab-grid-cards">' + labCards(labs, l.id) + '</div></div>' : '';
-    var recapHTML = sup.recap && sup.recap.length ? '<aside class="recap"><strong>Quick recap · remember these</strong><ul>' + sup.recap.map(function (r) { return '<li>' + md(r) + '</li>'; }).join('') + '</ul></aside>' : '';
+    var recapHTML = sup.recap && sup.recap.length ? '<aside class="recap"><strong>Quick recap · remember these</strong><ul>' + sup.recap.map(function (r) { return '<li>' + md(withTeX(r)) + '</li>'; }).join('') + '</ul></aside>' : '';
     var learn = blocksHTML((l.learn && l.learn.notes) || [], l.id) + labHTML +
       ((l.learn && l.learn.examples) || []).map(exampleHTML).join('') + recapHTML;
-    var simpleHTML = sup.simple ? '<aside class="simple-words"><strong>In simple words</strong><p>' + md(sup.simple) + '</p></aside>' : '';
+    var simpleHTML = sup.simple ? '<aside class="simple-words"><strong>In simple words</strong><p>' + md(withTeX(sup.simple)) + '</p></aside>' : '';
     var mathsHTML = sup.maths && sup.maths.length ? '<div class="maths-need"><span class="block-label">Maths you need · tap a skill for help and practice</span><div class="maths-chips">' +
       sup.maths.map(function (id) { return '<a href="labs/maths.html' + fromParam(l.id) + '#' + id + '">' + esc(mathsTitle(id)) + '</a>'; }).join('') + '</div></div>' : '';
     var content = lessonSection('Warm-up', '5 min', 'Wake up what you already know.', quick + questionList(l.warmup, 'W', false, l.id), 'warm-section') +
@@ -1705,12 +1707,17 @@
   function loadSupport() {
     if (window.WB_SUPPORT) return Promise.resolve(window.WB_SUPPORT);
     if (supportPromise) return supportPromise;
-    supportPromise = new Promise(function (resolve) {
-      var s = document.createElement('script');
-      s.src = 'data/support.js';
-      s.onload = function () { window.WB_SUPPORT = window.WB_SUPPORT || {}; resolve(window.WB_SUPPORT); };
-      s.onerror = function () { window.WB_SUPPORT = {}; resolve(window.WB_SUPPORT); };
-      document.head.appendChild(s);
+    function script(src) {
+      return new Promise(function (resolve) {
+        var s = document.createElement('script');
+        s.src = src; s.onload = resolve; s.onerror = resolve;
+        document.head.appendChild(s);
+      });
+    }
+    // support.js is plain text; assets/js/tex.js (from tools/tex.mjs) finds its equations for KaTeX
+    supportPromise = Promise.all([script('data/support.js'), window.TEX ? null : script('assets/js/tex.js')]).then(function () {
+      window.WB_SUPPORT = window.WB_SUPPORT || {};
+      return window.WB_SUPPORT;
     });
     return supportPromise;
   }

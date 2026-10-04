@@ -120,7 +120,7 @@
     Lab.line(ctx, x1, y, x2, y, c('no'), 3);
     Lab.text(ctx, st.kelvin + ' °C = ' + (st.kelvin + 273) + ' K', (x1 + x2) / 2, y + 12, { align: 'center', weight: 700, color: c('no') });
   }, { ratio: 0.8, min: 260, max: 340 });
-  Lab.slider(Lab.$('#kctl'), { label: 'Temperature', min: -273, max: 127, step: 1, value: 25, unit: '°C', fmt: function (v) { return v + ' °C = ' + (v + 273) + ' K'; }, onInput: function (v) { st.kelvin = v; if (v === -273) st.extremes.zero = true; kv.redraw(); T.update(st); } }).el.querySelector('output').style.whiteSpace = 'normal';
+  Lab.slider(Lab.$('#kctl'), { label: 'Temperature', min: -273, max: 127, step: 1, value: 25, fmt: function (v) { return v + ' °C = ' + (v + 273) + ' K'; }, onInput: function (v) { st.kelvin = v; if (v === -273) st.extremes.zero = true; kv.redraw(); T.update(st); } }).el.querySelector('output').style.whiteSpace = 'normal';
 
   var T = Lab.tasks(Lab.$('#tasks'), [
     { t: 'Put the thermometer in melting ice and note the thread length (the ice point).', ok: function (s) { return s.ice != null; } },

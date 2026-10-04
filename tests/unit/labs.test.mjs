@@ -79,3 +79,21 @@ test('formula coach: ids are unique, coach links resolve, and every rearrangemen
     }
   }
 });
+
+test('assets/js/tex.js is the current browser build of tools/tex.mjs', async () => {
+  const { buildTexBrowser } = await import('../../tools/build-tex-browser.mjs');
+  const onDisk = fs.readFileSync(path.join(root, 'assets', 'js', 'tex.js'), 'utf8').replace(/\r\n/g, '\n');
+  assert.equal(onDisk, buildTexBrowser(), 'run npm run build:tex');
+});
+
+test('support text and lab blurbs typeset without KaTeX errors', async () => {
+  const katex = (await import('katex')).default;
+  const tctx = { window: {} }; vm.createContext(tctx);
+  vm.runInContext(fs.readFileSync(path.join(root, 'assets', 'js', 'tex.js'), 'utf8'), tctx);
+  const texts = Object.values(W.WB_SUPPORT).flatMap(s => [s.simple || ''].concat(s.recap || [])).concat(W.WB_LABS.map(l => l.blurb));
+  let n = 0;
+  for (const t of texts) for (const m of tctx.window.TEX.markMath(t).matchAll(/⟪([^⟫]*)⟫/g)) {
+    n++; assert.doesNotThrow(() => katex.renderToString(m[1], { throwOnError: true, strict: 'ignore' }), 'bad TeX from: ' + t);
+  }
+  assert.ok(n > 100, 'expected many equations, found ' + n);
+});

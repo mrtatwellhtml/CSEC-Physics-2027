@@ -150,7 +150,7 @@
     var tb = document.getElementById('lab-theme');
     if (tb) { themeButton(); tb.addEventListener('click', toggleTheme); }
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { init(); startTexify(); }); else { init(); startTexify(); }
 
   // ---------- lab progress (tasks done) ----------
   function progress(labId) { var all = readJSON(LKEY) || {}; return all[labId] || { tasks: [] }; }
@@ -216,12 +216,102 @@
       return '<dt>' + r[0] + '</dt><dd' + (r[2] ? ' class="big"' : '') + '>' + r[1] + '</dd>';
     }).join('') + '</dl>';
   }
-  // math(el, title, [[step label, working], ...]) — "Show the maths", one step per line
+  // math(el, title, [[step label, working], ...]) — "Show the maths", one step per line.
+  // Working is plain text with <b>answer</b>; equations in it are typeset with KaTeX.
   function math(node, title, steps) {
     node.className = 'mathbox';
-    node.innerHTML = '<span class="lbl">' + (title || 'Show the maths') + '</span><ol>' + steps.map(function (s) {
-      return '<li><span>' + s[0] + '</span><code>' + s[1] + '</code></li>';
+    node.setAttribute('data-tex-done', '');
+    node.innerHTML = '<span class="lbl">' + texHTML(title || 'Show the maths') + '</span><ol>' + steps.map(function (s) {
+      return '<li><span>' + texHTML(s[0], true) + '</span><div class="work">' + texHTML(s[1]) + '</div></li>';
     }).join('') + '</ol>';
+    // drawn before the converter loaded: draw it again once it has (unless the lab has redrawn it since)
+    var stamp = node._mathStamp = (node._mathStamp || 0) + 1, typeset = !!window.TEX;
+    whenTex(function () { if (!typeset && node._mathStamp === stamp) math(node, title, steps); else renderPending(node); });
+  }
+
+  // ---------- equations: tools/tex.mjs (as assets/js/tex.js) + KaTeX, the same as the workbook ----------
+  var KATEX_BASE = '../assets/vendor/katex/', texReady = null, texCache = {};
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) { var s = document.createElement('script'); s.src = src; s.onload = resolve; s.onerror = reject; document.head.appendChild(s); });
+  }
+  function loadTex() {
+    if (texReady) return texReady;
+    var css = document.createElement('link'); css.rel = 'stylesheet'; css.href = KATEX_BASE + 'katex.min.css'; document.head.appendChild(css);
+    texReady = Promise.all([window.TEX ? 0 : loadScript('../assets/js/tex.js'), window.katex ? 0 : loadScript(KATEX_BASE + 'katex.min.js')])
+      .then(function () { return true; }, function () { return false; });
+    return texReady;
+  }
+  function whenTex(fn) { loadTex().then(function (ok) { if (ok) fn(); }); }
+  // Lab text uses short names that should be subscripts or upright words in maths.
+  function prepare(s) {
+    return String(s).replace(/<\/?b>/g, '**').replace(/<[^>]+>/g, '')
+      // symbols with a subscript (Vp, Ns, Is, Rx, p1, T2, N0) — only beside maths, so the word "Is" stays a word
+      .replace(/\b([VNI][ps]|[RF][xy]|[pVT][12]|N0)\b/g, function (m, sym, at, str) {
+        var before = str.slice(0, at).replace(/\*+$/, ''), after = str.slice(at + m.length).replace(/^\*+/, '');
+        var near = /([=×÷+−\/(→]|\b[VNIpT][ps12])\s*$/.test(before) || /^\s*([=×÷+−\/),;→]|$)/.test(after) || /^\s*[A-Za-z][ps12]?\s*[=×÷]/.test(after);
+        return near ? m.charAt(0) + '~' + m.slice(1) + '~' : m;
+      })
+      .replace(/(^|[\s(=×÷+−,:/*])-(?=\d)/g, '$1−');   // a hyphen before a number is a minus sign
+  }
+  // tex.mjs rejects an equation followed by a note in brackets ("1/f = 1/u + 1/v (f is negative …)").
+  // Also try the text split before each "(" and keep whichever typesets more equations.
+  function markBest(s) {
+    var whole = TEX.markMath(s);
+    if (s.indexOf(' (') < 0) return whole;
+    var split = s.split(/ (?=\()/).map(function (p) { return TEX.markMath(p); }).join(' ');
+    // keep the split only if it leaves less of the text untypeset (so one long equation is not cut in two)
+    var plainLen = function (t) { return t.replace(/⟪[^⟫]*⟫/g, '').replace(/\s/g, '').length; };
+    return plainLen(split) < plainLen(whole) ? split : whole;
+  }
+  function tidyTeX(t) { return t.replace(/(^|[^\\a-zA-Z])(GPE|KE)(?![a-zA-Z])/g, '$1\\text{$2}'); }
+  function htmlText(t) { return esc(t).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/~([^~\s]+)~/g, '<sub>$1</sub>'); }
+  // Text (with <b>…</b>) → HTML in which every equation is a pending KaTeX span (rendered by renderPending).
+  function texHTML(s, small) {
+    s = prepare(s);
+    if (!window.TEX) return htmlText(s);   // before tex.js loads: readable text; math() re-renders after load
+    var marked = markBest(s), parts = marked.split(/⟪([^⟫]*)⟫/);
+    return parts.map(function (part, i) {
+      return i % 2 ? '<span class="tex pending" data-tex="' + esc(tidyTeX(part)) + '">' + esc(part) + '</span>' : htmlText(part);
+    }).join('');
+  }
+  function renderPending(root) {
+    if (!window.katex) return;
+    root.querySelectorAll('.tex.pending').forEach(function (el) {
+      var tex = el.getAttribute('data-tex');
+      if (!texCache[tex]) { try { texCache[tex] = katex.renderToString(tex, { throwOnError: false, strict: 'ignore' }); } catch (e) { texCache[tex] = esc(tex); } }
+      el.innerHTML = texCache[tex]; el.classList.remove('pending');
+    });
+  }
+  // Typeset equations in any other text on the page (simple boxes, quick checks, tasks, captions,
+  // readouts), including text that the lab rewrites as it runs.
+  var SKIP = 'script,style,textarea,input,select,option,canvas,svg,code,.katex,.tex,[data-tex-done],.lab-top';
+  var MATHY = /[=×÷√±≈∝≠≥≤]/;
+  function texifyText(node) {
+    var s = node.nodeValue;
+    if (!MATHY.test(s) || !node.parentNode || node.parentNode.closest(SKIP)) return;
+    var html = texHTML(s);
+    if (html.indexOf('class="tex') < 0) return;
+    var span = document.createElement('span'); span.className = 'tex-text'; span.innerHTML = html;
+    node.parentNode.replaceChild(span, node);
+    renderPending(span);
+  }
+  function texify(root) {
+    if (!root || !window.TEX || !window.katex) return;
+    if (root.nodeType === 3) { texifyText(root); return; }
+    if (root.nodeType !== 1 || root.closest(SKIP)) return;
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), list = [], n;
+    while ((n = walker.nextNode())) list.push(n);
+    list.forEach(texifyText);
+  }
+  function startTexify() {
+    whenTex(function () {
+      texify(document.body);
+      var queued = [], scheduled = false;
+      new MutationObserver(function (muts) {
+        muts.forEach(function (m) { m.addedNodes.forEach(function (a) { queued.push(a); }); if (m.type === 'characterData') queued.push(m.target); });
+        if (!scheduled) { scheduled = true; requestAnimationFrame(function () { scheduled = false; var q = queued; queued = []; q.forEach(function (a) { if (a.isConnected) texify(a); }); }); }
+      }).observe(document.body, { childList: true, subtree: true, characterData: true });
+    });
   }
 
   // ---------- canvas ----------
@@ -449,6 +539,7 @@
     canvas: canvas, loop: loop, drag: drag, reducedMotion: reducedMotion,
     text: text, arrow: arrow, line: line, dot: dot, roundRect: roundRect, axes: axes, niceStep: niceStep, font: font,
     tasks: tasks, quiz: quiz, onTheme: onTheme, isDark: isDark,
+    texHTML: texHTML, renderPending: renderPending, whenTex: whenTex,
     lessonMeta: lessonMeta, labMeta: labMeta, plain: plain, param: param, relatedHTML: relatedHTML,
     progress: progress, saveProgress: saveProgress, readJSON: readJSON, LKEY: LKEY,
   };

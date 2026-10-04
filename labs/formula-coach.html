@@ -50,6 +50,8 @@
   sel.innerHTML = Object.keys(SEC).map(function (k) {
     return '<optgroup label="Section ' + k + ': ' + SEC[k][0] + '">' + L.filter(function (f) { return f.sec === k; }).map(function (f) { return '<option value="' + f.id + '">' + Lab.esc(f.name) + ' (' + Lab.esc(f.eq) + ')</option>'; }).join('') + '</optgroup>';
   }).join('');
+  // p1 → p<sub>1</sub>, Vs → V<sub>s</sub> (a one-letter symbol with a one-character subscript)
+  function sym(v) { var m = /^([A-Za-zρθλ])([0-9psxy])$/.exec(v); return m ? m[1] + '<sub>' + m[2] + '</sub>' : Lab.esc(v); }
   function targetsOf(f) { return Object.keys(f.vars).filter(function (v) { return f.forms[v]; }); }
   function fmt(v) { return Math.abs(v) >= 1e5 || (Math.abs(v) < 0.01 && v !== 0) ? Lab.sci(v, 3) : Lab.sf(v, 3); }
   function triangle(f) {
@@ -70,8 +72,8 @@
     Lab.$('#eq').textContent = cur.eq; Lab.$('#eqname').textContent = cur.name;
     var ts = Lab.$('#targets'); ts.innerHTML = '';
     var tlist = targetsOf(cur); target = tlist[0];
-    Lab.seg(ts, { label: 'Unknown', value: target, options: tlist.map(function (v) { return [v, v + ' (' + cur.vars[v][0] + ')']; }), onChange: function (v) { target = v; inputs(); triangle(cur); Lab.$('#steps').innerHTML = ''; } });
-    Lab.$('#symbols').innerHTML = '<dl class="readout" style="grid-template-columns:auto 1fr">' + Object.keys(cur.vars).map(function (v) { var d = cur.vars[v]; return '<dt><b style="color:var(--ink);font-family:var(--f-mono)">' + v + '</b></dt><dd style="font-family:inherit;text-align:left">' + d[0] + (d[1] ? ', in <b>' + d[1] + '</b>' : '') + '</dd>'; }).join('') + '</dl>';
+    Lab.seg(ts, { label: 'Unknown', value: target, options: tlist.map(function (v) { return [v, sym(v) + ' (' + cur.vars[v][0] + ')']; }), onChange: function (v) { target = v; inputs(); triangle(cur); Lab.$('#steps').innerHTML = ''; } });
+    Lab.$('#symbols').innerHTML = '<dl class="readout" style="grid-template-columns:auto 1fr">' + Object.keys(cur.vars).map(function (v) { var d = cur.vars[v]; return '<dt><b style="color:var(--ink);font-family:var(--f-mono)">' + sym(v) + '</b></dt><dd style="font-family:inherit;text-align:left">' + d[0] + (d[1] ? ', in <b>' + d[1] + '</b>' : '') + '</dd>'; }).join('') + '</dl>';
     Lab.$('#watch').hidden = !cur.notes; Lab.$('#note').textContent = cur.notes || '';
     inputs(); triangle(cur); Lab.$('#steps').innerHTML = '';
     if (location.hash.slice(1) !== cur.id) history.replaceState(null, '', location.pathname + location.search + '#' + cur.id);
@@ -79,7 +81,7 @@
   function inputs() {
     Lab.$('#inputs').innerHTML = Object.keys(cur.vars).filter(function (v) { return v !== target; }).map(function (v) {
       var d = cur.vars[v];
-      return '<label class="field">' + v + ' = <span class="u">' + d[0] + (d[1] ? ' (' + d[1] + ')' : '') + '</span><input data-v="' + v + '" inputmode="decimal" autocomplete="off"' + (d[2] != null ? ' value="' + (d[2] >= 1e5 ? '3e8' : d[2]) + '"' : '') + '></label>';
+      return '<label class="field">' + sym(v) + ' = <span class="u">' + d[0] + (d[1] ? ' (' + d[1] + ')' : '') + '</span><input data-v="' + v + '" inputmode="decimal" autocomplete="off"' + (d[2] != null ? ' value="' + (d[2] >= 1e5 ? '3e8' : d[2]) + '"' : '') + '></label>';
     }).join('');
   }
   sel.addEventListener('change', function () { choose(sel.value); });

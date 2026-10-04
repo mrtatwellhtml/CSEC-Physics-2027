@@ -83,14 +83,14 @@
       example: ['Write 4.7 kΩ and 350 mA in base units.', [['k means × 1000', '4.7 kΩ = 4.7 × 1000 = <b>4700 Ω</b>'], ['m means ÷ 1000', '350 mA = 350 ÷ 1000 = <b>0.35 A</b>']]],
       gen: function () {
         var p = pick([['k', 1e3], ['M', 1e6], ['m', 1e-3], ['μ', 1e-6], ['n', 1e-9], ['G', 1e9]]), u = pick([['W', 'watts'], ['V', 'volts'], ['m', 'metres'], ['s', 'seconds'], ['J', 'joules'], ['Hz', 'hertz']]), v = pick([2, 3.5, 4.7, 12, 25, 150, 600]);
-        return { q: 'Write ' + v + ' ' + p[0] + u[0] + ' in ' + u[1] + ' (' + u[0] + '). You can use standard form, like 3e-6.', n: v * p[1], unit: u[0], steps: [[p[0] + ' means', '× ' + sci(p[1], 1)], ['So', v + ' × ' + sci(p[1], 1) + ' = <b>' + sci(v * p[1], 3) + ' ' + u[0] + '</b>']] };
+        return { q: 'Write ' + v + ' ' + p[0] + u[0] + ' in ' + u[1] + ' (' + u[0] + '). You can use standard form, like <code>3e-6</code>.', n: v * p[1], unit: u[0], steps: [[p[0] + ' means', '× ' + sci(p[1], 1)], ['So', v + ' × ' + sci(p[1], 1) + ' = <b>' + sci(v * p[1], 3) + ' ' + u[0] + '</b>']] };
       } },
     { id: 'standard-form', title: 'Standard form',
-      simple: '<p>Standard form writes very big or very small numbers as <b>a number between 1 and 10 × a power of ten</b>. The power tells you how many places the decimal point moves: positive = big number, negative = small number.</p><p>On a calculator use the <b>×10ˣ</b> (or EXP) key. Type 3 ×10ˣ 8 for 3 × 10⁸, not 3 × 10 ^ 8.</p>',
+      simple: '<p>Standard form writes very big or very small numbers as <b>a number between 1 and 10 × a power of ten</b>. The power tells you how many places the decimal point moves: positive = big number, negative = small number.</p><p>On a calculator use the <code>×10ˣ</code> (or <code>EXP</code>) key. For 3 × 10⁸ press <code>3</code> <code>×10ˣ</code> <code>8</code>. Don\'t type 3 × 10 and then the power key.</p>',
       example: ['Write 0.00045 and 3 200 000 in standard form.', [['Move the point 4 places right to get 4.5', '0.00045 = <b>4.5 × 10⁻⁴</b>'], ['Move the point 6 places left to get 3.2', '3 200 000 = <b>3.2 × 10⁶</b>'], ['Multiplying', '(2 × 10³) × (3 × 10⁴) = 6 × 10⁷: multiply the numbers, ADD the powers']]],
       gen: function () {
         var kind = R(0, 2);
-        if (kind === 0) { var e = R(-7, -2), m = R(11, 99) / 10, v = m * Math.pow(10, e); return { q: 'Write ' + v.toFixed(-e + 1).replace(/0+$/, '') + ' in standard form. (Type it like 4.5e-4 or 4.5 × 10^-4.)', n: v, unit: '', steps: [['Move the decimal point until you get a number between 1 and 10', m], ['Count the places moved (to the right, so the power is negative)', '<b>' + m + ' × 10' + Lab.sup(e) + '</b>']] }; }
+        if (kind === 0) { var e = R(-7, -2), m = R(11, 99) / 10, v = m * Math.pow(10, e); return { q: 'Write ' + v.toFixed(-e + 1).replace(/0+$/, '') + ' in standard form. (Type it like <code>4.5e-4</code> or <code>4.5 × 10^-4</code>.)', n: v, unit: '', steps: [['Move the decimal point until you get a number between 1 and 10', m], ['Count the places moved (to the right, so the power is negative)', '<b>' + m + ' × 10' + Lab.sup(e) + '</b>']] }; }
         if (kind === 1) { var e2 = R(4, 9), m2 = R(11, 99) / 10, v2 = Math.round(m2 * Math.pow(10, e2)); return { q: 'Write ' + v2.toLocaleString('en') + ' in standard form.', n: v2, unit: '', steps: [['Number between 1 and 10', m2], ['Places moved to the left', e2], ['Answer', '<b>' + m2 + ' × 10' + Lab.sup(e2) + '</b>']] }; }
         var a = R(2, 5), b = R(2, 4), p = R(2, 8), q = R(-6, 4);
         return { q: 'Work out (' + a + ' × 10' + Lab.sup(p) + ') × (' + b + ' × 10' + Lab.sup(q) + ').', n: a * b * Math.pow(10, p + q), unit: '', steps: [['Multiply the numbers', a + ' × ' + b + ' = ' + a * b], ['Add the powers', p + ' + (' + q + ') = ' + (p + q)], ['Answer', '<b>' + sci(a * b * Math.pow(10, p + q), 3) + '</b>']] };
@@ -140,7 +140,7 @@
         return { q: 'A motor takes in ' + tot + ' J and gives out ' + use + ' J of useful energy. What is its efficiency?', n: use / tot * 100, unit: '%', steps: [['Efficiency', 'useful ÷ total × 100'], ['Substitute', use + ' ÷ ' + tot + ' × 100 = <b>' + sf(use / tot * 100, 3) + '%</b>']] };
       } },
     { id: 'powers', title: 'Squares, square roots and powers',
-      simple: '<p>v² means v × v. In KE = ½mv² only the <b>v</b> is squared, so do the square <b>first</b>, then multiply. To undo a square, take a <b>square root</b> (√). Example: if v² = 49, v = √49 = 7.</p>',
+      simple: '<p>v² means v × v. In KE = ½mv² only the <b>v</b> is squared, so do the square <b>first</b>, then multiply. To undo a square, take a <b>square root</b>. Example: if v² = 49, v = √49 = 7.</p>',
       example: ['Find the KE of a 2 kg ball moving at 3 m/s.', [['Square the speed first', '3² = 9'], ['Then multiply', '½ × 2 × 9 = <b>9 J</b>'], ['Common mistake', '(½ × 2 × 3)² = 9 is right here by luck: always square v on its own']]],
       gen: function () {
         if (Math.random() < 0.5) { var m = R(1, 10), v = R(2, 12); return { q: 'Find the kinetic energy of a ' + m + ' kg object moving at ' + v + ' m/s. (KE = ½mv²)', n: 0.5 * m * v * v, unit: 'J', steps: [['Square v', v + '² = ' + v * v], ['Multiply', '½ × ' + m + ' × ' + v * v + ' = <b>' + 0.5 * m * v * v + ' J</b>']] }; }

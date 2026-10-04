@@ -27,7 +27,7 @@
     </div>
     <div class="stack">
       <section class="card"><h2>Meters</h2><div id="live"></div></section>
-      <section class="card"><h2>Results</h2><div class="tbl-wrap"><table class="data"><thead><tr><th>V / V</th><th>I / A</th><th>R = V/I / Ω</th></tr></thead><tbody id="tbody"></tbody></table></div></section>
+      <section class="card"><h2>Results</h2><div class="tbl-wrap"><table class="data"><thead><tr><th>V / V</th><th>I / A</th><th>R / Ω</th></tr></thead><tbody id="tbody"></tbody></table></div></section>
     </div>
   </div>
   <section id="maths" style="margin-top:16px"></section>
@@ -83,7 +83,7 @@
     var i = I(), R = Math.abs(i) > 1e-4 ? st.V / i : Infinity;
     Lab.readout(Lab.$('#live'), [['Voltmeter V', st.V.toFixed(1) + ' V'], ['Ammeter I', Lab.dp(i, 3) + ' A', true], ['Resistance R = V ÷ I', isFinite(R) ? Lab.sf(R, 3) + ' Ω' : 'very large (almost no current)']]);
     Lab.$('#tbody').innerHTML = st.pts[st.comp].map(function (p) { var r = Math.abs(p[1]) > 1e-4 ? p[0] / p[1] : Infinity; return '<tr><td>' + p[0].toFixed(1) + '</td><td>' + Lab.dp(p[1], 3) + '</td><td>' + (isFinite(r) ? Lab.sf(r, 3) : '∞') + '</td></tr>'; }).join('') || '<tr><td colspan="3" style="font-family:inherit;color:var(--muted)">No readings yet</td></tr>';
-    var steps = [['Ohm\'s law', 'V = I R, so R = V ÷ I'], ['Now', 'R = ' + st.V.toFixed(1) + ' ÷ ' + Lab.dp(i, 3) + ' = <b>' + (isFinite(R) ? Lab.sf(R, 3) + ' Ω' : '∞') + '</b>']];
+    var steps = [['Ohm\'s law', 'V = I R, so R = V ÷ I'], isFinite(R) ? ['Now', 'R = ' + st.V.toFixed(1) + ' ÷ ' + Lab.dp(i, 3) + ' = <b>' + Lab.sf(R, 3) + ' Ω</b>'] : ['Now', 'almost no current flows, so the resistance is very large']];
     if (st.comp === 'res') steps.push(['Graph', 'a straight line through the origin, so R is constant (10 Ω): the resistor is <b>ohmic</b>']);
     if (st.comp === 'lamp') steps.push(['Graph', 'curves and gets less steep: as the filament heats up, its atoms vibrate more and get in the way of electrons, so R increases']);
     if (st.comp === 'diode') steps.push(['Graph', 'almost no current until about 0.6 V forwards, then the current rises steeply. Reversed: (almost) no current. Diodes are used for <b>rectification</b> (a.c. → d.c.)']);
