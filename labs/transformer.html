@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transformers and the Grid · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Change the number of turns to step voltage up or down, see why a transformer needs a.c., and why power lines use very high voltages. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="transformer">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>A transformer has two coils on an iron core. <b>Alternating current</b> in the primary coil makes a <b>changing</b> magnetic field in the core, and this induces an alternating voltage in the secondary coil.</p>
+    <p>More turns on the secondary → <b>bigger</b> voltage (<b>step-up</b>). Fewer turns → <b>smaller</b> voltage (<b>step-down</b>). <b>Vs ÷ Vp = Ns ÷ Np</b>. It does <b>not</b> work with d.c., because a steady current makes no changing field.</p>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <div class="stage"><canvas id="cv" aria-label="A transformer with primary and secondary coils on an iron core and a lamp on the output"></canvas><div class="row" style="margin-top:8px" id="acdc"></div></div>
+    <div class="stack">
+      <section class="card"><h2>Transformer</h2><div id="ctl"></div></section>
+      <section id="maths"></section>
+    </div>
+  </div>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Sending electricity across the country</h2>
+    <p class="note" style="margin-top:0">A power station sends <b>10 MW</b> along cables with a total resistance of <b>5 Ω</b>. Heat lost in the cables = <b>I²R</b>. Choose the transmission voltage.</p>
+    <div class="lab-grid"><div><div class="row" id="gv"></div><canvas id="gcv" style="margin-top:10px;width:100%" aria-label="Bar chart of power delivered and power wasted"></canvas></div><div id="gmath"></div></div>
+  </section>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var st = { Np: 400, Ns: 100, Vp: 220, ac: true, R: 12, gV: 11000, t: 0, seen: {} };
+  function Vs() { return st.ac ? st.Vp * st.Ns / st.Np : 0; }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var cx = W / 2, cy = H / 2, cw = Math.min(W * 0.46, 300), ch = H * 0.6, t = 26;
+    ctx.fillStyle = c('t0'); ctx.globalAlpha = 0.6;
+    ctx.fillRect(cx - cw / 2, cy - ch / 2, cw, t); ctx.fillRect(cx - cw / 2, cy + ch / 2 - t, cw, t); ctx.fillRect(cx - cw / 2, cy - ch / 2, t, ch); ctx.fillRect(cx + cw / 2 - t, cy - ch / 2, t, ch);
+    ctx.globalAlpha = 1;
+    Lab.text(ctx, 'soft iron core', cx, cy - ch / 2 - 10, { align: 'center', size: 12, color: c('muted') });
+    function coil(x, n, col) { var k = Math.max(3, Math.min(16, Math.round(n / 40))); for (var i = 0; i < k; i++) { var y = cy - ch * 0.3 + ch * 0.6 * i / (k - 1); ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x, y, t * 0.9, 5, 0, 0, 7); ctx.stroke(); } return k; }
+    coil(cx - cw / 2 + t / 2, st.Np, c('t2')); coil(cx + cw / 2 - t / 2, st.Ns, c('pop'));
+    Lab.text(ctx, 'primary', cx - cw / 2 + t / 2, cy + ch / 2 + 16, { align: 'center', weight: 700, color: c('t2') }); Lab.text(ctx, 'Np = ' + st.Np, cx - cw / 2 + t / 2, cy + ch / 2 + 32, { align: 'center', kind: 'mono', size: 12 });
+    Lab.text(ctx, 'secondary', cx + cw / 2 - t / 2, cy + ch / 2 + 16, { align: 'center', weight: 700, color: c('pop') }); Lab.text(ctx, 'Ns = ' + st.Ns, cx + cw / 2 - t / 2, cy + ch / 2 + 32, { align: 'center', kind: 'mono', size: 12 });
+    // flux arrows in the core (alternate with a.c.)
+    var ph = st.ac ? Math.sin(st.t * 4) : 1;
+    if (st.ac) { ctx.globalAlpha = Math.abs(ph); Lab.arrow(ctx, cx - 30 * Math.sign(ph), cy - ch / 2 + t / 2, cx + 30 * Math.sign(ph), cy - ch / 2 + t / 2, { color: c('t4'), width: 3 }); Lab.arrow(ctx, cx + 30 * Math.sign(ph), cy + ch / 2 - t / 2, cx - 30 * Math.sign(ph), cy + ch / 2 - t / 2, { color: c('t4'), width: 3 }); ctx.globalAlpha = 1; }
+    Lab.text(ctx, st.ac ? 'changing magnetic field' : 'steady field: no change → no induced voltage', cx, cy, { align: 'center', size: 12, color: c('t4'), weight: 700 });
+    // supply and lamp
+    var sx = 30; Lab.dot(ctx, sx + 20, cy, 20, c('surface'), c('ink')); Lab.text(ctx, st.ac ? '~' : '=', sx + 20, cy, { align: 'center', weight: 700, size: 18 });
+    Lab.text(ctx, st.Vp + ' V ' + (st.ac ? 'a.c.' : 'd.c.'), sx + 20, cy + 34, { align: 'center', size: 12, kind: 'mono' });
+    Lab.line(ctx, sx + 20, cy - 20, sx + 20, cy - ch * 0.3, c('ink'), 2); Lab.line(ctx, sx + 20, cy - ch * 0.3, cx - cw / 2, cy - ch * 0.3, c('ink'), 2);
+    Lab.line(ctx, sx + 20, cy + 20, sx + 20, cy + ch * 0.3, c('ink'), 2); Lab.line(ctx, sx + 20, cy + ch * 0.3, cx - cw / 2, cy + ch * 0.3, c('ink'), 2);
+    var lx = W - 50, v = Vs(), P = v * v / st.R, glow = Lab.clamp(P / 300, 0, 1.3);
+    Lab.line(ctx, cx + cw / 2, cy - ch * 0.3, lx, cy - ch * 0.3, c('ink'), 2); Lab.line(ctx, lx, cy - ch * 0.3, lx, cy - 16, c('ink'), 2);
+    Lab.line(ctx, cx + cw / 2, cy + ch * 0.3, lx, cy + ch * 0.3, c('ink'), 2); Lab.line(ctx, lx, cy + ch * 0.3, lx, cy + 16, c('ink'), 2);
+    if (glow > 0.02) { var g = ctx.createRadialGradient(lx, cy, 4, lx, cy, 20 + glow * 30); g.addColorStop(0, 'rgba(255,214,10,' + Math.min(1, glow) + ')'); g.addColorStop(1, 'rgba(255,214,10,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(lx, cy, 20 + glow * 30, 0, 7); ctx.fill(); }
+    Lab.dot(ctx, lx, cy, 15, c('surface'), c('ink')); Lab.line(ctx, lx - 10, cy - 10, lx + 10, cy + 10, c('ink'), 2); Lab.line(ctx, lx + 10, cy - 10, lx - 10, cy + 10, c('ink'), 2);
+    Lab.text(ctx, Lab.sf(v, 3) + ' V', lx, cy + 30, { align: 'center', kind: 'mono', weight: 500 });
+  }, { ratio: 0.62, min: 300, max: 400 });
+
+  var anim = Lab.loop(function (dt) { st.t += dt; view.redraw(); });
+  var ctl = Lab.$('#ctl');
+  Lab.slider(ctl, { label: 'Primary turns Np', min: 50, max: 1000, step: 50, value: st.Np, onInput: function (v) { st.Np = v; update(); } });
+  Lab.slider(ctl, { label: 'Secondary turns Ns', min: 50, max: 1000, step: 50, value: st.Ns, onInput: function (v) { st.Ns = v; update(); } });
+  Lab.slider(ctl, { label: 'Input voltage Vp', min: 10, max: 240, step: 10, value: st.Vp, unit: 'V', onInput: function (v) { st.Vp = v; update(); } });
+  Lab.slider(ctl, { label: 'Lamp resistance', min: 4, max: 48, step: 4, value: st.R, unit: 'Ω', onInput: function (v) { st.R = v; update(); } });
+  Lab.seg(Lab.$('#acdc'), { label: 'Supply', value: 'ac', options: [['ac', 'a.c. supply'], ['dc', 'd.c. supply']], onChange: function (v) { st.ac = v === 'ac'; if (!st.ac) st.seen.dc = true; update(); } });
+
+  function update() {
+    var v = Vs(), Is = v / st.R, Ip = st.ac ? v * Is / st.Vp : 0, kind = st.Ns > st.Np ? 'step-up' : st.Ns < st.Np ? 'step-down' : 'same voltage (1 : 1)';
+    if (st.ac && st.Ns > st.Np) st.seen.up = true; if (st.ac && st.Ns < st.Np) st.seen.down = true;
+    if (st.ac && Math.abs(v - 11) < 0.01 && st.Vp === 220) st.seen.twelve = true;
+    Lab.math(Lab.$('#maths'), 'Show the maths', st.ac ? [
+      ['Turns rule', 'Vs ÷ Vp = Ns ÷ Np'], ['Rearrange', 'Vs = Vp × Ns ÷ Np = ' + st.Vp + ' × ' + st.Ns + ' ÷ ' + st.Np + ' = <b>' + Lab.sf(v, 3) + ' V</b> (' + kind + ')'],
+      ['Secondary current', 'Is = Vs ÷ R = ' + Lab.sf(v, 3) + ' ÷ ' + st.R + ' = ' + Lab.sf(Is, 3) + ' A'],
+      ['If 100% efficient', 'Vp Ip = Vs Is → Ip = ' + Lab.sf(v * Is, 3) + ' ÷ ' + st.Vp + ' = <b>' + Lab.sf(Ip, 3) + ' A</b>. Step up the voltage → step down the current'],
+    ] : [['d.c. supply', 'steady current → steady magnetic field → <b>no change</b> → no induced e.m.f. → Vs = 0'], ['So', 'transformers only work with a.c.']]);
+    view.redraw(); T.update(st);
+  }
+
+  // grid
+  var gcv = Lab.canvas(Lab.$('#gcv'), function (ctx, W, H) {
+    var P = 1e7, I = P / st.gV, loss = I * I * 5, frac = Math.min(1, loss / P);
+    var w = W - 20;
+    ctx.fillStyle = c('ok'); ctx.fillRect(10, 30, w * (1 - frac), 40); ctx.fillStyle = c('no'); ctx.fillRect(10 + w * (1 - frac), 30, w * frac, 40);
+    Lab.text(ctx, 'delivered: ' + Lab.sf((1 - frac) * 100, 3) + '%', 14, 50, { color: '#fff', weight: 700 });
+    Lab.text(ctx, 'wasted as heat: ' + Lab.sf(frac * 100, 3) + '%', W - 12, 90, { align: 'right', weight: 700, color: c('no') });
+  }, { ratio: 0.25, min: 110, max: 130 });
+  Lab.seg(Lab.$('#gv'), { label: 'Transmission voltage', value: 11000, options: [[11000, '11 kV'], [33000, '33 kV'], [132000, '132 kV'], [400000, '400 kV']], onChange: function (v) { st.gV = +v; st.seen['g' + v] = true; grid(); } });
+  function grid() {
+    var P = 1e7, I = P / st.gV, loss = I * I * 5;
+    Lab.math(Lab.$('#gmath'), 'Show the maths', [
+      ['Current in the cables', 'I = P ÷ V = 10 000 000 ÷ ' + st.gV + ' = <b>' + Lab.sf(I, 3) + ' A</b>'],
+      ['Power lost as heat', 'P = I²R = ' + Lab.sf(I, 3) + '² × 5 = <b>' + Lab.sci(loss, 3) + ' W</b>'],
+      ['So', 'higher voltage → smaller current → much less heat lost (10 × the voltage = 1/100 of the loss)'],
+    ]);
+    gcv.redraw(); T.update(st);
+  }
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Make a step-up transformer, then a step-down transformer.', ok: function (s) { return s.seen.up && s.seen.down; } },
+    { t: 'Turn 220 V mains into 11 V for a phone charger.', s: 'Ns ÷ Np must be 11 ÷ 220 = 1 ÷ 20, e.g. Np = 1000, Ns = 50.', ok: function (s) { return s.seen.twelve; } },
+    { t: 'Switch to a d.c. supply. What happens to the output?', ok: function (s) { return s.seen.dc; } },
+    { t: 'In the grid section, compare 11 kV with 400 kV.', s: 'Higher voltage → much less energy wasted.', ok: function (s) { return s.seen.g400000; } },
+  ], { title: 'Step voltages up and down' });
+
+  update(); grid(); anim.start();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A transformer has 500 primary turns and 25 secondary turns. The input is 220 V. What is the output voltage?', n: 11, unit: 'V', why: ' Vs = 220 × 25 ÷ 500 = 11 V (step-down).' },
+    { q: 'A step-up transformer gives 11 000 V from 220 V with 100 primary turns. How many secondary turns?', n: 5000, unit: 'turns', why: ' Ns = Np × Vs ÷ Vp = 100 × 11 000 ÷ 220 = 5000.' },
+    { q: 'Electricity is transmitted at high voltage because…', o: ['it travels faster', 'the current is smaller, so less energy is wasted as heat in the cables', 'it is safer near homes', 'transformers need high voltage'], a: 1, why: ' P = VI, so a high V means a low I, and heat loss = I²R.' },
+    { q: 'Why does a transformer not work with d.c.?', o: ['d.c. is too weak', 'a steady current gives a steady magnetic field, so no voltage is induced', 'd.c. melts the core', 'it does work with d.c.'], a: 1, why: ' Induction needs a changing magnetic field.' },
+  ]);
+})();
+</script>
+</body>
+</html>

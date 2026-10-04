@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Density Lab · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Measure mass and volume, calculate density with ρ = m/V and predict floating or sinking. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="density">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p><b>Density</b> tells you how much mass is packed into each cm³ of a material. <b>ρ = m ÷ V</b> (mass ÷ volume).</p>
+    <p>A block of wood and a block of iron can be the same size, but the iron has much more mass, so it is denser. Anything <b>less dense than water (1.0 g/cm³)</b> floats in water. Anything denser sinks.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="pick"></div>
+
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage">
+      <canvas id="cv" aria-label="An electronic balance, a measuring cylinder or block dimensions, and a tank of water"></canvas>
+      <p class="cap" id="cap"></p>
+      <div class="row" id="btns"></div>
+    </div>
+    <div class="stack">
+      <section class="card">
+        <h2>Your measurements</h2>
+        <div id="meas"></div>
+        <form class="qnum" id="ans" style="margin-top:10px">
+          <label for="ans-in" style="font-weight:700;font-size:15px;width:100%">Density ρ = m ÷ V =</label>
+          <input id="ans-in" inputmode="decimal" autocomplete="off" placeholder="Density"><span>g/cm³</span>
+          <button class="btn" type="submit">Check</button>
+        </form>
+        <div id="fb" aria-live="polite"></div>
+      </section>
+      <section id="maths" hidden></section>
+    </div>
+  </div>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Densities of some materials</h2>
+    <p class="note" style="margin-top:0">Use your answer to identify the material. Water is 1.0 g/cm³ = 1000 kg/m³ (multiply g/cm³ by 1000 to get kg/m³).</p>
+    <div class="tbl-wrap"><table class="data"><thead><tr><th>Material</th><th>ρ / g cm⁻³</th><th>ρ / kg m⁻³</th><th>In water</th></tr></thead><tbody id="dtable"></tbody></table></div>
+  </section>
+
+  <div class="watch" style="margin-top:16px"><strong class="lbl">Common mistakes</strong>
+    <p>Read a measuring cylinder at the <b>bottom of the meniscus</b>, with your eye level. The volume of the stone is the <b>rise</b> in water level (final − initial), not the final reading.</p>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var MATS = [
+    { n: 'Cork', r: 0.24, col: '#C9A26B' }, { n: 'Pine wood', r: 0.50, col: '#D8B072' }, { n: 'Ice', r: 0.92, col: '#BFE3F2' },
+    { n: 'Rubber', r: 1.20, col: '#3B3F46' }, { n: 'Modelling clay', r: 1.60, col: '#8FB75C' }, { n: 'Stone (granite)', r: 2.70, col: '#9AA0A8' },
+    { n: 'Aluminium', r: 2.70, col: '#C7CDD4' }, { n: 'Iron', r: 7.90, col: '#6B6F76' },
+  ];
+  var OBJECTS = [
+    { id: 'wood', label: 'Wooden block', mat: 1, shape: 'block' }, { id: 'alu', label: 'Aluminium block', mat: 6, shape: 'block' },
+    { id: 'cork', label: 'Cork block', mat: 0, shape: 'block' }, { id: 'stone', label: 'Irregular stone', mat: 5, shape: 'lump' },
+    { id: 'clay', label: 'Lump of clay', mat: 4, shape: 'lump' }, { id: 'nut', label: 'Iron nut', mat: 7, shape: 'lump' },
+  ];
+  var st = { obj: OBJECTS[0], dims: null, V: 0, m: 0, step: 0, solved: {}, floatSeen: false, sinkSeen: false, lumpSolved: 0, tank: false };
+
+  function setup(o) {
+    st.obj = o; st.step = 0; st.tank = false;
+    var r = MATS[o.mat].r;
+    if (o.shape === 'block') {
+      var d = [2 + Math.round(Math.random() * 30) / 10, 2 + Math.round(Math.random() * 20) / 10, 1.5 + Math.round(Math.random() * 15) / 10];
+      st.dims = d; st.V = d[0] * d[1] * d[2];
+    } else { st.dims = null; st.V = 8 + Math.round(Math.random() * 10) * 2; st.v0 = 50; }
+    st.m = Math.round(r * st.V * 10) / 10;
+    Lab.$('#ans-in').value = ''; Lab.$('#fb').innerHTML = ''; Lab.$('#maths').hidden = true;
+    update();
+  }
+  function rho() { return st.m / st.V; }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var mat = MATS[st.obj.mat], third = W / 3, base = H - 40;
+    // --- balance ---
+    var bx = third * 0.5;
+    ctx.fillStyle = c('t0'); Lab.roundRect(ctx, bx - 60, base - 30, 120, 30, 6); ctx.fill();
+    ctx.fillStyle = c('ink'); ctx.fillRect(bx - 50, base - 36, 100, 6);
+    ctx.fillStyle = '#0b1a10'; Lab.roundRect(ctx, bx - 40, base - 24, 80, 18, 3); ctx.fill();
+    Lab.text(ctx, st.step >= 1 ? st.m.toFixed(1) + ' g' : '0.0 g', bx, base - 15, { color: '#4ef08a', kind: 'mono', size: 13, align: 'center' });
+    Lab.text(ctx, W < 520 ? '1 Mass' : '1  Balance', bx, 24, { weight: 700, align: 'center' });
+    if (st.step >= 1) drawObj(ctx, bx, base - 36, mat, 0.9);
+    // --- volume ---
+    var vx = third * 1.5;
+    Lab.text(ctx, W < 520 ? '2 Volume' : st.obj.shape === 'block' ? '2  Measure the sides' : '2  Measuring cylinder', vx, 24, { weight: 700, align: 'center' });
+    if (st.obj.shape === 'block') {
+      if (st.step >= 2) {
+        drawObj(ctx, vx, base - 60, mat, 1.5);
+        var d = st.dims;
+        Lab.text(ctx, 'length ' + d[0].toFixed(1) + ' cm', vx, base - 20, { size: 12, align: 'center', kind: 'mono' });
+        Lab.text(ctx, 'width ' + d[1].toFixed(1) + ' cm', vx, base - 4, { size: 12, align: 'center', kind: 'mono' });
+        Lab.text(ctx, 'height ' + d[2].toFixed(1) + ' cm', vx, base + 12, { size: 12, align: 'center', kind: 'mono' });
+      } else Lab.text(ctx, 'press Measure', vx, H / 2, { color: c('muted'), align: 'center' });
+    } else {
+      var cw = 46, top = 50, bot = base, max = 100, ppv = (bot - top) / max;
+      var level = st.step >= 2 ? st.v0 + st.V : st.v0;
+      ctx.fillStyle = c('t6'); ctx.globalAlpha = 0.35; ctx.fillRect(vx - cw / 2, bot - level * ppv, cw, level * ppv); ctx.globalAlpha = 1;
+      // meniscus
+      ctx.strokeStyle = c('t6'); ctx.lineWidth = 2; ctx.beginPath();
+      ctx.moveTo(vx - cw / 2, bot - level * ppv - 4); ctx.quadraticCurveTo(vx, bot - level * ppv + 4, vx + cw / 2, bot - level * ppv - 4); ctx.stroke();
+      ctx.strokeStyle = c('ink'); ctx.lineWidth = 1.5; ctx.strokeRect(vx - cw / 2, top, cw, bot - top);
+      for (var v = 0; v <= max; v += 2) {
+        var y = bot - v * ppv;
+        Lab.line(ctx, vx + cw / 2 - (v % 10 ? 7 : 14), y, vx + cw / 2, y, c('ink'), 1);
+        if (v % 10 === 0) Lab.text(ctx, String(v), vx + cw / 2 + 4, y, { size: 10, kind: 'mono' });
+      }
+      Lab.text(ctx, 'cm³', vx + cw / 2 + 4, top - 8, { size: 10, color: c('muted') });
+      if (st.step >= 2) drawObj(ctx, vx, bot - 4, mat, 0.6);
+    }
+    // --- tank ---
+    var tx = third * 2.5, tw = Math.min(third - 30, 150), wl = base - 110;
+    Lab.text(ctx, W < 520 ? '3 Water' : '3  Test in water', tx, 24, { weight: 700, align: 'center' });
+    ctx.fillStyle = c('t6'); ctx.globalAlpha = 0.25; ctx.fillRect(tx - tw / 2, wl, tw, base - wl); ctx.globalAlpha = 1;
+    ctx.strokeStyle = c('ink'); ctx.lineWidth = 1.5; ctx.strokeRect(tx - tw / 2, base - 150, tw, 150);
+    if (st.tank) {
+      var sz = 34, r = rho();
+      var y = r < 1 ? wl + sz * r - sz : base - sz - 2; // floating: fraction r of its height under water
+      ctx.fillStyle = mat.col; ctx.fillRect(tx - sz / 2, y, sz, sz); ctx.strokeStyle = c('ink'); ctx.strokeRect(tx - sz / 2, y, sz, sz);
+      Lab.text(ctx, r < 1 ? 'FLOATS' : 'SINKS', tx, wl - 40, { weight: 700, align: 'center', color: r < 1 ? c('ok') : c('no') });
+    }
+  }, { ratio: 0.55, min: 300, max: 380 });
+
+  function drawObj(ctx, x, yBottom, mat, s) {
+    ctx.fillStyle = mat.col; ctx.strokeStyle = c('ink'); ctx.lineWidth = 1.5;
+    if (st.obj.shape === 'block') { var w = 34 * s, h = 22 * s; ctx.fillRect(x - w / 2, yBottom - h, w, h); ctx.strokeRect(x - w / 2, yBottom - h, w, h); }
+    else {
+      ctx.beginPath(); var r = 16 * s;
+      for (var i = 0; i <= 8; i++) { var a = i / 8 * Math.PI * 2, rr = r * (0.8 + 0.25 * Math.sin(i * 2.3)); ctx.lineTo(x + rr * Math.cos(a), yBottom - r + rr * Math.sin(a) * 0.8); }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  }
+
+  Lab.seg(Lab.$('#pick'), { label: 'Choose an object', value: 'wood', options: OBJECTS.map(function (o) { return [o.id, o.label]; }),
+    onChange: function (v) { setup(OBJECTS.find(function (o) { return o.id === v; })); } });
+  var bb = Lab.$('#btns');
+  var b1 = Lab.button(bb, '1 · Weigh it', function () { st.step = Math.max(st.step, 1); update(); });
+  var b2 = Lab.button(bb, '2 · Measure the volume', function () { st.step = Math.max(st.step, 2); update(); });
+  var b3 = Lab.button(bb, '3 · Drop it in water', function () { st.tank = true; if (rho() < 1) st.floatSeen = true; else st.sinkSeen = true; update(); }, true);
+
+  Lab.$('#ans').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (st.step < 2) { Lab.$('#fb').innerHTML = '<p class="qfb no"><strong>Measure the mass and the volume first.</strong></p>'; return; }
+    var r = WBC.checkNumber(Lab.$('#ans-in').value, { value: rho(), pct: 0.03 });
+    var steps = volSteps().concat([['Density', 'ρ = m ÷ V = ' + st.m.toFixed(1) + ' ÷ ' + Lab.sf(st.V, 3) + ' = <b>' + rho().toFixed(2) + ' g/cm³</b> = ' + Math.round(rho() * 1000) + ' kg/m³']]);
+    if (r.ok) {
+      if (!st.solved[st.obj.id]) { st.solved[st.obj.id] = true; if (st.obj.shape === 'lump') st.lumpSolved++; }
+      Lab.$('#fb').innerHTML = '<p class="qfb ok"><strong>✓ Correct! ρ = ' + rho().toFixed(2) + ' g/cm³.</strong>Look in the table: this matches <b>' + MATS[st.obj.mat].n + '</b>. ' + (rho() < 1 ? 'It is less dense than water, so it should float.' : 'It is denser than water, so it should sink.') + ' Test it in step 3.</p>';
+    } else {
+      Lab.$('#fb').innerHTML = '<p class="qfb no"><strong>✗ Not quite.</strong>' + (r.reason === 'nonumber' ? 'Type a number.' : 'Check the working below.') + '</p>';
+    }
+    var m = Lab.$('#maths'); m.hidden = false; Lab.math(m, 'Show the maths', steps);
+    update();
+  });
+  function volSteps() {
+    if (st.obj.shape === 'block') { var d = st.dims; return [['Volume of a block', 'V = l × w × h = ' + d[0].toFixed(1) + ' × ' + d[1].toFixed(1) + ' × ' + d[2].toFixed(1) + ' = <b>' + Lab.sf(st.V, 3) + ' cm³</b>']]; }
+    return [['Volume by displacement', 'V = final − initial = ' + (st.v0 + st.V) + ' − ' + st.v0 + ' = <b>' + st.V + ' cm³</b>']];
+  }
+
+  Lab.$('#dtable').innerHTML = MATS.map(function (m) { return '<tr><td style="font-family:inherit">' + m.n + '</td><td>' + m.r.toFixed(2) + '</td><td>' + Math.round(m.r * 1000) + '</td><td style="font-family:inherit">' + (m.r < 1 ? 'floats' : 'sinks') + '</td></tr>'; }).join('');
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Find the density of the wooden block.', s: 'Weigh it, measure it, then ρ = m ÷ V.', ok: function (s) { return s.solved.wood; } },
+    { t: 'Find the density of an irregular object using the measuring cylinder.', s: 'Volume = rise in water level.', ok: function (s) { return s.lumpSolved >= 1; } },
+    { t: 'Find the density of 4 different objects.', ok: function (s) { return Object.keys(s.solved).length >= 4; } },
+    { t: 'Find one object that floats and one that sinks.', ok: function (s) { return s.floatSeen && s.sinkSeen; } },
+  ], { title: 'Measure density like a scientist' });
+
+  function update() {
+    var lump = st.obj.shape === 'lump';
+    b2.disabled = st.step < 1;
+    var rows = [['Mass m', st.step >= 1 ? st.m.toFixed(1) + ' g' : '—']];
+    if (lump) { rows.push(['Water level before', st.v0 + ' cm³']); rows.push(['Water level after', st.step >= 2 ? (st.v0 + st.V) + ' cm³' : '—']); }
+    rows.push(['Volume V', st.step >= 2 ? Lab.sf(st.V, 3) + ' cm³' : '—', true]);
+    Lab.readout(Lab.$('#meas'), rows);
+    Lab.$('#cap').innerHTML = lump ? 'An irregular object has no sides to measure, so lower it into water and find how much the level <b>rises</b> (the displacement method).' : 'A regular block: measure length, width and height, then V = l × w × h.';
+    view.redraw();
+    T.update(st);
+  }
+  setup(OBJECTS[0]);
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A stone has a mass of 54 g. The water level rises from 40 cm³ to 60 cm³. What is its density in g/cm³?', n: 2.7, unit: 'g/cm³', why: ' V = 60 − 40 = 20 cm³. ρ = 54 ÷ 20 = 2.7 g/cm³.', hint: ' First find the rise in water level, then divide the mass by it.' },
+    { q: 'Change 2.7 g/cm³ into kg/m³.', n: 2700, unit: 'kg/m³', why: ' Multiply by 1000: 2700 kg/m³.' },
+    { q: 'Which object will float in water?', o: ['Density 7.9 g/cm³', 'Density 1.2 g/cm³', 'Density 0.6 g/cm³', 'Density 2.7 g/cm³'], a: 2, why: ' Only an object less dense than water (1.0 g/cm³) floats.' },
+    { q: 'Rearrange ρ = m ÷ V to find the mass.', o: ['m = ρ ÷ V', 'm = ρ × V', 'm = V ÷ ρ', 'm = ρ + V'], a: 1, why: ' Multiply both sides by V: m = ρV.' },
+  ]);
+})();
+</script>
+</body>
+</html>

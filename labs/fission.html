@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fission Chain Reaction · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Fire a neutron at uranium-235, watch a chain reaction grow, use control rods to keep it steady, and calculate energy with E = mc². CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="fission">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p><b>Fission</b>: a slow neutron hits a big nucleus such as uranium-235, which splits into two smaller nuclei and releases <b>2 or 3 more neutrons</b> plus a lot of energy. Those neutrons can split more nuclei: a <b>chain reaction</b>.</p>
+    <p>In a nuclear power station, <b>control rods</b> absorb some neutrons so that, on average, <b>one</b> neutron from each fission causes another, keeping the reaction steady. <b>Fusion</b> is the opposite: small nuclei join together (as in the Sun).</p>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <div class="stage"><canvas id="cv" aria-label="Uranium nuclei being split by neutrons, with control rods"></canvas><div class="row" style="margin-top:8px" id="btns"></div></div>
+    <div class="stack">
+      <section class="card"><h2>Reactor</h2><div id="ctl"></div><div id="live" style="margin-top:8px"></div></section>
+      <section class="card"><canvas id="gr" aria-label="Fissions per second"></canvas></section>
+    </div>
+  </div>
+
+  <section class="card" style="margin-top:16px">
+    <h2>E = mc²: where does the energy come from?</h2>
+    <p class="note" style="margin-top:0">The products of fission have slightly <b>less mass</b> than the uranium + neutron. The missing mass Δm turns into energy: <b>E = Δm c²</b>, with c = 3 × 10⁸ m/s. Because c² is huge, a tiny mass gives a huge energy.</p>
+    <div class="lab-grid"><div id="ectl"></div><div id="emath"></div></div>
+  </section>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var st = { rods: 0, U: [], n: [], frag: [], fissions: 0, hist: [], t: 0, recent: [], seen: {}, dm: 1e-6 };
+  function reset() {
+    st.U = []; st.n = []; st.frag = []; st.fissions = 0; st.t = 0; st.hist = []; st.recent = [];
+    for (var i = 0; i < 140; i++) st.U.push({ x: 0.04 + Math.random() * 0.92, y: 0.06 + Math.random() * 0.88, ok: true });
+    live();
+  }
+  function fireOne() { st.n.push({ x: 0.0, y: 0.5, vx: 0.35, vy: (Math.random() - 0.5) * 0.05 }); st.seen.fired = true; }
+  function rodXs() { var k = 3, xs = []; for (var i = 1; i <= k; i++) xs.push(i / (k + 1)); return xs; }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    ctx.strokeStyle = c('grid-strong'); ctx.lineWidth = 2; ctx.strokeRect(2, 2, W - 4, H - 4);
+    // control rods hang down from the top; depth set by the slider
+    rodXs().forEach(function (x) { ctx.fillStyle = c('t0'); ctx.fillRect(x * W - 6, 0, 12, st.rods * H); });
+    st.U.forEach(function (u) { if (u.ok) { Lab.dot(ctx, u.x * W, u.y * H, 7, c('t3')); } });
+    st.frag.forEach(function (f) { ctx.globalAlpha = Math.max(0, 1 - f.age); Lab.dot(ctx, f.x * W, f.y * H, 5, c('t7')); if (f.age < 0.25) { ctx.fillStyle = 'rgba(255,214,10,' + (0.6 - f.age * 2) + ')'; ctx.beginPath(); ctx.arc(f.x * W, f.y * H, 18, 0, 7); ctx.fill(); } ctx.globalAlpha = 1; });
+    st.n.forEach(function (p) { Lab.dot(ctx, p.x * W, p.y * H, 3, c('t2')); });
+    Lab.text(ctx, '● U-235   ● neutron   ● fission products', 10, H - 12, { size: 11, color: c('muted') });
+  }, { ratio: 0.7, min: 300, max: 420 });
+  var gr = Lab.canvas(Lab.$('#gr'), function (ctx, W, H) {
+    var a = Lab.axes(ctx, { x: 40, y: 20, w: W - 56, h: H - 56 }, { xmin: 0, xmax: 20, ymin: 0, ymax: 40, xstep: 5, ystep: 10, xlabel: 'time / s', ylabel: 'fissions per s' });
+    ctx.strokeStyle = c('t7'); ctx.lineWidth = 2.5; ctx.beginPath();
+    st.hist.forEach(function (p, i) { if (i) ctx.lineTo(a.X(p[0]), a.Y(Math.min(40, p[1]))); else ctx.moveTo(a.X(p[0]), a.Y(Math.min(40, p[1]))); }); ctx.stroke();
+  }, { ratio: 0.6, min: 200, max: 260 });
+
+  var anim = Lab.loop(function (dt) {
+    st.t += dt;
+    var rx = rodXs(), W = view.W, H = view.H;
+    st.n.forEach(function (p) {
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) p.dead = true;
+      rx.forEach(function (x) { if (Math.abs(p.x - x) < 8 / W && p.y < st.rods) p.dead = true; });   // absorbed by a control rod
+      if (!p.dead) st.U.forEach(function (u) {
+        if (!p.dead && u.ok && Math.hypot((p.x - u.x) * W, (p.y - u.y) * H) < 9) {
+          u.ok = false; p.dead = true; st.fissions++; st.recent.push(st.t);
+          st.frag.push({ x: u.x, y: u.y, vx: 0.05, vy: 0.04, age: 0 }, { x: u.x, y: u.y, vx: -0.05, vy: -0.04, age: 0 });
+          var k = Math.random() < 0.5 ? 2 : 3;
+          for (var j = 0; j < k; j++) { var a = Math.random() * Math.PI * 2; st.n.push({ x: u.x, y: u.y, vx: Math.cos(a) * 0.3, vy: Math.sin(a) * 0.3 }); }
+        }
+      });
+    });
+    st.n = st.n.filter(function (p) { return !p.dead; });
+    st.frag.forEach(function (f) { f.x += f.vx * dt; f.y += f.vy * dt; f.age += dt * 0.7; }); st.frag = st.frag.filter(function (f) { return f.age < 1.2; });
+    st.recent = st.recent.filter(function (t) { return st.t - t < 1; });
+    if (!st.hist.length || st.t - st.hist[st.hist.length - 1][0] > 0.25) { st.hist.push([st.t % 20, st.recent.length]); if (st.t % 20 < 0.3 && st.hist.length > 2) st.hist = [[0, st.recent.length]]; }
+    if (st.recent.length >= 15 && st.rods === 0) st.seen.boom = true;
+    // a steady reaction: fissions continue for 5 s with control rods in
+    if (st.rods >= 0.3 && st.recent.length >= 1 && st.recent.length <= 8) { st.steady = (st.steady || 0) + dt; if (st.steady > 4) st.seen.steady = true; } else st.steady = 0;
+    view.redraw(); gr.redraw(); live();
+  });
+  var bb = Lab.$('#btns');
+  Lab.button(bb, 'Fire a neutron', fireOne);
+  Lab.button(bb, 'Refuel (new uranium)', function () { reset(); }, true);
+  Lab.slider(Lab.$('#ctl'), { label: 'Lower the control rods', min: 0, max: 0.9, step: 0.1, value: 0, fmt: function (v) { return Math.round(v * 100) + '% inserted'; }, onInput: function (v) { st.rods = v; st.seen['rods' + Math.round(v * 10)] = true; } });
+
+  function live() {
+    var left = st.U.filter(function (u) { return u.ok; }).length;
+    Lab.readout(Lab.$('#live'), [['Fissions so far', st.fissions], ['Neutrons flying', st.n.length], ['Fissions in the last second', st.recent.length, true], ['U-235 left', left]]);
+    T.update(st);
+  }
+
+  Lab.slider(Lab.$('#ectl'), { label: 'Mass converted Δm', min: -9, max: -3, step: 1, value: -6, fmt: function (v) { return '1 × 10' + Lab.sup(v) + ' kg'; }, onInput: function (v) { st.dm = Math.pow(10, v); emath(); } });
+  function emath() {
+    var E = st.dm * 9e16;
+    Lab.math(Lab.$('#emath'), 'Show the maths', [['Formula', 'E = m c²'], ['Substitute', 'E = ' + Lab.sci(st.dm, 2) + ' × (3 × 10⁸)² = ' + Lab.sci(st.dm, 2) + ' × 9 × 10¹⁶'], ['Energy', 'E = <b>' + Lab.sci(E, 2) + ' J</b>'], ['Compare', 'enough to run a 100 W bulb for ' + Lab.sci(E / 100 / 3600 / 24 / 365, 2) + ' years']]);
+    st.seen.emc = true; T.update(st);
+  }
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Fire a neutron with the control rods fully out. Watch the chain reaction grow.', s: 'Each fission releases 2–3 neutrons, so the number of fissions grows very fast (as in a bomb).', ok: function (s) { return s.seen.boom; } },
+    { t: 'Refuel, lower the control rods part-way and fire again. Try to keep a steady reaction.', s: 'You want about one neutron from each fission to cause another fission.', ok: function (s) { return s.seen.steady; } },
+    { t: 'Lower the rods fully and fire. What happens?', s: 'The rods absorb the neutrons, so the reaction stops: a shutdown.', ok: function (s) { return s.seen.rods9 && s.seen.fired; } },
+    { t: 'Use the E = mc² calculator.', ok: function (s) { return s.seen.emc; } },
+  ], { title: 'Control a chain reaction' });
+
+  reset(); anim.start(); st.seen.emc = false; (function () { var E = st.dm * 9e16; Lab.math(Lab.$('#emath'), 'Show the maths', [['Formula', 'E = m c²'], ['Substitute', 'E = 1 × 10⁻⁶ × (3 × 10⁸)²'], ['Energy', 'E = <b>' + Lab.sci(E, 2) + ' J</b>']]); })();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'How much energy is released when 2 × 10⁻⁵ kg of mass is converted? (c = 3 × 10⁸ m/s)', n: 1.8e12, unit: 'J', why: ' E = mc² = 2 × 10⁻⁵ × 9 × 10¹⁶ = 1.8 × 10¹² J.', hint: ' Type standard form like 1.8e12 or 1.8 × 10^12.' },
+    { q: 'What is the job of the control rods in a nuclear reactor?', o: ['To slow the neutrons down', 'To absorb neutrons and control the rate of fission', 'To cool the reactor', 'To produce electricity'], a: 1, why: ' The moderator (water or graphite) slows the neutrons; the control rods (boron) absorb them.' },
+    { q: 'Nuclear fusion is…', o: ['a big nucleus splitting', 'two light nuclei joining to make a heavier one', 'an electron leaving the atom', 'the same as radioactive decay'], a: 1, why: ' Fusion of hydrogen into helium powers the Sun.' },
+  ]);
+})();
+</script>
+</body>
+</html>

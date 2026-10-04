@@ -194,11 +194,11 @@ details.more summary{cursor:pointer;font-weight:700;color:var(--accent);min-heig
 .formula-where{margin:8px 0 0;padding:10px 0 0 20px;border-top:1px solid color-mix(in srgb,var(--line) 75%,transparent);font-size:14px}
 .formula-where li{margin:3px 0}
 .block-tip{border-left-color:var(--ok);background:var(--ok-bg)}
-.block-tip>strong{color:var(--good)}
+.block-tip>strong{color:var(--ok-ink)}
 .block-warn{border-left-color:var(--no);background:var(--no-bg)}
-.block-warn>strong{color:var(--no)}
+.block-warn>strong{color:var(--no-ink)}
 .block-remember{border-left-color:var(--t7);background:var(--hint-bg)}
-.block-remember>strong{color:var(--t7)}
+.block-remember>strong{color:var(--amber-ink)}
 .block-label+.formula-main{margin-top:8px}
 .figure{margin:16px auto;padding:10px;max-width:100%;border-radius:var(--r-sm);background:#fff;box-shadow:var(--shadow);text-align:center}
 .figure picture{display:block}
@@ -467,3 +467,35 @@ details.more summary{cursor:pointer;font-weight:700;color:var(--accent);min-heig
   .chip.streak{display:none}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ===== extra help: plain-language support, maths help, labs, formula coach ===== */
+.simple-words{margin-top:14px;padding:16px 18px;border-radius:var(--r);background:var(--ok-bg);border-left:4px solid var(--ok)}
+.simple-words>strong{display:block;font:800 12px var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--ok-ink);margin-bottom:6px}
+.simple-words p{margin:0;font-size:17px}
+.maths-need{margin-top:14px}
+.maths-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.maths-chips a{display:inline-flex;align-items:center;min-height:44px;padding:7px 14px;border-radius:999px;background:var(--surface);box-shadow:inset 0 0 0 1.5px var(--line);color:var(--ink);font-weight:700;font-size:15px;text-decoration:none}
+.maths-chips a::before{content:'÷';display:grid;place-items:center;width:22px;height:22px;margin-right:8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:13px}
+.maths-chips a:hover{box-shadow:inset 0 0 0 2px var(--accent)}
+.lab-links{margin:18px 0}
+.lab-grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-top:8px}
+.lab-card{display:flex;flex-direction:column;gap:4px;padding:14px 16px;border-radius:var(--r-sm);background:var(--surface);box-shadow:var(--shadow);border-top:4px solid var(--t3);color:var(--ink);text-decoration:none;min-width:0}
+.lab-card b{font:700 17px var(--f-display)}
+.lab-card span{font-size:14px;color:var(--muted)}
+.lab-card em{font-style:normal;font-weight:700;font-size:14px;color:var(--accent);margin-top:auto}
+.lab-card:hover{box-shadow:var(--shadow-2)}
+.recap{margin-top:18px;padding:16px 18px;border-radius:var(--r-sm);background:var(--hint-bg);border-left:4px solid var(--t7)}
+.recap>strong{display:block;color:var(--ink);margin-bottom:6px}
+.recap ul{margin:0;padding-left:20px;display:grid;gap:4px}
+.coach-link{display:inline-flex;align-items:center;min-height:44px;margin-top:6px;font-weight:700;font-size:15px;color:var(--accent);text-decoration:none}
+.coach-link:hover{text-decoration:underline}
+.tools-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:16px}
+.tools-strip a{display:flex;flex-direction:column;gap:2px;padding:14px 16px;border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow);text-decoration:none;color:var(--ink);border-left:4px solid var(--accent)}
+.tools-strip b{font:700 17px var(--f-display)}
+.tools-strip span{font-size:14px;color:var(--muted)}
+@media print{.lab-links,.maths-need,.coach-link,.tools-strip{display:none!important}}
+
+/* text-strength versions of the status colours, for labels on tinted boxes (WCAG AA) */
+:root{--ok-ink:#0B6E4C;--no-ink:#B4232A;--amber-ink:#8A4B00}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ok-ink:#3DD68C;--no-ink:#FF6B6E;--amber-ink:#FBBF24}}
+:root[data-theme="dark"]{--ok-ink:#3DD68C;--no-ink:#FF6B6E;--amber-ink:#FBBF24}

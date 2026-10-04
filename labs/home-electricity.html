@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Electricity in the Home · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Calculate the cost of electricity in kWh, choose the right fuse and see how the earth wire and fuse protect you from a shock. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="home-electricity">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p><b>Power</b> (in watts) is how fast an appliance uses energy: <b>P = V × I</b>. Electricity companies charge for energy in <b>kilowatt-hours (kWh)</b>: <b>energy = power in kW × time in hours</b>. 1 kWh is a 1000 W appliance running for 1 hour.</p>
+    <p>A <b>fuse</b> is a thin wire that melts if the current is too big, cutting off the <b>live</b> wire. The <b>earth</b> wire protects you if a fault makes a metal case live.</p>
+  </div>
+
+  <section class="card" style="margin-top:16px">
+    <h2>1 · What does it cost to run?</h2>
+    <div class="lab-grid"><div><div id="apps"></div><div id="rate"></div></div><div id="cost"></div></div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <h2>2 · Choose the right fuse</h2>
+    <div class="lab-grid">
+      <div><div class="row" id="fapp"></div><div class="row" id="volt" style="margin-top:8px"></div><p style="margin:12px 0 6px;font-weight:700">Pick a fuse:</p><div class="row" id="fuses"></div><div id="ffb" aria-live="polite"></div></div>
+      <div id="fmath"></div>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <h2>3 · A fault: the live wire touches the metal case</h2>
+    <div class="lab-grid">
+      <div class="stage"><canvas id="cv" aria-label="A kettle with a metal case connected by live, neutral and earth wires, and a person touching it"></canvas></div>
+      <div><div id="tog"></div><div class="row" style="margin-top:8px" id="fbtn"></div><div id="fault" style="margin-top:10px"></div></div>
+    </div>
+  </section>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var APPS = [['Kettle', 2000, 0.5], ['Air conditioner', 1500, 8], ['Fridge', 150, 24], ['TV', 100, 4], ['Iron', 1000, 0.5], ['LED bulb', 10, 6]];
+  var st = { hours: APPS.map(function (a) { return a[2]; }), rate: 0.37, fapp: 0, V: 110, fuse: null, rightFuse: 0, earth: true, faultOn: false, shock: false, safeFault: false };
+
+  // ---------- 1 · cost ----------
+  var apps = Lab.$('#apps');
+  APPS.forEach(function (a, k) { Lab.slider(apps, { label: a[0] + ' (' + a[1] + ' W), hours per day', min: 0, max: 24, step: 0.5, value: a[2], unit: 'h', onInput: function (v) { st.hours[k] = v; st.costChanged = true; cost(); } }); });
+  Lab.slider(Lab.$('#rate'), { label: 'Cost per kWh', min: 0.2, max: 2, step: 0.01, value: st.rate, fmt: function (v) { return '$' + v.toFixed(2); }, onInput: function (v) { st.rate = v; cost(); } });
+  function cost() {
+    var rows = APPS.map(function (a, k) { var kwh = a[1] / 1000 * st.hours[k]; return [a[0], kwh]; }), tot = rows.reduce(function (s, r) { return s + r[1]; }, 0);
+    var top = rows.slice().sort(function (p, q) { return q[1] - p[1]; })[0];
+    Lab.math(Lab.$('#cost'), 'Show the maths', [
+      ['Air conditioner each day', 'E = P × t = ' + (APPS[1][1] / 1000) + ' kW × ' + st.hours[1] + ' h = <b>' + Lab.sf(APPS[1][1] / 1000 * st.hours[1], 3) + ' kWh</b>'],
+      ['All appliances each day', rows.map(function (r) { return Lab.sf(r[1], 2); }).join(' + ') + ' = <b>' + Lab.sf(tot, 3) + ' kWh</b>'],
+      ['Cost each day', Lab.sf(tot, 3) + ' kWh × $' + st.rate.toFixed(2) + ' = <b>$' + (tot * st.rate).toFixed(2) + '</b>'],
+      ['Cost for 30 days', '<b>$' + (tot * st.rate * 30).toFixed(2) + '</b>. The biggest user is the ' + top[0].toLowerCase()],
+    ]);
+    st.totalKwh = tot; T.update(st);
+  }
+
+  // ---------- 2 · fuse ----------
+  var FAPPS = [['Kettle', 2000], ['Hair dryer', 1200], ['Lamp', 60], ['Microwave', 900], ['Laptop charger', 90]], FUSES = [1, 3, 5, 13];
+  Lab.seg(Lab.$('#fapp'), { label: 'Appliance', value: 0, options: FAPPS.map(function (a, k) { return [k, a[0] + ' ' + a[1] + ' W']; }), onChange: function (v) { st.fapp = +v; st.fuse = null; fuse(); } });
+  Lab.seg(Lab.$('#volt'), { label: 'Mains voltage', value: 110, options: [[110, '110 V'], [220, '220 V']], onChange: function (v) { st.V = +v; st.fuse = null; fuse(); } });
+  var fseg = Lab.seg(Lab.$('#fuses'), { label: 'Fuse rating', value: null, options: FUSES.map(function (f) { return [f, f + ' A']; }), onChange: function (v) { st.fuse = +v; fuse(); } });
+  function fuse() {
+    var a = FAPPS[st.fapp], I = a[1] / st.V, best = FUSES.find(function (f) { return f > I; }) || null;
+    Lab.math(Lab.$('#fmath'), 'Show the maths', [
+      ['Normal current', 'I = P ÷ V = ' + a[1] + ' ÷ ' + st.V + ' = <b>' + Lab.sf(I, 3) + ' A</b>'],
+      ['Rule', 'choose the smallest fuse rating that is <b>bigger</b> than the normal current'],
+      ['So', best ? 'use a <b>' + best + ' A</b> fuse' : 'the current is more than 13 A, so this appliance needs its own circuit with a higher-rated fuse or circuit breaker'],
+    ]);
+    if (st.fuse == null) { fseg.set(null, true); Lab.$('#ffb').innerHTML = ''; }
+    else if (st.fuse === best) { st.rightSet = st.rightSet || {}; st.rightSet[st.fapp] = true; st.rightFuse = Object.keys(st.rightSet).length; Lab.$('#ffb').innerHTML = '<p class="qfb ok"><strong>✓ Correct choice.</strong>It lets the normal ' + Lab.sf(I, 3) + ' A through, but melts quickly if a fault makes the current much bigger.</p>'; }
+    else if (st.fuse < I) Lab.$('#ffb').innerHTML = '<p class="qfb no"><strong>✗ Too small: the fuse blows</strong>as soon as you switch on, because the normal current (' + Lab.sf(I, 3) + ' A) is bigger than ' + st.fuse + ' A.</p>';
+    else Lab.$('#ffb').innerHTML = '<p class="qfb no"><strong>✗ Too big: unsafe.</strong>The appliance works, but in a fault a dangerous current could flow (and overheat the cable) without the fuse melting.</p>';
+    T.update(st);
+  }
+
+  // ---------- 3 · fault ----------
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var kx = W * 0.62, ky = H * 0.45, live = st.faultOn, blown = live && st.earth;
+    // kettle case
+    ctx.fillStyle = live && !st.earth ? '#ffcccc' : c('surface'); ctx.strokeStyle = c('ink'); ctx.lineWidth = 2.5;
+    Lab.roundRect(ctx, kx - 50, ky - 50, 100, 100, 14); ctx.fill(); ctx.stroke();
+    Lab.text(ctx, 'metal case', kx, ky - 62, { align: 'center', size: 12 });
+    var yL = H * 0.2, yN = H * 0.35, yE = H * 0.8, x0 = 20;
+    // live (brown) with fuse
+    Lab.line(ctx, x0, yL, W * 0.3, yL, '#8B4513', 4);
+    ctx.fillStyle = blown ? c('no') : c('surface'); ctx.fillRect(W * 0.3, yL - 8, 40, 16); ctx.strokeStyle = c('ink'); ctx.strokeRect(W * 0.3, yL - 8, 40, 16);
+    Lab.text(ctx, blown ? 'BLOWN' : 'fuse', W * 0.3 + 20, yL - 18, { align: 'center', size: 11, weight: 700, color: blown ? c('no') : c('ink') });
+    if (!blown) Lab.line(ctx, W * 0.3 + 40, yL, kx - 50, yL, '#8B4513', 4);
+    Lab.line(ctx, x0, yN, kx - 50, yN, '#2a6fdb', 4);
+    Lab.text(ctx, 'live', x0, yL - 12, { size: 12, weight: 700, color: '#8B4513' }); Lab.text(ctx, 'neutral', x0, yN - 12, { size: 12, weight: 700, color: '#2a6fdb' });
+    if (st.earth) { Lab.line(ctx, kx, ky + 50, kx, yE, '#3a9a3a', 4); Lab.line(ctx, kx, yE, x0, yE, '#3a9a3a', 4); Lab.text(ctx, 'earth (green/yellow)', x0, yE - 12, { size: 12, weight: 700, color: '#3a9a3a' }); }
+    if (live) { Lab.line(ctx, kx - 50, yL, kx - 30, ky - 40, c('no'), 3, [4, 3]); Lab.text(ctx, '⚡ fault', kx - 40, yL + 18, { size: 12, color: c('no'), weight: 700 }); }
+    // person
+    var px = kx + 110; Lab.dot(ctx, px, ky - 30, 12, c('t7')); Lab.line(ctx, px, ky - 18, px, ky + 40, c('t7'), 4); Lab.line(ctx, px, ky - 5, kx + 52, ky, c('t7'), 4);
+    Lab.line(ctx, px, ky + 40, px - 14, ky + 80, c('t7'), 4); Lab.line(ctx, px, ky + 40, px + 14, ky + 80, c('t7'), 4);
+    if (live && !st.earth) { Lab.text(ctx, 'ELECTRIC SHOCK!', px, ky - 60, { align: 'center', weight: 700, color: c('no'), size: 15 }); Lab.arrow(ctx, px, ky + 50, px, H - 8, { color: c('no'), width: 3 }); Lab.text(ctx, 'current through the person to ground', px - 8, H - 20, { align: 'right', size: 11, color: c('no') }); }
+    if (blown) Lab.text(ctx, 'SAFE: big current to earth → fuse melted', W / 2, H - 12, { align: 'center', weight: 700, color: c('ok') });
+  }, { ratio: 0.62, min: 300, max: 380 });
+  var tog = Lab.$('#tog');
+  tog.innerHTML = '<label class="check"><input type="checkbox" id="earth" checked> Earth wire connected</label>';
+  Lab.$('#earth').addEventListener('change', function (e) { st.earth = e.target.checked; st.faultOn = false; faultTxt(); });
+  var fb = Lab.$('#fbtn');
+  Lab.button(fb, 'Cause a fault', function () { st.faultOn = true; if (st.earth) st.safeFault = true; else st.shock = true; faultTxt(); });
+  Lab.button(fb, 'Repair', function () { st.faultOn = false; faultTxt(); }, true);
+  function faultTxt() {
+    Lab.$('#fault').innerHTML = !st.faultOn ? '<p class="note" style="margin:0">Everything is working normally. Press <b>Cause a fault</b>.</p>'
+      : st.earth ? '<p class="qfb ok"><strong>Safe.</strong>The live wire touched the case, but the earth wire gave the current an easy, low-resistance path to the ground. A very large current flowed, so the <b>fuse melted</b> and cut off the live wire. The case is no longer live.</p>'
+        : '<p class="qfb no"><strong>Danger!</strong>With no earth wire, the case is now at the mains voltage. Anyone who touches it becomes the path to earth and gets an electric shock. The current through a person is too small to blow the fuse.</p>';
+    view.redraw(); T.update(st);
+  }
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Change the hours used and find the appliance that costs the most to run.', ok: function (s) { return s.costChanged; } },
+    { t: 'Choose the correct fuse for 3 different appliances.', s: 'I = P ÷ V, then the next fuse size up.', ok: function (s) { return s.rightFuse >= 3; } },
+    { t: 'Cause a fault with the earth wire connected.', ok: function (s) { return s.safeFault; } },
+    { t: 'Now disconnect the earth and cause the fault again.', ok: function (s) { return s.shock; } },
+  ], { title: 'Use electricity safely and cheaply' });
+
+  cost(); fuse(); faultTxt();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A 2.5 kW water heater runs for 3 hours. How many kWh does it use?', n: 7.5, unit: 'kWh', why: ' E = P × t = 2.5 kW × 3 h = 7.5 kWh.' },
+    { q: 'Electricity costs $0.40 per kWh. What does it cost to run a 100 W TV for 5 hours?', n: 0.2, unit: '$', why: ' 0.1 kW × 5 h = 0.5 kWh; 0.5 × $0.40 = $0.20.', hint: ' Change 100 W into kW first (÷ 1000).' },
+    { q: 'A 1100 W iron runs on 110 V. Which fuse should it have: 3 A, 5 A or 13 A?', n: 13, unit: 'A', why: ' I = 1100 ÷ 110 = 10 A, so the next fuse up is 13 A.' },
+    { q: 'In a plug, the fuse is connected in the…', o: ['neutral wire', 'live wire', 'earth wire', 'any wire'], a: 1, why: ' So that when it melts, the appliance is disconnected from the high voltage.' },
+  ]);
+})();
+</script>
+</body>
+</html>

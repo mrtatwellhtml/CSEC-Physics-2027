@@ -41,6 +41,7 @@ jobs:
           node --check assets/js/app.js
           node --check assets/js/wbc.js
           node --check assets/js/wbd.js
+          for f in labs/*.js data/support.js; do node --check "$f"; done
           node --check < apps-script/Physics_Responses.gs
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
@@ -50,7 +51,7 @@ jobs:
         run: |
           mkdir _site
           cp index.html teacher.html config.js _site/
-          cp -R assets data img _site/
+          cp -R assets data img labs _site/
           touch _site/.nojekyll
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atom Builder and Gold-Foil Experiment · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Build atoms, isotopes and ions from protons, neutrons and electrons, and fire alpha particles at gold foil like Rutherford. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="atom">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>An atom has a tiny <b>nucleus</b> made of <b>protons</b> (+) and <b>neutrons</b> (no charge), with <b>electrons</b> (−) moving around it in shells. The number of protons decides <b>which element</b> it is.</p>
+    <p><b>Atomic number Z</b> = number of protons. <b>Mass number A</b> = protons + neutrons. <b>Isotopes</b> are atoms of the same element (same Z) with different numbers of neutrons (different A).</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="mode"></div>
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage"><canvas id="cv" aria-label="Atom model"></canvas><div class="row" style="margin-top:8px" id="btns"></div></div>
+    <div class="stack">
+      <section class="card" id="panel"></section>
+      <section id="maths"></section>
+    </div>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var EL = [null, ['H', 'Hydrogen', [0, 1, 2]], ['He', 'Helium', [1, 2]], ['Li', 'Lithium', [3, 4]], ['Be', 'Beryllium', [5]], ['B', 'Boron', [5, 6]], ['C', 'Carbon', [6, 7, 8]], ['N', 'Nitrogen', [7, 8]], ['O', 'Oxygen', [8, 9, 10]], ['F', 'Fluorine', [10]], ['Ne', 'Neon', [10, 11, 12]],
+    ['Na', 'Sodium', [12]], ['Mg', 'Magnesium', [12, 13, 14]], ['Al', 'Aluminium', [14]], ['Si', 'Silicon', [14, 15, 16]], ['P', 'Phosphorus', [16]], ['S', 'Sulfur', [16, 17, 18, 20]], ['Cl', 'Chlorine', [18, 20]], ['Ar', 'Argon', [18, 20, 22]], ['K', 'Potassium', [20, 22]], ['Ca', 'Calcium', [20, 22, 23, 24, 26, 28]]];
+  // hydrogen-3 and carbon-14 are radioactive isotopes worth knowing; listed separately
+  var RADIO = { '1,2': 'tritium (hydrogen-3), radioactive', '6,8': 'carbon-14, radioactive (used in carbon dating)' };
+  var st = { mode: 'build', p: 6, n: 6, e: 6, made: {}, alphas: [], tally: [0, 0, 0], model: 'nuclear', t: 0 };
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) { if (st.mode === 'build') drawAtom(ctx, W, H); else drawFoil(ctx, W, H); }, { ratio: 0.72, min: 320, max: 460 });
+  function drawAtom(ctx, W, H) {
+    var cx = W / 2, cy = H / 2, shells = [2, 8, 8, 2], left = st.e, rr = 26;
+    var nuc = st.p + st.n, R = 8 + Math.sqrt(nuc) * 5.5;
+    for (var s = 0; s < 4 && left > 0; s++) {
+      var r = R + 30 + s * Math.min(42, (Math.min(W, H) / 2 - R - 40) / 4), k = Math.min(left, shells[s]);
+      ctx.strokeStyle = c('grid-strong'); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.stroke();
+      for (var i = 0; i < k; i++) { var a = i / k * Math.PI * 2 + st.t * (0.6 - s * 0.12); Lab.dot(ctx, cx + Math.cos(a) * r, cy + Math.sin(a) * r, 6, c('t2')); Lab.text(ctx, '−', cx + Math.cos(a) * r, cy + Math.sin(a) * r, { color: '#fff', size: 11, weight: 700, align: 'center' }); }
+      left -= k;
+    }
+    // nucleus: pack protons and neutrons in a spiral
+    var kinds = [], pl = st.p, nl = st.n;   // mix protons and neutrons evenly
+    while (pl > 0 || nl > 0) { if (pl > 0) { kinds.push(1); pl--; } if (nl > 0) { kinds.push(0); nl--; } }
+    kinds.forEach(function (isP, j) {
+      var ang = j * 2.4, rad = 5.2 * Math.sqrt(j);
+      Lab.dot(ctx, cx + Math.cos(ang) * rad, cy + Math.sin(ang) * rad, 6, isP ? c('no') : c('t0'), c('surface'));
+    });
+    var el = EL[st.p];
+    Lab.text(ctx, el ? el[1] : (st.p === 0 ? 'no protons: not an atom' : 'element ' + st.p), 14, 20, { weight: 700, size: 15 });
+    Lab.text(ctx, '● proton   ● neutron   ● electron', W - 14, H - 12, { align: 'right', size: 11, color: c('muted') });
+  }
+  // gold foil: alpha particles from the left, nuclei in a grid
+  var NUC = [];
+  function drawFoil(ctx, W, H) {
+    var fx = W * 0.55;
+    ctx.fillStyle = '#E3B341'; ctx.globalAlpha = 0.2; ctx.fillRect(fx - 30, 10, 60, H - 20); ctx.globalAlpha = 1;
+    Lab.text(ctx, 'gold foil', fx, H - 2, { align: 'center', size: 11, color: c('muted'), base: 'bottom' });
+    NUC = [];
+    for (var y = 30; y < H - 20; y += 40) NUC.push([fx + ((y / 40) % 2 ? 6 : -6), y]);   // nuclei are tiny and far apart
+    if (st.model === 'nuclear') NUC.forEach(function (n) { Lab.dot(ctx, n[0], n[1], 2.5, c('pop')); });
+    else NUC.forEach(function (n) { ctx.fillStyle = c('no'); ctx.globalAlpha = 0.12; ctx.beginPath(); ctx.arc(n[0], n[1], 20, 0, 7); ctx.fill(); ctx.globalAlpha = 1; });
+    ctx.fillStyle = c('t0'); ctx.fillRect(4, H / 2 - 30, 26, 60); Lab.text(ctx, 'α source', 4, H / 2 + 44, { size: 11 });
+    st.alphas.forEach(function (a) { ctx.strokeStyle = c('accent'); ctx.globalAlpha = 0.6; ctx.lineWidth = 1.2; ctx.beginPath(); a.tr.forEach(function (p, i) { if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); }); ctx.stroke(); ctx.globalAlpha = 1; Lab.dot(ctx, a.x, a.y, 3, c('accent')); });
+  }
+  function fire(n) {
+    for (var i = 0; i < n; i++) st.alphas.push({ x: 30, y: view.H / 2 + (Math.random() - 0.5) * (view.H - 60), vx: 260, vy: 0, tr: [], done: false });
+    if (st.alphas.length > 120) st.alphas.splice(0, st.alphas.length - 120);
+  }
+
+  var anim = Lab.loop(function (dt) {
+    st.t += dt;
+    if (st.mode === 'foil') {
+      st.alphas.forEach(function (a) {
+        if (a.done) return;
+        var sub = 8, h = dt / sub;
+        for (var s = 0; s < sub; s++) {
+          if (st.model === 'nuclear') NUC.forEach(function (n) { var dx = a.x - n[0], dy = a.y - n[1], r2 = dx * dx + dy * dy, r = Math.sqrt(r2); if (r < 60) { var f = 3e4 / (r2 * r + 1); a.vx += dx * f * h; a.vy += dy * f * h; } });
+          a.x += a.vx * h; a.y += a.vy * h;
+        }
+        if (a.tr.length === 0 || Math.hypot(a.x - a.tr[a.tr.length - 1][0], a.y - a.tr[a.tr.length - 1][1]) > 6) a.tr.push([a.x, a.y]);
+        if (a.x > view.W || a.x < 0 || a.y < 0 || a.y > view.H) {
+          a.done = true; var ang = Math.abs(Math.atan2(a.vy, a.vx)) * 180 / Math.PI;
+          st.tally[ang < 10 ? 0 : ang < 90 ? 1 : 2]++; tally();
+        }
+      });
+    }
+    view.redraw();
+  });
+  function tally() {
+    var tot = st.tally[0] + st.tally[1] + st.tally[2];
+    Lab.readout(Lab.$('#tally'), [['Straight through (< 10°)', st.tally[0]], ['Deflected (10° to 90°)', st.tally[1]], ['Bounced back (> 90°)', st.tally[2], true], ['Total', tot]]);
+    T.update(st);
+  }
+
+  function build() {
+    var bb = Lab.$('#btns'), panel = Lab.$('#panel'); bb.innerHTML = '';
+    if (st.mode === 'build') {
+      [['p', 'proton'], ['n', 'neutron'], ['e', 'electron']].forEach(function (k) {
+        Lab.button(bb, '+ ' + k[1], function () { if (st[k[0]] < 20 + (k[0] === 'n' ? 8 : 0)) st[k[0]]++; update(); });
+        Lab.button(bb, '− ' + k[1], function () { if (st[k[0]] > 0) st[k[0]]--; update(); }, true);
+      });
+    } else {
+      Lab.button(bb, 'Fire 1 alpha', function () { fire(1); });
+      Lab.button(bb, 'Fire 30 alphas', function () { fire(30); }, true);
+      Lab.seg(bb, { label: 'Model', value: st.model, options: [['nuclear', 'Nuclear model (Rutherford)'], ['plum', 'Plum pudding model']], onChange: function (v) { st.model = v; st.alphas = []; st.tally = [0, 0, 0]; if (v === 'plum') st.made.plum = true; tally(); } });
+      panel.innerHTML = '<h2>Results</h2><div id="tally"></div><p class="note">In the <b>plum pudding</b> model the positive charge is spread out, so it could never bounce an alpha particle back.</p>';
+      tally();
+    }
+  }
+  function update() {
+    if (st.mode !== 'build') return;
+    var el = EL[st.p], A = st.p + st.n, charge = st.p - st.e;
+    var stable = el && el[2].indexOf(st.n) >= 0, radio = RADIO[st.p + ',' + st.n];
+    if (el) st.made[st.p + '/' + st.n + '/' + st.e] = true;
+    if (charge !== 0) st.made.ion = true;
+    if (st.p === 6 && (st.n === 6 || st.n === 8)) st.made['C' + st.n] = true;
+    Lab.$('#panel').innerHTML = '<h2>' + (el ? el[1] + ' (' + el[0] + ')' : 'Not an element') + '</h2>' +
+      '<div style="display:flex;align-items:center;gap:18px;margin:6px 0 10px"><div style="font:700 44px var(--f-display);position:relative;padding-left:34px;line-height:1">' +
+      '<span style="position:absolute;left:0;top:-6px;font-size:16px;font-family:var(--f-mono)">' + A + '</span><span style="position:absolute;left:0;bottom:-4px;font-size:16px;font-family:var(--f-mono)">' + st.p + '</span>' + (el ? el[0] : '?') +
+      (charge ? '<sup style="font-size:18px">' + (Math.abs(charge) > 1 ? Math.abs(charge) : '') + (charge > 0 ? '+' : '−') + '</sup>' : '') + '</div>' +
+      '<p class="note" style="margin:0">mass number A on top<br>atomic number Z below</p></div>' +
+      '<dl class="readout"><dt>Protons (Z)</dt><dd>' + st.p + '</dd><dt>Neutrons (N)</dt><dd>' + st.n + '</dd><dt>Electrons</dt><dd>' + st.e + '</dd><dt>Mass number A = Z + N</dt><dd class="big">' + A + '</dd>' +
+      '<dt>Overall charge</dt><dd>' + (charge === 0 ? '0 (neutral atom)' : (charge > 0 ? '+' + charge + ' (positive ion: lost electrons)' : charge + ' (negative ion: gained electrons)')) + '</dd>' +
+      '<dt>Nucleus</dt><dd style="font-family:inherit">' + (radio ? radio : stable ? 'a stable isotope' : el ? 'unstable (radioactive) or does not exist' : '—') + '</dd></dl>';
+    Lab.math(Lab.$('#maths'), 'Show the maths', [['Mass number', 'A = protons + neutrons = ' + st.p + ' + ' + st.n + ' = <b>' + A + '</b>'], ['Neutrons from A and Z', 'N = A − Z = ' + A + ' − ' + st.p + ' = ' + st.n], ['Charge', 'protons − electrons = ' + st.p + ' − ' + st.e + ' = ' + charge]]);
+    view.redraw(); T.update(st);
+  }
+  Lab.seg(Lab.$('#mode'), { label: 'Experiment', value: 'build', options: [['build', 'Atom builder'], ['foil', 'Gold-foil experiment']], onChange: function (v) {
+    st.mode = v; build();
+    if (v === 'build') update(); else Lab.math(Lab.$('#maths'), 'What Rutherford concluded', [['Most alphas went straight through', 'an atom is mostly <b>empty space</b>'], ['A few were deflected', 'the nucleus is <b>positively charged</b> (it repels the + alpha particles)'], ['About 1 in 8000 bounced back', 'the nucleus is <b>tiny</b> and contains almost all the mass']]);
+  } });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Build a neutral carbon-12 atom (6 protons, 6 neutrons, 6 electrons).', ok: function (s) { return s.made['6/6/6']; } },
+    { t: 'Turn it into carbon-14. What changed, and what stayed the same?', s: 'Only the neutrons changed (6 → 8). It is still carbon: an isotope.', ok: function (s) { return s.made.C8; } },
+    { t: 'Make an ion by adding or removing electrons.', ok: function (s) { return s.made.ion; } },
+    { t: 'Fire at least 60 alpha particles at the gold foil. How many bounce back?', ok: function (s) { return s.tally[0] + s.tally[1] + s.tally[2] >= 60; } },
+    { t: 'Switch to the plum pudding model and fire again. What is different?', ok: function (s) { return s.made.plum; } },
+  ], { title: 'Explore the atom' });
+
+  build(); update(); anim.start();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'An atom of sodium has Z = 11 and A = 23. How many neutrons does it have?', n: 12, unit: '', why: ' N = A − Z = 23 − 11 = 12.' },
+    { q: 'Isotopes of an element have the same number of…', o: ['neutrons', 'protons', 'nucleons', 'mass'], a: 1, why: ' Same protons (same element), different neutrons.' },
+    { q: 'In the gold-foil experiment, most alpha particles passed straight through. This showed that…', o: ['the nucleus is negative', 'atoms are mostly empty space', 'electrons are heavy', 'gold is a metal'], a: 1, why: ' The nucleus is tiny, so most alphas miss it.' },
+    { q: 'An atom has 17 protons and 18 electrons. Its charge is…', o: ['+1', '−1', '0', '+17'], a: 1, why: ' One extra electron: a negative ion (chloride, Cl⁻).' },
+  ]);
+})();
+</script>
+</body>
+</html>

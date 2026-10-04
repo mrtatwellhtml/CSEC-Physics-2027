@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Circuit Builder · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Series and parallel circuits with moving charge, ammeters, voltmeters and lamp brightness. Ohm's law and combining resistors. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="circuits">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p><b>Current (I)</b> is the flow of charge, measured in amps with an <b>ammeter</b> placed <b>in</b> the circuit. <b>Voltage (potential difference, V)</b> is the energy given to each coulomb of charge, measured with a <b>voltmeter</b> placed <b>across</b> a component. <b>Resistance R = V ÷ I</b>: how hard it is for current to flow.</p>
+    <p><b>Series</b> (one loop): the <b>same current</b> flows everywhere, and the voltages <b>share out</b>. <b>Parallel</b> (branches): every branch gets the <b>full voltage</b>, and the currents <b>split</b>.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="layout"></div>
+  <div class="stage" style="margin-top:12px">
+    <canvas id="cv" aria-label="Circuit diagram with a battery, switch, lamps, ammeters and voltmeters, with moving charge"></canvas>
+    <div class="row" style="margin-top:8px" id="btns"></div>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <section class="card"><h2>Components</h2><div id="ctl"></div></section>
+    <div class="stack"><section class="card"><h2>Meter readings</h2><div id="live"></div></section><section id="maths"></section></div>
+  </div>
+
+  <div class="watch" style="margin-top:16px"><strong class="lbl">Common mistakes</strong>
+    <p>Current is <b>not used up</b> by a lamp: the same current comes out as goes in. Ammeters go <b>in series</b>, voltmeters go <b>in parallel</b>. Adding a resistor in <b>parallel</b> makes the total resistance <b>smaller</b>, not bigger.</p>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var st = { layout: 'series', n: 2, V: 6, R: [6, 6, 12], closed: true, electrons: false, flow: 0, seen: {}, minR: {} };
+  function solve() {
+    var Rs = st.R.slice(0, st.n), out = { Rt: 0, I: 0, Ib: [], Vb: [], P: [] };
+    if (!st.closed) { out.Rt = st.layout === 'series' ? Rs.reduce(function (a, b) { return a + b; }, 0) : 1 / Rs.reduce(function (a, r) { return a + 1 / r; }, 0); out.Ib = Rs.map(function () { return 0; }); out.Vb = Rs.map(function () { return 0; }); out.P = out.Vb; return out; }
+    if (st.layout === 'series') { out.Rt = Rs.reduce(function (a, b) { return a + b; }, 0); out.I = st.V / out.Rt; out.Ib = Rs.map(function () { return out.I; }); out.Vb = Rs.map(function (r) { return out.I * r; }); }
+    else { out.Rt = 1 / Rs.reduce(function (a, r) { return a + 1 / r; }, 0); out.Ib = Rs.map(function (r) { return st.V / r; }); out.I = out.Ib.reduce(function (a, b) { return a + b; }, 0); out.Vb = Rs.map(function () { return st.V; }); }
+    out.P = out.Ib.map(function (i, k) { return i * out.Vb[k]; });
+    return out;
+  }
+
+  // ---------- drawing helpers ----------
+  function meter(ctx, x, y, letter, val, col) {
+    Lab.dot(ctx, x, y, 14, c('surface'), col);
+    Lab.text(ctx, letter, x, y, { weight: 700, align: 'center', color: col });
+    Lab.text(ctx, val, x, y - 24, { kind: 'mono', size: 12, align: 'center', color: col, bg: c('surface') });
+  }
+  function lamp(ctx, x, y, P, label) {
+    var glow = Lab.clamp(P / 6, 0, 1.4);
+    if (glow > 0.02) { var g = ctx.createRadialGradient(x, y, 4, x, y, 18 + glow * 26); g.addColorStop(0, 'rgba(255,214,10,' + Math.min(1, glow) + ')'); g.addColorStop(1, 'rgba(255,214,10,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 18 + glow * 26, 0, 7); ctx.fill(); }
+    Lab.dot(ctx, x, y, 14, c('surface'), c('ink'));
+    Lab.line(ctx, x - 10, y - 10, x + 10, y + 10, c('ink'), 2); Lab.line(ctx, x + 10, y - 10, x - 10, y + 10, c('ink'), 2);
+    Lab.text(ctx, label, x, y + 26, { size: 12, align: 'center', kind: 'mono', bg: c('surface-2') });
+  }
+  // charge dots moving along a polyline at a speed set by its current
+  function flowDots(ctx, pts, I, spacing) {
+    if (I <= 1e-9) return;
+    var len = 0, segs = [];
+    for (var i = 1; i < pts.length; i++) { var l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); segs.push(l); len += l; }
+    var off = (st.flow * I * 40) % spacing, dir = st.electrons ? -1 : 1;
+    for (var d = off; d < len; d += spacing) {
+      var pos = dir > 0 ? d : len - d, k = 0; while (k < segs.length - 1 && pos > segs[k]) { pos -= segs[k]; k++; }
+      var f = segs[k] ? pos / segs[k] : 0, x = pts[k][0] + (pts[k + 1][0] - pts[k][0]) * f, y = pts[k][1] + (pts[k + 1][1] - pts[k][1]) * f;
+      Lab.dot(ctx, x, y, 3.5, st.electrons ? c('t2') : c('pop'));
+    }
+  }
+  function wire(ctx, pts) { ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; ctx.beginPath(); pts.forEach(function (p, i) { if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); }); ctx.stroke(); }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var s = solve(), L = 50, R = W - 40, T = 70, B = H - 50, bx = L, by = (T + B) / 2;
+    // battery (vertical, + at the top) and switch on the bottom wire
+    wire(ctx, [[bx, by - 14], [bx, T], [R, T]]);
+    var sx = (L + R) / 2;
+    wire(ctx, [[bx, by + 14], [bx, B], [sx - 22, B]]); wire(ctx, [[sx + 22, B], [R, B]]);
+    Lab.line(ctx, bx - 18, by - 6, bx + 18, by - 6, c('ink'), 3); Lab.line(ctx, bx - 10, by + 6, bx + 10, by + 6, c('ink'), 6);
+    Lab.text(ctx, '+', bx + 24, by - 14, { weight: 700, color: c('no') }); Lab.text(ctx, st.V + ' V', bx - 24, by, { weight: 700, align: 'right', size: 13 });
+    Lab.dot(ctx, sx - 22, B, 4, c('ink')); Lab.dot(ctx, sx + 22, B, 4, c('ink'));
+    if (st.closed) Lab.line(ctx, sx - 22, B, sx + 22, B, c('ink'), 2.5); else Lab.line(ctx, sx - 22, B, sx + 16, B - 22, c('ink'), 2.5);
+    Lab.text(ctx, st.closed ? 'switch closed' : 'switch OPEN', sx, B + 18, { size: 12, align: 'center', color: st.closed ? c('muted') : c('no'), weight: 700 });
+    var main = [[bx, by - 14], [bx, T], [R, T], [R, B], [sx + 22, B]], mainB = [[sx - 22, B], [bx, B], [bx, by + 14]];
+    var aMain = [(L + R) * 0.3, T];
+    if (st.layout === 'series') {
+      wire(ctx, [[R, T], [R, B]]);
+      flowDots(ctx, main.concat([[sx - 22, B]]).concat(mainB.slice(1)), s.I, 26);
+      for (var k = 0; k < st.n; k++) {
+        var lx = L + (R - L) * (0.45 + k * 0.5 / st.n);
+        lamp(ctx, lx, T, s.P[k], st.R[k] + ' Ω');
+        // voltmeter across the lamp
+        wire(ctx, [[lx - 24, T], [lx - 24, T - 34], [lx - 12, T - 34]]); wire(ctx, [[lx + 12, T - 34], [lx + 24, T - 34], [lx + 24, T]]);
+        meter(ctx, lx, T - 34, 'V', Lab.sf(s.Vb[k], 3) + ' V', c('t4'));
+      }
+      meter(ctx, aMain[0] - 30, T, 'A', Lab.sf(s.I, 3) + ' A', c('t2'));
+      meter(ctx, R, (T + B) / 2, 'A', Lab.sf(s.I, 3) + ' A', c('t2'));
+    } else {
+      var xl = L + (R - L) * 0.42, xr = R - 70, ys = [];
+      for (var b = 0; b < st.n; b++) ys.push(T + (B - T - 30) * (b + 0.5) / st.n);
+      wire(ctx, [[xl, T], [xl, ys[st.n - 1]]]); wire(ctx, [[xr, T], [R, T], [R, B]]); wire(ctx, [[xr, T], [xr, ys[st.n - 1]]]);
+      flowDots(ctx, [[bx, by - 14], [bx, T], [xl, T]], s.I, 26);
+      flowDots(ctx, [[xr, T], [R, T], [R, B], [sx + 22, B]].concat([[sx - 22, B]]).concat(mainB.slice(1)), s.I, 26);
+      flowDots(ctx, [[xl, T], [xl, ys[0]]], s.I, 26);
+      flowDots(ctx, [[xr, ys[0]], [xr, T]], s.I, 26);
+      var cumL = s.I;
+      for (var j = 0; j < st.n; j++) {
+        var y = ys[j];
+        wire(ctx, [[xl, y], [xr, y]]);
+        if (j > 0) { flowDots(ctx, [[xl, ys[j - 1]], [xl, y]], cumL, 26); }
+        cumL -= s.Ib[j];
+        flowDots(ctx, [[xl, y], [xr, y]], s.Ib[j], 26);
+        var lx2 = (xl + xr) / 2 + 20;
+        lamp(ctx, lx2, y, s.P[j], st.R[j] + ' Ω');
+        meter(ctx, xl + 40, y, 'A', Lab.sf(s.Ib[j], 3) + ' A', c('t2'));
+      }
+      for (var q2 = st.n - 1; q2 > 0; q2--) { var below = 0; for (var z = q2; z < st.n; z++) below += s.Ib[z]; flowDots(ctx, [[xr, ys[q2]], [xr, ys[q2 - 1]]], below, 26); }
+      meter(ctx, aMain[0] - 20, T, 'A', Lab.sf(s.I, 3) + ' A', c('t2'));
+      // one voltmeter across the parallel group
+      wire(ctx, [[xl, T], [xl, T - 30], [(xl + xr) / 2 - 12, T - 30]]); wire(ctx, [[(xl + xr) / 2 + 12, T - 30], [xr, T - 30], [xr, T]]);
+      meter(ctx, (xl + xr) / 2, T - 30, 'V', Lab.sf(s.Vb[0] || 0, 3) + ' V', c('t4'));
+    }
+    Lab.text(ctx, st.electrons ? 'blue dots: electrons (flow from − to +)' : 'orange dots: conventional current (flows from + to −)', 10, H - 10, { size: 11, color: c('muted') });
+  }, { ratio: 0.62, min: 340, max: 460 });
+
+  var anim = Lab.loop(function (dt) { st.flow += dt; view.redraw(); });
+
+  Lab.seg(Lab.$('#layout'), { label: 'Layout', value: 'series', options: [['series', 'Series'], ['parallel', 'Parallel']], onChange: function (v) { st.layout = v; st.seen[v] = true; update(); } });
+  Lab.seg(Lab.$('#layout'), { label: 'Number of lamps', value: 2, options: [[2, '2 lamps'], [3, '3 lamps']], onChange: function (v) { st.n = +v; st.seen[st.layout + v] = true; update(); } });
+  var bb = Lab.$('#btns');
+  var swB = Lab.button(bb, 'Open the switch', function () { st.closed = !st.closed; swB.textContent = st.closed ? 'Open the switch' : 'Close the switch'; if (!st.closed) st.seen.open = true; update(); });
+  var eB = Lab.button(bb, 'Show electron flow', function () { st.electrons = !st.electrons; eB.textContent = st.electrons ? 'Show conventional current' : 'Show electron flow'; }, true);
+  var ctl = Lab.$('#ctl');
+  Lab.slider(ctl, { label: 'Battery voltage', min: 1.5, max: 12, step: 1.5, value: st.V, unit: 'V', onInput: function (v) { st.V = v; update(); } });
+  [0, 1, 2].forEach(function (k) { Lab.slider(ctl, { label: 'Lamp ' + (k + 1) + ' resistance', min: 2, max: 24, step: 2, value: st.R[k], unit: 'Ω', onInput: function (v) { st.R[k] = v; update(); } }); });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'In series, compare the two ammeter readings. Is current used up by the lamps?', s: 'No: the readings are the same everywhere in a series circuit.', ok: function (s) { return s.layout === 'series'; } },
+    { t: 'In series, add up the voltmeter readings. What do they add up to?', s: 'The battery voltage: V = V₁ + V₂ (+ V₃).', ok: function (s) { return s.layout === 'series' && s.n === 3; } },
+    { t: 'Switch to parallel. Add the branch currents. Compare with the main ammeter.', s: 'I = I₁ + I₂ (+ I₃).', ok: function (s) { return s.seen.parallel; } },
+    { t: 'In parallel, add a third lamp. Does the total resistance go up or down?', s: 'Down: one more path for the current.', ok: function (s) { return s.seen.parallel3; } },
+    { t: 'Open the switch. What happens to the current everywhere?', ok: function (s) { return s.seen.open; } },
+  ], { title: 'Investigate series and parallel' });
+
+  function update() {
+    var s = solve(), Rs = st.R.slice(0, st.n);
+    var rows = [['Total resistance', Lab.sf(s.Rt, 3) + ' Ω', true], ['Current from the battery', Lab.sf(s.I, 3) + ' A', true]];
+    Rs.forEach(function (r, k) { rows.push(['Lamp ' + (k + 1) + ': I, V, P', Lab.sf(s.Ib[k], 3) + ' A, ' + Lab.sf(s.Vb[k], 3) + ' V, ' + Lab.sf(s.P[k], 3) + ' W']); });
+    Lab.readout(Lab.$('#live'), rows);
+    var steps;
+    if (st.layout === 'series') steps = [['Total resistance (series)', 'R = ' + Rs.join(' + ') + ' = <b>' + s.Rt + ' Ω</b>'], ['Current (Ohm\'s law)', 'I = V ÷ R = ' + st.V + ' ÷ ' + s.Rt + ' = <b>' + Lab.sf(s.I, 3) + ' A</b> (the same through every lamp)'], ['Voltage across each lamp', Rs.map(function (r, k) { return 'V' + (k + 1) + ' = ' + Lab.sf(s.I, 3) + ' × ' + r + ' = ' + Lab.sf(s.Vb[k], 3) + ' V'; }).join('; ')], ['Check', Rs.map(function (r, k) { return Lab.sf(s.Vb[k], 3); }).join(' + ') + ' = ' + st.V + ' V ✓']];
+    else steps = [['Total resistance (parallel)', '1/R = ' + Rs.map(function (r) { return '1/' + r; }).join(' + ') + ' → R = <b>' + Lab.sf(s.Rt, 3) + ' Ω</b>'], ['Each branch has the full voltage', 'I₁ = ' + st.V + ' ÷ ' + Rs[0] + ' = ' + Lab.sf(st.V / Rs[0], 3) + ' A, I₂ = ' + st.V + ' ÷ ' + Rs[1] + ' = ' + Lab.sf(st.V / Rs[1], 3) + ' A' + (st.n === 3 ? ', I₃ = ' + st.V + ' ÷ ' + Rs[2] + ' = ' + Lab.sf(st.V / Rs[2], 3) + ' A' : '')], ['Total current', 'I = ' + s.Ib.map(function (i) { return Lab.sf(i, 3); }).join(' + ') + ' = <b>' + Lab.sf(s.I, 3) + ' A</b>'], ['Check', 'V ÷ R = ' + st.V + ' ÷ ' + Lab.sf(s.Rt, 3) + ' = ' + Lab.sf(st.V / s.Rt, 3) + ' A ✓']];
+    if (!st.closed) steps.unshift(['Switch open', 'the circuit is broken, so no current flows anywhere']);
+    Lab.math(Lab.$('#maths'), 'Show the maths', steps);
+    view.redraw(); T.update(st);
+  }
+  update();
+  if (!Lab.reducedMotion) anim.start();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A 4 Ω and a 6 Ω resistor are in series with a 5 V battery. What is the current?', n: 0.5, unit: 'A', why: ' R = 4 + 6 = 10 Ω; I = 5 ÷ 10 = 0.5 A.' },
+    { q: 'A 6 Ω and a 3 Ω resistor are in parallel. What is the total resistance?', n: 2, unit: 'Ω', why: ' 1/R = 1/6 + 1/3 = 3/6, so R = 2 Ω (less than the smallest one).', hint: ' 1/R = 1/6 + 1/3. Then turn the answer upside down.' },
+    { q: 'Why are the lamps in a house wired in parallel?', o: ['To use less current', 'Each lamp gets the full mains voltage and can be switched on and off on its own', 'So they are dimmer', 'Because it is cheaper'], a: 1, why: ' If one lamp breaks, the others stay on.' },
+    { q: 'A charge of 30 C passes a point in 10 s. What is the current?', n: 3, unit: 'A', why: ' I = Q ÷ t = 30 ÷ 10 = 3 A.' },
+  ]);
+})();
+</script>
+</body>
+</html>

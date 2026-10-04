@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alpha, Beta and Gamma · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Test what stops alpha, beta and gamma radiation, see them deflected in fields, and write balanced nuclear decay equations. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="radiation">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>An <b>unstable</b> nucleus gives out radiation to become more stable. <b>Alpha (α)</b> is a helium nucleus (2 protons + 2 neutrons): big, slow, strongly ionising, stopped by <b>paper</b>. <b>Beta (β)</b> is a fast <b>electron</b> from the nucleus, stopped by a few mm of <b>aluminium</b>. <b>Gamma (γ)</b> is an <b>electromagnetic wave</b>, only reduced by thick <b>lead</b> or concrete.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="mode"></div>
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage"><canvas id="cv" aria-label="Radiation experiment"></canvas><div class="row" style="margin-top:8px" id="btns"></div></div>
+    <div class="stack">
+      <section class="card" id="panel"></section>
+      <section id="maths"></section>
+    </div>
+  </div>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Summary of the three radiations</h2>
+    <div class="tbl-wrap"><table class="data"><thead><tr><th></th><th>Alpha α</th><th>Beta β</th><th>Gamma γ</th></tr></thead><tbody>
+      <tr><th>What it is</th><td style="font-family:inherit">helium nucleus ⁴₂He</td><td style="font-family:inherit">fast electron ⁰₋₁e</td><td style="font-family:inherit">EM wave</td></tr>
+      <tr><th>Charge</th><td>+2</td><td>−1</td><td>0</td></tr>
+      <tr><th>Stopped by</th><td style="font-family:inherit">paper or a few cm of air</td><td style="font-family:inherit">a few mm of aluminium</td><td style="font-family:inherit">thick lead / concrete (reduced, never fully stopped)</td></tr>
+      <tr><th>Ionising</th><td style="font-family:inherit">strongly</td><td style="font-family:inherit">moderately</td><td style="font-family:inherit">weakly</td></tr>
+      <tr><th>In a field</th><td style="font-family:inherit">deflected a little</td><td style="font-family:inherit">deflected a lot, the other way</td><td style="font-family:inherit">not deflected</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var SYM = { 1: 'H', 2: 'He', 6: 'C', 7: 'N', 19: 'K', 20: 'Ca', 27: 'Co', 28: 'Ni', 38: 'Sr', 39: 'Y', 53: 'I', 54: 'Xe', 81: 'Tl', 82: 'Pb', 83: 'Bi', 84: 'Po', 85: 'At', 86: 'Rn', 87: 'Fr', 88: 'Ra', 89: 'Ac', 90: 'Th', 91: 'Pa', 92: 'U', 93: 'Np', 94: 'Pu', 95: 'Am' };
+  var PARENTS = [[238, 92, 'a'], [226, 88, 'a'], [241, 95, 'a'], [222, 86, 'a'], [14, 6, 'b'], [90, 38, 'b'], [60, 27, 'b'], [131, 53, 'b'], [3, 1, 'b'], [234, 90, 'b']];
+  var st = { mode: 'pen', src: 'a', abs: 'none', parts: [], counts: 0, rate: 0, seen: {}, field: 'mag', eq: 0, eqRight: 0 };
+  var STOP = { a: { none: 1, paper: 0, al: 0, lead: 0 }, b: { none: 1, paper: 0.95, al: 0, lead: 0 }, g: { none: 1, paper: 1, al: 0.95, lead: 0.3 } };
+  var NAME = { a: 'alpha', b: 'beta', g: 'gamma' };
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) { if (st.mode === 'pen') drawPen(ctx, W, H); else if (st.mode === 'defl') drawDefl(ctx, W, H); else drawEq(ctx, W, H); }, { ratio: 0.55, min: 280, max: 380 });
+  function col(k) { return k === 'a' ? c('no') : k === 'b' ? c('t2') : c('ok'); }
+  function drawPen(ctx, W, H) {
+    var cy = H / 2, ax = W * 0.45, gx = W - 70;
+    ctx.fillStyle = c('t0'); ctx.fillRect(20, cy - 24, 50, 48); Lab.text(ctx, NAME[st.src] + ' source', 45, cy + 40, { align: 'center', size: 12 });
+    var absW = { none: 0, paper: 4, al: 12, lead: 34 }[st.abs], absC = { paper: '#F5F1E6', al: '#C7CDD4', lead: '#5E6470' }[st.abs];
+    if (absW) { ctx.fillStyle = absC; ctx.fillRect(ax, cy - 80, absW, 160); ctx.strokeStyle = c('ink'); ctx.lineWidth = 1; ctx.strokeRect(ax, cy - 80, absW, 160); Lab.text(ctx, { paper: 'paper', al: '3 mm aluminium', lead: '5 cm lead' }[st.abs], ax + absW / 2, cy - 92, { align: 'center', size: 12, weight: 700 }); }
+    ctx.fillStyle = c('surface'); ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; Lab.roundRect(ctx, gx, cy - 16, 60, 32, 6); ctx.fill(); ctx.stroke(); Lab.text(ctx, 'GM tube', gx + 30, cy + 30, { align: 'center', size: 12 });
+    st.parts.forEach(function (p) { if (st.src === 'g') { ctx.strokeStyle = col('g'); ctx.lineWidth = 2; ctx.beginPath(); for (var i = 0; i < 18; i++) { var x = p.x - i * 2; ctx.lineTo(x, p.y + Math.sin(x / 4) * 5); } ctx.stroke(); } else Lab.dot(ctx, p.x, p.y, st.src === 'a' ? 6 : 3, col(st.src)); });
+    Lab.text(ctx, 'count rate: ' + Math.round(st.rate) + ' counts per minute', W / 2, 20, { align: 'center', weight: 700, kind: 'mono' });
+  }
+  function drawDefl(ctx, W, H) {
+    var y0 = H / 2, x0 = 60, fx1 = W * 0.3, fx2 = W * 0.8;
+    ctx.fillStyle = c('t0'); ctx.fillRect(14, y0 - 20, 40, 40); Lab.text(ctx, 'α β γ', 34, y0 + 34, { align: 'center', size: 12 });
+    if (st.field === 'mag') { for (var x = fx1 + 10; x < fx2; x += 30) for (var y = 30; y < H - 20; y += 30) { Lab.line(ctx, x - 4, y - 4, x + 4, y + 4, c('grid-strong'), 1.5); Lab.line(ctx, x + 4, y - 4, x - 4, y + 4, c('grid-strong'), 1.5); } Lab.text(ctx, 'magnetic field into the page (×)', (fx1 + fx2) / 2, 14, { align: 'center', size: 12, color: c('muted') }); }
+    else { ctx.fillStyle = c('no'); ctx.fillRect(fx1, 16, fx2 - fx1, 10); ctx.fillStyle = c('t2'); ctx.fillRect(fx1, H - 26, fx2 - fx1, 10); Lab.text(ctx, '+ + + + + plate', (fx1 + fx2) / 2, 38, { align: 'center', size: 12, color: c('no'), weight: 700 }); Lab.text(ctx, '− − − − − plate', (fx1 + fx2) / 2, H - 36, { align: 'center', size: 12, color: c('t2'), weight: 700 }); }
+    // curvature: alpha small bend, beta large bend opposite, gamma straight
+    [['a', st.field === 'mag' ? -0.25 : 0.25], ['b', st.field === 'mag' ? 1.6 : -1.6], ['g', 0]].forEach(function (r) {
+      ctx.strokeStyle = col(r[0]); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(fx1, y0);
+      var x = fx1, y = y0, vx = 1, vy = 0;
+      for (var i = 0; i < 400 && x < W - 10 && y > 10 && y < H - 10; i++) { if (x < fx2) { var ax2 = -vy * r[1] * 0.004, ay = vx * r[1] * 0.004; if (st.field === 'elec') { ax2 = 0; ay = r[1] * 0.0035; } vx += ax2 * 3; vy += ay * 3; var m = Math.hypot(vx, vy); if (st.field === 'mag') { vx /= m; vy /= m; } } x += vx * 3; y += vy * 3; ctx.lineTo(x, y); }
+      ctx.stroke(); Lab.text(ctx, r[0] === 'a' ? 'α' : r[0] === 'b' ? 'β' : 'γ', x + 4, y, { color: col(r[0]), weight: 700, size: 16 });
+    });
+  }
+  function eqParts() { var p = PARENTS[st.eq]; return { A: p[0], Z: p[1], t: p[2], dA: p[2] === 'a' ? p[0] - 4 : p[0], dZ: p[2] === 'a' ? p[1] - 2 : p[1] + 1 }; }
+  function nuclide(ctx, x, y, A, Z, s, color) {
+    Lab.text(ctx, String(A), x, y - 14, { size: 14, kind: 'mono', align: 'right', color: color }); Lab.text(ctx, String(Z), x, y + 14, { size: 14, kind: 'mono', align: 'right', color: color });
+    Lab.text(ctx, s, x + 4, y, { size: 30, weight: 700, color: color });
+  }
+  function drawEq(ctx, W, H) {
+    var e = eqParts(), y = H / 2, sc = W / 640;
+    nuclide(ctx, 60 * sc + 30, y, e.A, e.Z, SYM[e.Z], c('ink'));
+    Lab.arrow(ctx, 150 * sc + 40, y, 230 * sc + 40, y, { color: c('ink'), width: 2.5 });
+    var show = st.eqShow;
+    nuclide(ctx, 280 * sc + 40, y, show ? e.dA : '?', show ? e.dZ : '?', show ? (SYM[e.dZ] || '?') : '?', show ? c('t4') : c('muted'));
+    Lab.text(ctx, '+', 380 * sc + 40, y, { size: 26, weight: 700 });
+    if (e.t === 'a') nuclide(ctx, 440 * sc + 40, y, 4, 2, 'He', c('no')); else nuclide(ctx, 440 * sc + 40, y, 0, -1, 'e', c('t2'));
+    Lab.text(ctx, e.t === 'a' ? 'alpha decay' : 'beta decay', W / 2, 24, { align: 'center', weight: 700 });
+    Lab.text(ctx, 'top numbers balance: ' + e.A + ' = ' + (show ? e.dA : '?') + ' + ' + (e.t === 'a' ? 4 : 0) + '     bottom numbers balance: ' + e.Z + ' = ' + (show ? e.dZ : '?') + ' + ' + (e.t === 'a' ? '2' : '(−1)'), W / 2, H - 20, { align: 'center', size: 12, kind: 'mono' });
+  }
+
+  var acc = 0;
+  var anim = Lab.loop(function (dt) {
+    if (st.mode === 'pen') {
+      acc += dt; if (acc > 0.08) { acc = 0; st.parts.push({ x: 72, y: view.H / 2 + (Math.random() - 0.5) * 30, pass: Math.random() < STOP[st.src][st.abs] }); }
+      var ax = view.W * 0.45, gx = view.W - 70, absW = { none: 0, paper: 4, al: 12, lead: 34 }[st.abs];
+      st.parts.forEach(function (p) { p.x += (st.src === 'a' ? 160 : 320) * dt; if (!p.pass && p.x > ax + absW / 2) p.dead = true; if (p.x > gx + 10) { p.dead = true; st.counts++; } if (st.src === 'a' && p.x > ax + 160 && st.abs === 'none') { /* alpha range in air is only a few cm */ } });
+      st.parts = st.parts.filter(function (p) { return !p.dead; });
+      var target = 20 + (st.src === 'a' && st.abs === 'none' ? 1200 : 1500) * STOP[st.src][st.abs];
+      st.rate += (target - st.rate) * Math.min(1, dt * 3);
+    }
+    view.redraw();
+  });
+
+  function build() {
+    var bb = Lab.$('#btns'), panel = Lab.$('#panel'); bb.innerHTML = '';
+    if (st.mode === 'pen') {
+      Lab.seg(bb, { label: 'Source', value: st.src, options: [['a', 'Alpha'], ['b', 'Beta'], ['g', 'Gamma']], onChange: function (v) { st.src = v; st.parts = []; mark(); } });
+      Lab.seg(bb, { label: 'Absorber', value: st.abs, options: [['none', 'Nothing'], ['paper', 'Paper'], ['al', 'Aluminium'], ['lead', 'Lead']], onChange: function (v) { st.abs = v; mark(); } });
+      panel.innerHTML = '<h2>What gets through?</h2><p style="margin:0">The count rate never drops to zero because of <b>background radiation</b> (about 20 counts per minute here) from rocks, the air (radon), cosmic rays and medical X-rays. Always subtract the background count.</p>';
+      Lab.math(Lab.$('#maths'), 'Reading the GM tube', [['Measured count rate', 'includes background'], ['Corrected count rate', 'measured − background (≈ 20 counts/min)']]);
+    } else if (st.mode === 'defl') {
+      Lab.seg(bb, { label: 'Field', value: st.field, options: [['mag', 'Magnetic field'], ['elec', 'Electric field']], onChange: function (v) { st.field = v; st.seen[v] = true; T.update(st); } });
+      panel.innerHTML = '<h2>Why do they bend?</h2><p style="margin:0">α is <b>positive</b> and β is <b>negative</b>, so they bend in <b>opposite</b> directions. β bends <b>more</b> because it is much lighter. γ has <b>no charge</b>, so it goes straight. In an electric field, α moves towards the − plate and β towards the + plate.</p>';
+      Lab.math(Lab.$('#maths'), 'Remember', [['α', '+2 charge, heavy → a small bend'], ['β', '−1 charge, very light → a large bend, the opposite way'], ['γ', 'no charge → no bend']]);
+    } else {
+      Lab.button(bb, '← Previous', function () { st.eq = (st.eq + PARENTS.length - 1) % PARENTS.length; st.eqShow = false; eqPanel(); }, true);
+      Lab.button(bb, 'Next nucleus →', function () { st.eq = (st.eq + 1) % PARENTS.length; st.eqShow = false; eqPanel(); }, true);
+      eqPanel();
+    }
+    view.redraw();
+  }
+  function mark() { st.seen[st.src + st.abs] = true; T.update(st); }
+  function eqPanel() {
+    var e = eqParts();
+    Lab.$('#panel').innerHTML = '<h2>Your turn</h2><p class="note" style="margin-top:0">' + (e.t === 'a' ? 'Alpha decay: the nucleus loses 2 protons and 2 neutrons (A − 4, Z − 2).' : 'Beta decay: a neutron turns into a proton and an electron; the electron shoots out (A stays the same, Z + 1).') + '</p>' +
+      '<form id="eqf" class="qnum"><label for="eqA">A =</label><input id="eqA" inputmode="numeric" style="width:90px"><label for="eqZ">Z =</label><input id="eqZ" inputmode="numeric" style="width:90px"><button class="btn" type="submit">Check</button></form><div id="eqfb" aria-live="polite"></div>';
+    Lab.$('#eqf').addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var A = parseInt(Lab.$('#eqA').value, 10), Z = parseInt(Lab.$('#eqZ').value, 10), ok = A === e.dA && Z === e.dZ;
+      if (ok) { st.eqShow = true; st.eqRight++; }
+      Lab.$('#eqfb').innerHTML = ok ? '<p class="qfb ok"><strong>✓ Correct!</strong>The new nucleus is ' + (SYM[e.dZ] || '') + '-' + e.dA + '. The numbers balance on both sides.</p>' : '<p class="qfb no"><strong>✗ Not quite.</strong>' + (e.t === 'a' ? 'Subtract 4 from A and 2 from Z.' : 'A stays the same; add 1 to Z.') + '</p>';
+      Lab.math(Lab.$('#maths'), 'Show the maths', [['Top numbers (mass)', e.A + ' = A + ' + (e.t === 'a' ? 4 : 0) + ' → A = <b>' + e.dA + '</b>'], ['Bottom numbers (charge)', e.Z + ' = Z + ' + (e.t === 'a' ? 2 : '(−1)') + ' → Z = <b>' + e.dZ + '</b>'], ['Element', 'Z = ' + e.dZ + ' is ' + (SYM[e.dZ] || '?') + ': a new element']]);
+      view.redraw(); T.update(st);
+    });
+    Lab.math(Lab.$('#maths'), 'Show the maths', [['Rule', 'the top numbers (A) and the bottom numbers (Z) must balance on both sides'], ['Work out', 'A and Z of the new nucleus, then type them in']]);
+    view.redraw();
+  }
+  Lab.seg(Lab.$('#mode'), { label: 'Experiment', value: 'pen', options: [['pen', 'What stops it?'], ['defl', 'Deflection'], ['eq', 'Decay equations']], onChange: function (v) { st.mode = v; build(); } });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Find the thinnest absorber that stops alpha.', ok: function (s) { return s.seen.apaper; } },
+    { t: 'Find what stops beta.', s: 'Paper does not; a few mm of aluminium does.', ok: function (s) { return s.seen.bal; } },
+    { t: 'Try gamma with lead. Is it completely stopped?', s: 'No: lead only reduces gamma.', ok: function (s) { return s.seen.glead; } },
+    { t: 'Look at the paths in a magnetic field and in an electric field.', ok: function (s) { return s.seen.elec; } },
+    { t: 'Complete 3 decay equations correctly.', ok: function (s) { return s.eqRight >= 3; } },
+  ], { title: 'Investigate radioactivity' });
+
+  build(); anim.start();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'Which radiation is stopped by a sheet of paper?', o: ['Alpha', 'Beta', 'Gamma', 'All of them'], a: 0, why: ' Alpha particles are big and highly ionising, so they lose their energy quickly.' },
+    { q: 'Radium-226 (Z = 88) emits an alpha particle. What is the mass number of the new nucleus?', n: 222, unit: '', why: ' 226 − 4 = 222 (radon-222, Z = 86).' },
+    { q: 'Carbon-14 (Z = 6) decays by beta emission. What is the atomic number of the new nucleus?', n: 7, unit: '', why: ' Z goes up by 1: nitrogen-14.' },
+    { q: 'A GM tube reads 180 counts/min near a source. The background is 20 counts/min. What is the corrected count rate?', n: 160, unit: 'counts/min', why: ' 180 − 20 = 160 counts/min.' },
+  ]);
+})();
+</script>
+</body>
+</html>

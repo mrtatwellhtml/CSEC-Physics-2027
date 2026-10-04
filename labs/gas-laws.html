@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gas Laws Chamber · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Squeeze or heat a gas in a cylinder and test Boyle's law, Charles' law and the pressure law, with graphs and absolute zero. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="gas-laws">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>Gas pressure comes from particles <b>hitting the walls</b>. Squash the gas into a smaller space and the particles hit the walls more often, so the pressure goes up. Heat the gas and the particles move faster and hit harder and more often.</p>
+    <p>Each law keeps <b>one thing constant</b> and changes another. Temperatures in gas law calculations must <b>always be in kelvin</b> (°C + 273).</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="law"></div>
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage">
+      <canvas id="cv" aria-label="Gas particles in a cylinder with a piston, a pressure gauge and a thermometer"></canvas>
+      <div id="ctl"></div>
+      <div class="row" id="btns" style="margin-top:8px"></div>
+    </div>
+    <div class="stack">
+      <section class="card"><h2>Readings</h2><div id="live"></div></section>
+      <section id="maths"></section>
+    </div>
+  </div>
+  <div class="stage" style="margin-top:16px"><canvas id="gr" aria-label="Graph of your recorded readings"></canvas><p class="cap" id="gcap"></p></div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c, K = 100 * 100 / 300;   // p (kPa) × V (cm³) ÷ T (K)
+  var LAWS = {
+    boyle: { name: "Boyle's law", keep: 'temperature constant (300 K)', eq: 'pV = constant  →  p₁V₁ = p₂V₂' },
+    charles: { name: "Charles' law", keep: 'pressure constant (100 kPa)', eq: 'V ÷ T = constant  →  V₁/T₁ = V₂/T₂' },
+    pressure: { name: 'Pressure law', keep: 'volume constant (100 cm³)', eq: 'p ÷ T = constant  →  p₁/T₁ = p₂/T₂' },
+  };
+  var st = { law: 'boyle', V: 100, T: 300, pts: { boyle: [], charles: [], pressure: [] }, inv: false };
+  function p() { return K * st.T / st.V; }
+  var parts = [];
+  for (var i = 0; i < 40; i++) parts.push({ x: Math.random(), y: Math.random(), a: Math.random() * 6.28 });
+  var hits = 0, hitRate = 0;
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var x0 = 40, top = 50, bot = H - 40, maxW = W - 150, w = maxW * st.V / 220, hgt = bot - top;
+    ctx.fillStyle = c('surface-2'); ctx.fillRect(x0, top, w, hgt);
+    ctx.strokeStyle = c('ink'); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x0 + maxW, top); ctx.lineTo(x0, top); ctx.lineTo(x0, bot); ctx.lineTo(x0 + maxW, bot); ctx.stroke();
+    ctx.fillStyle = c('t0'); ctx.fillRect(x0 + w, top + 2, 12, hgt - 4); ctx.fillRect(x0 + w + 12, top + hgt / 2 - 5, maxW - w + 30, 10);
+    var hot = (st.T - 223) / 200;
+    parts.forEach(function (q) { Lab.dot(ctx, x0 + 6 + q.x * (w - 12), top + 6 + q.y * (hgt - 12), 5, 'hsl(' + (220 - hot * 220) + ',80%,55%)'); });
+    // gauge
+    var gx = x0 + 30, gy = 24, frac = Math.min(1, p() / 300);
+    ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(gx, gy, 18, Math.PI, 0); ctx.stroke();
+    Lab.line(ctx, gx, gy, gx - 16 * Math.cos(frac * Math.PI), gy - 16 * Math.sin(frac * Math.PI), c('no'), 2.5);
+    Lab.text(ctx, Lab.sf(p(), 3) + ' kPa', gx + 26, gy - 4, { kind: 'mono', weight: 500 });
+    Lab.text(ctx, (st.T - 273) + ' °C = ' + st.T + ' K', W - 12, gy - 4, { kind: 'mono', align: 'right' });
+    Lab.text(ctx, 'V = ' + st.V + ' cm³', x0 + w / 2, bot + 16, { align: 'center', kind: 'mono' });
+    if (st.law !== 'boyle') { ctx.fillStyle = st.T > 300 ? c('no') : c('t6'); ctx.globalAlpha = 0.3; ctx.fillRect(x0, bot + 26, maxW, 6); ctx.globalAlpha = 1; }
+  }, { ratio: 0.55, min: 280, max: 380 });
+
+  var anim = Lab.loop(function (dt) {
+    var sp = 0.35 * Math.sqrt(st.T / 300), scale = 100 / st.V;
+    parts.forEach(function (q) {
+      q.x += Math.cos(q.a) * sp * dt * scale; q.y += Math.sin(q.a) * sp * dt * 0.55;
+      if (q.x < 0 || q.x > 1) { q.a = Math.PI - q.a; q.x = Lab.clamp(q.x, 0, 1); hits++; }
+      if (q.y < 0 || q.y > 1) { q.a = -q.a; q.y = Lab.clamp(q.y, 0, 1); hits++; }
+    });
+    view.redraw();
+  });
+  setInterval(function () { hitRate = hits; hits = 0; if (Lab.$('#hits')) Lab.$('#hits').textContent = hitRate + ' per second'; }, 1000);
+
+  var graph = Lab.canvas(Lab.$('#gr'), function (ctx, W, H) {
+    var pts = st.pts[st.law], a, r = { x: 56, y: 24, w: W - 76, h: H - 64 };
+    if (st.law === 'boyle') {
+      a = st.inv ? Lab.axes(ctx, r, { xmin: 0, xmax: 0.026, ymin: 0, ymax: 300, xlabel: '1/V / cm⁻³', ylabel: 'p / kPa' })
+        : Lab.axes(ctx, r, { xmin: 0, xmax: 220, ymin: 0, ymax: 300, xlabel: 'V / cm³', ylabel: 'p / kPa' });
+      if (!st.inv && pts.length > 2) { ctx.strokeStyle = c('accent'); ctx.lineWidth = 2; ctx.beginPath(); for (var v = 34; v <= 220; v += 2) { var Y = a.Y(K * 300 / v); if (v === 34) ctx.moveTo(a.X(v), Y); else ctx.lineTo(a.X(v), Y); } ctx.stroke(); }
+      if (st.inv && pts.length > 2) Lab.line(ctx, a.X(0), a.Y(0), a.X(0.026), a.Y(K * 300 * 0.026), c('accent'), 2);
+      pts.forEach(function (q) { mark(ctx, a.X(st.inv ? 1 / q.V : q.V), a.Y(q.p)); });
+    } else if (st.law === 'charles') {
+      a = Lab.axes(ctx, r, { xmin: -300, xmax: 160, ymin: 0, ymax: 160, xstep: 50, xlabel: 'θ / °C', ylabel: 'V / cm³' });
+      if (pts.length > 2) { Lab.line(ctx, a.X(-273), a.Y(0), a.X(160), a.Y(K * 433 / 100), c('accent'), 2, [6, 5]); Lab.text(ctx, '−273 °C', a.X(-273), a.Y(0) - 12, { color: c('no'), weight: 700, align: 'center' }); }
+      pts.forEach(function (q) { mark(ctx, a.X(q.T - 273), a.Y(q.V)); });
+    } else {
+      a = Lab.axes(ctx, r, { xmin: 0, xmax: 450, ymin: 0, ymax: 160, xstep: 50, xlabel: 'T / K', ylabel: 'p / kPa' });
+      if (pts.length > 2) Lab.line(ctx, a.X(0), a.Y(0), a.X(450), a.Y(K * 450 / 100), c('accent'), 2, [6, 5]);
+      pts.forEach(function (q) { mark(ctx, a.X(q.T), a.Y(q.p)); });
+    }
+  }, { ratio: 0.5, min: 260, max: 360 });
+  function mark(ctx, X, Y) { ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(X - 5, Y - 5); ctx.lineTo(X + 5, Y + 5); ctx.moveTo(X + 5, Y - 5); ctx.lineTo(X - 5, Y + 5); ctx.stroke(); }
+
+  function build() {
+    var ctl = Lab.$('#ctl'); ctl.innerHTML = '';
+    if (st.law === 'boyle') { st.T = 300; Lab.slider(ctl, { label: 'Push the piston: volume V', min: 40, max: 200, step: 10, value: st.V, unit: 'cm³', onInput: function (v) { st.V = v; update(); } }); }
+    else {
+      if (st.law === 'charles') st.V = Math.round(K * st.T / 100); else st.V = 100;
+      Lab.slider(ctl, { label: 'Heat or cool the gas: temperature', min: -50, max: 150, step: 10, value: st.T - 273, unit: '°C', fmt: function (v) { return v + ' °C (' + (v + 273) + ' K)'; }, onInput: function (v) { st.T = v + 273; if (st.law === 'charles') st.V = Math.round(K * st.T / 100 * 10) / 10; update(); } });
+    }
+  }
+  Lab.seg(Lab.$('#law'), { label: 'Law', value: 'boyle', options: [['boyle', "Boyle's law"], ['charles', "Charles' law"], ['pressure', 'Pressure law']], onChange: function (v) { st.law = v; st.T = 300; st.V = 100; build(); update(); } });
+  var bb = Lab.$('#btns');
+  Lab.button(bb, 'Record reading', function () {
+    var arr = st.pts[st.law]; arr.push({ V: st.V, T: st.T, p: p() }); if (arr.length > 12) arr.shift(); update();
+  });
+  var invB = Lab.button(bb, 'Plot p against 1/V', function () { st.inv = !st.inv; invB.textContent = st.inv ? 'Plot p against V' : 'Plot p against 1/V'; st.sawInv = true; update(); }, true);
+  Lab.button(bb, 'Clear graph', function () { st.pts[st.law] = []; update(); }, true);
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: "Boyle's law: record at least 5 readings at different volumes.", s: 'Halve the volume and the pressure doubles.', ok: function (s) { return s.pts.boyle.length >= 5; } },
+    { t: 'Plot p against 1/V. What shape do you get?', s: 'A straight line through the origin, so p ∝ 1/V.', ok: function (s) { return s.sawInv && s.pts.boyle.length >= 3; } },
+    { t: "Charles' law: record 5 readings and see where the line meets V = 0.", s: 'At −273 °C (0 K): absolute zero.', ok: function (s) { return s.pts.charles.length >= 5; } },
+    { t: 'Pressure law: record 5 readings and plot p against T in kelvin.', s: 'A straight line through the origin: p ∝ T.', ok: function (s) { return s.pts.pressure.length >= 5; } },
+  ], { title: 'Discover the gas laws' });
+
+  function update() {
+    var L = LAWS[st.law], P = p();
+    Lab.readout(Lab.$('#live'), [['Kept constant', L.keep], ['Pressure p', Lab.sf(P, 3) + ' kPa', true], ['Volume V', st.V + ' cm³'], ['Temperature T', st.T + ' K (' + (st.T - 273) + ' °C)'], ['Wall hits', '<span id="hits">' + hitRate + ' per second</span>']]);
+    var steps = [['The law', L.eq]];
+    if (st.law === 'boyle') steps.push(['Check with your values', 'p × V = ' + Lab.sf(P, 3) + ' × ' + st.V + ' = <b>' + Math.round(P * st.V) + '</b> (always 10 000)'], ['Why?', 'smaller volume → particles hit the walls more often → higher pressure']);
+    if (st.law === 'charles') steps.push(['Check with your values', 'V ÷ T = ' + st.V + ' ÷ ' + st.T + ' = <b>' + (st.V / st.T).toFixed(3) + '</b> (constant)'], ['Why?', 'hotter → faster particles → they push the piston out until the pressure is back to 100 kPa']);
+    if (st.law === 'pressure') steps.push(['Check with your values', 'p ÷ T = ' + Lab.sf(P, 3) + ' ÷ ' + st.T + ' = <b>' + (P / st.T).toFixed(3) + '</b> (constant)'], ['Why?', 'hotter → faster particles hit the walls harder and more often']);
+    steps.push(['General gas law', 'p₁V₁ ÷ T₁ = p₂V₂ ÷ T₂ (T in kelvin!)']);
+    Lab.math(Lab.$('#maths'), 'Show the maths', steps);
+    Lab.$('#gcap').innerHTML = st.law === 'boyle' ? (st.inv ? 'p against 1/V: a straight line through the origin means p ∝ 1/V.' : 'p against V: a curve. When V doubles, p halves.') : st.law === 'charles' ? 'V against θ in °C: extend the line back and it reaches zero volume at −273 °C, which is absolute zero.' : 'p against T in kelvin: a straight line through the origin means p ∝ T.';
+    invB.hidden = st.law !== 'boyle';
+    view.redraw(); graph.redraw(); T.update(st);
+  }
+  build(); update();
+  if (!Lab.reducedMotion) anim.start(); else view.redraw();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A gas has a volume of 300 cm³ at 100 kPa. It is squashed to 150 cm³ at constant temperature. What is the new pressure?', n: 200, unit: 'kPa', why: ' p₁V₁ = p₂V₂: 100 × 300 = p₂ × 150, so p₂ = 200 kPa.' },
+    { q: 'A gas at 27 °C is heated to 327 °C at constant pressure. Its volume was 200 cm³. What is the new volume?', n: 400, unit: 'cm³', why: ' Change to kelvin: 300 K and 600 K. V₂ = 200 × 600 ÷ 300 = 400 cm³.', hint: ' Change both temperatures to kelvin first (+273).' },
+    { q: 'Why does the pressure in a car tyre rise on a hot day?', o: ['The rubber expands', 'The air particles move faster and hit the walls harder and more often', 'More air gets in', 'The particles get bigger'], a: 1, why: ' The pressure law: at constant volume, p ∝ T.' },
+  ]);
+})();
+</script>
+</body>
+</html>

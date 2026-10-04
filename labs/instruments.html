@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reading Instruments · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Practise reading a metre rule, vernier caliper and micrometer screw gauge with instant feedback. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="instruments">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>Different instruments measure to different <b>precision</b> (the smallest step they can show).</p>
+    <p><b>Metre rule</b>: to 0.1 cm (1 mm). <b>Vernier caliper</b>: to 0.01 cm (0.1 mm). <b>Micrometer screw gauge</b>: to 0.01 mm. Pick the instrument that suits the size of the object: a metre rule for a desk, a vernier for the diameter of a test tube, a micrometer for the thickness of a wire.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="mode"></div>
+
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage">
+      <canvas id="cv" aria-label="A magnified scale of the chosen measuring instrument"></canvas>
+      <div id="eye" style="margin-top:6px"></div>
+      <p class="cap" id="cap"></p>
+    </div>
+    <div class="stack">
+      <section class="card">
+        <h2 id="q-title">What is the reading?</h2>
+        <form id="ans" class="qnum" style="margin-top:6px">
+          <label class="sr" for="ans-in">Your reading</label>
+          <input id="ans-in" inputmode="decimal" autocomplete="off" placeholder="Reading">
+          <span id="ans-unit">cm</span>
+          <button class="btn" type="submit">Check</button>
+        </form>
+        <div id="fb" aria-live="polite"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn ghost" type="button" id="how">Show me how</button>
+          <button class="btn ghost" type="button" id="next">New object</button>
+        </div>
+        <p class="note" id="score" style="margin-bottom:0"></p>
+      </section>
+      <section id="steps" hidden></section>
+    </div>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var st = { mode: 'rule', value: 0, start: 0, eye: 0, right: { rule: 0, vernier: 0, micrometer: 0 }, eyeLevelRight: 0 };
+  function rnd(a, b, step) { return Math.round((a + Math.random() * (b - a)) / step) * step; }
+
+  function newObject() {
+    if (st.mode === 'rule') { st.start = rnd(1, 3, 0.5); st.value = Math.round(rnd(3.2, 8.8, 0.1) * 10) / 10; st.eye = 0; if (eyeS) eyeS.set(0, true); }
+    if (st.mode === 'vernier') st.value = Math.round(rnd(0.5, 4.5, 0.01) * 100) / 100;
+    if (st.mode === 'micrometer') st.value = Math.round(rnd(1.0, 12.0, 0.01) * 100) / 100;
+    Lab.$('#ans-in').value = ''; Lab.$('#fb').innerHTML = ''; Lab.$('#steps').hidden = true;
+    update();
+  }
+
+  function drawRule(ctx, W, H) {
+    var ppc = Math.min(70, (W - 40) / 10), x0 = 20, y = H * 0.52;
+    // object
+    var ox1 = x0 + st.start * ppc, ox2 = x0 + (st.start + st.value) * ppc;
+    ctx.fillStyle = c('t6'); Lab.roundRect(ctx, ox1, y - 46, ox2 - ox1, 40, 4); ctx.fill();
+    Lab.text(ctx, 'object', (ox1 + ox2) / 2, y - 26, { color: '#fff', weight: 700, align: 'center' });
+    // rule
+    ctx.fillStyle = c('hint-bg'); ctx.fillRect(x0 - 10, y, W - 20, 54);
+    ctx.strokeStyle = c('t7'); ctx.strokeRect(x0 - 10, y, W - 20, 54);
+    for (var mm = 0; mm <= 100; mm++) {
+      var x = x0 + mm / 10 * ppc; if (x > W - 12) break;
+      var h = mm % 10 === 0 ? 20 : mm % 5 === 0 ? 14 : 8;
+      Lab.line(ctx, x, y, x, y + h, c('ink'), 1);
+      if (mm % 10 === 0) Lab.text(ctx, String(mm / 10), x, y + 32, { size: 12, kind: 'mono', align: 'center' });
+    }
+    Lab.text(ctx, 'cm', W - 30, y + 44, { size: 11, color: c('muted'), align: 'center' });
+    // eye and sight line (parallax)
+    var shift = st.eye * 0.25 * ppc;
+    var ex = ox2 + st.eye * 120, ey = 30;
+    Lab.line(ctx, ex, ey, ox2 + shift * 0.0, y - 6, c('no'), 1.5, [5, 4]);
+    Lab.line(ctx, ox2, y - 6, ox2 - st.eye * 8 + shift, y + 6, c('no'), 1.5, [5, 4]);
+    ctx.font = '26px serif'; ctx.textAlign = 'center'; ctx.fillText('👁', ex, ey);
+    Lab.text(ctx, st.eye === 0 ? 'eye level, straight above the mark' : 'eye at an angle: parallax error!', ex, ey + 26, { size: 12, weight: 700, color: st.eye ? c('no') : c('ok'), align: 'center' });
+    if (st.eye) Lab.dot(ctx, ox2 + shift, y + 4, 4, c('no'));
+  }
+
+  function drawVernier(ctx, W, H) {
+    var ppm = Math.min(14, (W - 40) / 60), x0 = 20, y = H * 0.42, R = st.value * 10; // mm
+    // main scale
+    ctx.fillStyle = c('surface'); ctx.fillRect(x0 - 10, y - 50, W - 20, 50);
+    ctx.strokeStyle = c('grid-strong'); ctx.strokeRect(x0 - 10, y - 50, W - 20, 50);
+    for (var mm = 0; mm <= 60; mm++) {
+      var x = x0 + mm * ppm; if (x > W - 12) break;
+      var h = mm % 10 === 0 ? 24 : mm % 5 === 0 ? 16 : 10;
+      Lab.line(ctx, x, y - h, x, y, c('ink'), 1);
+      if (mm % 10 === 0) Lab.text(ctx, String(mm / 10), x, y - 34, { size: 13, kind: 'mono', align: 'center', weight: 700 });
+    }
+    Lab.text(ctx, 'main scale (cm)', x0 - 4, y - 60, { size: 12, color: c('muted') });
+    // vernier: 10 divisions span 9 mm
+    var vx = x0 + R * ppm;
+    ctx.fillStyle = c('accent-soft'); ctx.fillRect(vx - 12, y, 9 * ppm + 24, 46);
+    ctx.strokeStyle = c('accent'); ctx.strokeRect(vx - 12, y, 9 * ppm + 24, 46);
+    var aligned = Math.round((R - Math.floor(R)) * 10) % 10;
+    for (var k = 0; k <= 10; k++) {
+      var xv = vx + k * 0.9 * ppm;
+      Lab.line(ctx, xv, y, xv, y + (k % 5 === 0 ? 20 : 12), k === aligned && st.showAlign ? c('no') : c('ink'), k === aligned && st.showAlign ? 2.5 : 1);
+      if (k % 5 === 0) Lab.text(ctx, String(k), xv, y + 32, { size: 12, kind: 'mono', align: 'center' });
+    }
+    Lab.text(ctx, 'vernier scale', vx - 8, y + 58, { size: 12, color: c('muted') });
+    // jaws and object
+    ctx.fillStyle = c('t6'); ctx.fillRect(x0 - 8, y - 110, R * ppm + 8, 44);
+    Lab.text(ctx, 'object between the jaws', x0 + R * ppm / 2, y - 88, { color: '#fff', size: 12, weight: 700, align: 'center' });
+    Lab.text(ctx, 'magnified view', W - 16, H - 10, { size: 11, color: c('muted'), align: 'right', base: 'bottom' });
+  }
+
+  function drawMicrometer(ctx, W, H) {
+    var R = st.value, y = H * 0.5, x0 = 20, ppm = Math.min(28, (W * 0.55) / 14);
+    var edge = x0 + R * ppm; // thimble edge position on sleeve
+    // sleeve
+    ctx.fillStyle = c('surface'); ctx.fillRect(x0 - 10, y - 30, edge - x0 + 10, 60);
+    ctx.strokeStyle = c('grid-strong'); ctx.strokeRect(x0 - 10, y - 30, edge - x0 + 10, 60);
+    Lab.line(ctx, x0 - 10, y, edge, y, c('ink'), 1.5);   // datum line
+    for (var h = 0; h <= R * 2 + 1e-9; h++) {
+      var x = x0 + h * 0.5 * ppm; if (x > edge + 0.5) break;
+      if (h % 2 === 0) { Lab.line(ctx, x, y - 12, x, y, c('ink'), 1); if (h % 10 === 0) Lab.text(ctx, String(h / 2), x, y - 20, { size: 12, kind: 'mono', align: 'center', weight: 700 }); }
+      else Lab.line(ctx, x, y, x, y + 10, c('ink'), 1);
+    }
+    Lab.text(ctx, 'sleeve: mm above the line, half-mm below', x0, y + 46, { size: 12, color: c('muted') });
+    // thimble: 50 divisions per turn (0.01 mm each)
+    var tw = Math.min(170, W - edge - 20), tx = edge, div = Math.round((R * 100) % 50);
+    ctx.fillStyle = c('accent-soft'); ctx.fillRect(tx, y - 90, tw, 180);
+    ctx.strokeStyle = c('accent'); ctx.strokeRect(tx, y - 90, tw, 180);
+    var spacing = 15;
+    for (var d = -6; d <= 6; d++) {
+      var n = ((div + d) % 50 + 50) % 50, yy = y - d * spacing;
+      Lab.line(ctx, tx, yy, tx + (n % 5 === 0 ? 22 : 12), yy, d === 0 && st.showAlign ? c('no') : c('ink'), d === 0 && st.showAlign ? 2.5 : 1);
+      if (n % 5 === 0) Lab.text(ctx, String(n), tx + 28, yy, { size: 12, kind: 'mono' });
+    }
+    Lab.text(ctx, 'thimble', tx + tw / 2, y + 104, { size: 12, color: c('muted'), align: 'center' });
+  }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    if (st.mode === 'rule') drawRule(ctx, W, H); else if (st.mode === 'vernier') drawVernier(ctx, W, H); else drawMicrometer(ctx, W, H);
+  }, { ratio: 0.5, min: 280, max: 340 });
+
+  var eyeS;
+  var modeSeg = Lab.seg(Lab.$('#mode'), { label: 'Instrument', value: 'rule',
+    options: [['rule', 'Metre rule'], ['vernier', 'Vernier caliper'], ['micrometer', 'Micrometer screw gauge']],
+    onChange: function (v) { st.mode = v; Lab.$('#eye').hidden = v !== 'rule'; newObject(); } });
+  eyeS = Lab.slider(Lab.$('#eye'), { label: 'Move your eye', min: -1, max: 1, step: 1, value: 0, fmt: function (v) { return v < 0 ? 'to the left' : v > 0 ? 'to the right' : 'level with the mark'; },
+    onInput: function (v) { st.eye = v; update(); } });
+
+  function answer() { return st.mode === 'rule' ? st.value : st.value; }
+  function howSteps() {
+    var v = st.value;
+    if (st.mode === 'rule') {
+      var end = st.start + v;
+      return [['Read the left end', 'left end = <b>' + st.start.toFixed(1) + ' cm</b> (it does not start at 0!)'],
+        ['Read the right end with your eye level', 'right end = <b>' + end.toFixed(1) + ' cm</b>'],
+        ['Subtract', 'length = ' + end.toFixed(1) + ' − ' + st.start.toFixed(1) + ' = <b>' + v.toFixed(1) + ' cm</b>']];
+    }
+    if (st.mode === 'vernier') {
+      var mm = v * 10, main = Math.floor(mm + 1e-9) / 10, k = Math.round((mm - Math.floor(mm + 1e-9)) * 10);
+      return [['Main scale: last mark before the vernier 0', '<b>' + main.toFixed(1) + ' cm</b>'],
+        ['Find the vernier line that lines up exactly with a main-scale line', 'line <b>' + k + '</b> → ' + k + ' × 0.01 = <b>' + (k / 100).toFixed(2) + ' cm</b>'],
+        ['Add them', main.toFixed(1) + ' + ' + (k / 100).toFixed(2) + ' = <b>' + v.toFixed(2) + ' cm</b>']];
+    }
+    var half = Math.floor(v * 2 + 1e-9) / 2, th = Math.round((v - half) * 100);
+    return [['Sleeve: last mark showing (count the half-mm marks below the line)', '<b>' + half.toFixed(2) + ' mm</b>'],
+      ['Thimble division on the datum line', '<b>' + th + '</b> → ' + th + ' × 0.01 = <b>' + (th / 100).toFixed(2) + ' mm</b>'],
+      ['Add them', half.toFixed(2) + ' + ' + (th / 100).toFixed(2) + ' = <b>' + v.toFixed(2) + ' mm</b>']];
+  }
+
+  Lab.$('#ans').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var raw = Lab.$('#ans-in').value, got = WBC.parseNumber(raw);
+    if (!got) { Lab.$('#fb').innerHTML = '<p class="qfb no"><strong>Type a number, for example 2.47</strong></p>'; return; }
+    var tol = st.mode === 'rule' ? 0.05 : 0.005, ok = Math.abs(got.value - answer()) <= tol + 1e-9;
+    var dpNeed = st.mode === 'rule' ? 1 : 2, dpOk = got.dp === dpNeed;
+    if (ok) {
+      st.right[st.mode]++;
+      if (st.mode === 'rule' && st.eye === 0) st.eyeLevelRight++;
+      Lab.$('#fb').innerHTML = '<p class="qfb ok"><strong>✓ Correct!</strong>' + (dpOk ? '' : ' Write it as ' + answer().toFixed(dpNeed) + ' to show the precision of the instrument.') + ' Press <b>New object</b> for another.</p>';
+    } else {
+      var why = st.mode === 'rule' && st.eye !== 0 ? ' Your eye is not level with the mark, so the reading is wrong. That is parallax error. Move your eye back to the middle.' : ' Press <b>Show me how</b> for the steps.';
+      Lab.$('#fb').innerHTML = '<p class="qfb no"><strong>✗ Not quite.</strong>' + why + '</p>';
+    }
+    update();
+  });
+  Lab.$('#how').addEventListener('click', function () {
+    st.showAlign = true; var s = Lab.$('#steps'); s.hidden = false; Lab.math(s, 'How to read it', howSteps()); view.redraw();
+  });
+  Lab.$('#next').addEventListener('click', function () { st.showAlign = false; newObject(); });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Read the metre rule correctly 2 times, with your eye level.', s: 'Remember to subtract the starting reading.', ok: function (s) { return s.eyeLevelRight >= 2; } },
+    { t: 'Move your eye to one side and see how the reading changes (parallax).', ok: function (s) { return s.eye !== 0; } },
+    { t: 'Read the vernier caliper correctly 3 times.', s: 'Main scale + aligned vernier line × 0.01 cm.', ok: function (s) { return s.right.vernier >= 3; } },
+    { t: 'Read the micrometer screw gauge correctly 3 times.', s: 'Sleeve (including any half-mm) + thimble × 0.01 mm.', ok: function (s) { return s.right.micrometer >= 3; } },
+  ], { title: 'Become a confident reader of scales' });
+
+  function update() {
+    var units = { rule: 'cm', vernier: 'cm', micrometer: 'mm' }, prec = { rule: '0.1 cm', vernier: '0.01 cm', micrometer: '0.01 mm' };
+    Lab.$('#ans-unit').textContent = units[st.mode];
+    Lab.$('#q-title').textContent = st.mode === 'rule' ? 'How long is the object?' : 'What is the reading?';
+    Lab.$('#cap').innerHTML = 'This instrument reads to <b>' + prec[st.mode] + '</b>. ' + (st.mode === 'rule' ? 'The object does not start at zero.' : st.mode === 'vernier' ? 'Ten vernier divisions fit into 9 mm, so each one is 0.1 mm shorter than a main-scale division.' : 'One full turn of the thimble moves it 0.50 mm, and the thimble has 50 divisions, so each division is 0.01 mm.');
+    Lab.$('#score').textContent = 'Correct so far: rule ' + st.right.rule + ' · vernier ' + st.right.vernier + ' · micrometer ' + st.right.micrometer;
+    view.redraw();
+    T.update(st);
+  }
+  newObject();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'Which instrument should you use to measure the diameter of a thin copper wire?', o: ['Metre rule', 'Vernier caliper', 'Micrometer screw gauge', 'Measuring tape'], a: 2, why: ' A wire is less than 1 mm thick, so you need the 0.01 mm precision of a micrometer.' },
+    { q: 'A vernier main scale reads 3.2 cm and vernier line 6 lines up. What is the reading in cm?', n: 3.26, unit: 'cm', why: ' 3.2 + 6 × 0.01 = 3.26 cm.', hint: ' Add 6 × 0.01 cm to the main-scale reading.' },
+    { q: 'A micrometer sleeve shows 5.5 mm and the thimble reads 23. What is the reading in mm?', n: 5.73, unit: 'mm', why: ' 5.5 + 23 × 0.01 = 5.73 mm.', hint: ' Add 23 × 0.01 mm to the sleeve reading.' },
+    { q: 'Parallax error is avoided by…', o: ['repeating the reading', 'placing your eye level with, and directly in line with, the mark', 'using a longer ruler', 'reading quickly'], a: 1, why: ' Viewing at an angle makes the mark appear against the wrong part of the scale.' },
+  ]);
+})();
+</script>
+</body>
+</html>

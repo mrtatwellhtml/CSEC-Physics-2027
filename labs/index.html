@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Labs · CSEC Physics 2027</title>
+<meta name="description" content="Every interactive physics lab and simulation for CSEC Physics, grouped by syllabus section.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="lab.js"></script>
+</head>
+<body data-page="hub">
+<div class="wrap">
+  <div id="lab-top"><span class="eyebrow">Learn by doing</span><h1>Interactive labs</h1><p class="lead">Each lab lets you change things and see what happens. Every lab has a short "In simple words" explanation, live working ("Show the maths"), tasks that tick themselves when you complete them, and a quick check.</p></div>
+
+  <section class="card" style="margin-top:8px">
+    <h2>How to use a lab</h2>
+    <ol style="margin:0;padding-left:20px">
+      <li>Read <b>In simple words</b> first.</li>
+      <li>Play with the controls. <b>Predict</b> what will happen before you press a button.</li>
+      <li>Work through <b>Try this</b>. The tasks tick themselves when you have done them.</li>
+      <li>Do the <b>Quick check</b>, then go back to the lesson and do the practice questions.</li>
+    </ol>
+    <div class="row" style="margin-top:12px"><a class="btn" href="maths.html">Maths help</a><a class="btn ghost" href="formula-coach.html">Formula coach</a></div>
+  </section>
+
+  <div id="hub"></div>
+  <div id="lab-foot"></div>
+</div>
+<script>
+(function () {
+  var all = Lab.readJSON(Lab.LKEY) || {}, secs = window.WB_LAB_SECTIONS, html = '';
+  Object.keys(secs).forEach(function (k) {
+    var labs = window.WB_LABS.filter(function (l) { return l.section === k; });
+    html += '<section class="hub-sec ' + secs[k][1] + '"><h2><small>Section ' + k + '</small>' + Lab.esc(secs[k][0]) + '</h2><div class="hub-grid">' + labs.map(function (l) {
+      var p = all[l.id], done = p && p.tasks ? p.tasks.length : 0, tot = p && p.total;
+      return '<a class="hub-card ' + secs[k][1] + '" href="' + l.id + '.html"><b>' + Lab.esc(l.title) + '</b><span>' + Lab.esc(l.blurb) + '</span>' +
+        (done ? '<em>' + (tot && done >= tot ? '✓ All tasks done' : done + (tot ? ' of ' + tot : '') + ' tasks done') + '</em>' : '') + '</a>';
+    }).join('') + '</div></section>';
+  });
+  document.getElementById('hub').innerHTML = html;
+})();
+</script>
+</body>
+</html>

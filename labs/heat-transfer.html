@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heat Transfer · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Conduction along different rods, convection currents in water and radiation from a Leslie cube. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="heat-transfer">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>Heat always flows from <b>hot to cold</b>, in three ways.</p>
+    <p><b>Conduction</b>: particles pass vibrations to their neighbours. Metals are best because their free electrons carry energy quickly. <b>Convection</b>: in liquids and gases, the hot part expands, becomes less dense and rises, and cooler fluid sinks to take its place. <b>Radiation</b>: infrared waves, which need no particles at all, so they even cross the vacuum of space.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="mode"></div>
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage">
+      <canvas id="cv" aria-label="Heat transfer experiment"></canvas>
+      <div class="row" style="margin-top:8px" id="btns"></div>
+    </div>
+    <div class="stack">
+      <section class="card" id="ctlcard"><h2>Controls</h2><div id="ctl"></div></section>
+      <section class="card" id="explain"></section>
+    </div>
+  </div>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Heat transfer in everyday life</h2>
+    <div class="tbl-wrap"><table class="data"><thead><tr><th>Example</th><th>How it works</th></tr></thead><tbody>
+      <tr><td style="font-family:inherit">Vacuum flask</td><td style="font-family:inherit">vacuum stops conduction and convection; silvered walls reflect radiation; stopper stops convection out of the top</td></tr>
+      <tr><td style="font-family:inherit">Solar water heater</td><td style="font-family:inherit">black pipes absorb radiation; hot water rises to the tank by convection; glass cover traps heat</td></tr>
+      <tr><td style="font-family:inherit">Sea breeze (day)</td><td style="font-family:inherit">land heats faster; warm air over land rises; cool air from the sea moves in (convection current)</td></tr>
+      <tr><td style="font-family:inherit">Pot handles</td><td style="font-family:inherit">made of plastic or wood, which are poor conductors (insulators)</td></tr>
+      <tr><td style="font-family:inherit">White houses in the Caribbean</td><td style="font-family:inherit">white and shiny surfaces reflect radiation and absorb little</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var RODS = [['Copper', 1.0, '#D18B5A'], ['Aluminium', 0.6, '#C7CDD4'], ['Brass', 0.3, '#D4B04C'], ['Iron', 0.2, '#8A8F96'], ['Glass', 0.02, '#BFE3F2']];
+  var NS = 30;
+  var st = { mode: 'cond', on: false, t: 0, T: RODS.map(function () { return new Array(NS).fill(25); }), drop: RODS.map(function () { return []; }),
+    heatAt: 'bottom', dye: [], face: 0, seenFaces: {}, race: { black: 25, shiny: 25, t: 0 }, seen: {} };
+
+  function resetCond() { st.t = 0; st.T = RODS.map(function () { return new Array(NS).fill(25); }); st.drop = RODS.map(function () { return []; }); }
+  function resetConv() { st.dye = []; for (var i = 0; i < 160; i++) st.dye.push({ x: 0.15 + Math.random() * 0.05, y: 0.85 + Math.random() * 0.08, age: Math.random() * 5 }); st.t = 0; }
+  function resetRad() { st.race = { black: 25, shiny: 25, t: 0 }; }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) { if (st.mode === 'cond') drawCond(ctx, W, H); else if (st.mode === 'conv') drawConv(ctx, W, H); else drawRad(ctx, W, H); }, { ratio: 0.62, min: 320, max: 440 });
+
+  function heatColor(T) { var f = Lab.clamp((T - 25) / 200, 0, 1); return 'rgb(' + Math.round(120 + 135 * f) + ',' + Math.round(130 - 80 * f) + ',' + Math.round(150 - 130 * f) + ')'; }
+  function drawCond(ctx, W, H) {
+    var x0 = 90, x1 = W - 20, gap = (H - 60) / RODS.length;
+    // flame
+    var fx = 50, fy = H / 2;
+    ctx.fillStyle = st.on ? '#FF8A00' : c('t0'); ctx.beginPath(); ctx.ellipse(fx, fy, 16, 60, 0, 0, Math.PI * 2); ctx.fill();
+    Lab.text(ctx, st.on ? 'heat' : 'off', fx, fy + 76, { align: 'center', size: 12 });
+    RODS.forEach(function (r, i) {
+      var y = 30 + i * gap + gap / 2, len = x1 - x0;
+      for (var k = 0; k < NS; k++) { ctx.fillStyle = heatColor(st.T[i][k]); ctx.fillRect(x0 + k * len / NS, y - 6, len / NS + 1, 12); }
+      ctx.strokeStyle = c('ink'); ctx.lineWidth = 1; ctx.strokeRect(x0, y - 6, len, 12);
+      Lab.text(ctx, r[0], x0 + 4, y - 16, { size: 12, weight: 700 });
+      for (var p = 1; p <= 5; p++) {
+        var px = x0 + p * len / 6, dropped = st.drop[i].indexOf(p) >= 0;
+        Lab.line(ctx, px, y + 6, px, y + (dropped ? 6 : 18), c('ink'), 1.5);
+        if (!dropped) { Lab.line(ctx, px, y + 6, px, y + 22, c('ink'), 1.5); Lab.dot(ctx, px, y + 8, 3, '#F3E7B3', c('ink')); }
+        else Lab.dot(ctx, px, Math.min(H - 6, y + gap * 0.45), 2.5, c('muted'));
+      }
+    });
+    Lab.text(ctx, 'time: ' + Math.round(st.t) + ' s', W - 16, 14, { align: 'right', kind: 'mono', size: 12 });
+  }
+  // convection: circulation in the beaker driven by heating position
+  function flow(x, y) {
+    if (st.heatAt === 'top' || !st.on) return [0, 0];
+    // stream function ψ = sin(πx) sin(πy), rising on the heated left side
+    var u = -Math.sin(Math.PI * x) * Math.cos(Math.PI * y), v = Math.cos(Math.PI * x) * Math.sin(Math.PI * y);
+    return [u * 0.12, v * 0.12];
+  }
+  function drawConv(ctx, W, H) {
+    var bx = W * 0.2, bw = W * 0.6, by = 30, bh = H - 90;
+    ctx.fillStyle = c('t6'); ctx.globalAlpha = 0.18; ctx.fillRect(bx, by, bw, bh); ctx.globalAlpha = 1;
+    ctx.strokeStyle = c('ink'); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(bx, by - 10); ctx.lineTo(bx, by + bh); ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx + bw, by - 10); ctx.stroke();
+    st.dye.forEach(function (d) { Lab.dot(ctx, bx + d.x * bw, by + d.y * bh, 3, 'rgba(142,40,160,' + Math.max(0.25, 1 - d.age / 30) + ')'); });
+    if (st.heatAt === 'bottom') { ctx.fillStyle = st.on ? '#FF8A00' : c('t0'); ctx.beginPath(); ctx.ellipse(bx + bw * 0.15, by + bh + 26, 14, 20, 0, 0, 6.3); ctx.fill(); }
+    else { ctx.fillStyle = st.on ? c('no') : c('t0'); ctx.fillRect(bx + 10, by + 4, bw - 20, 10); Lab.text(ctx, 'heater at the top', bx + bw / 2, by + 26, { align: 'center', size: 12 }); }
+    if (st.on && st.heatAt === 'bottom') {
+      Lab.arrow(ctx, bx + bw * 0.3, by + bh * 0.7, bx + bw * 0.3, by + bh * 0.3, { color: c('no'), width: 3 });
+      Lab.arrow(ctx, bx + bw * 0.75, by + bh * 0.3, bx + bw * 0.75, by + bh * 0.7, { color: c('t2'), width: 3 });
+      Lab.text(ctx, 'warm water rises', bx + bw * 0.3 + 8, by + bh * 0.5, { color: c('no'), size: 12, weight: 700 });
+      Lab.text(ctx, 'cool water sinks', bx + bw * 0.75 - 8, by + bh * 0.5, { color: c('t2'), size: 12, weight: 700, align: 'right' });
+    }
+  }
+  var FACES = [['Matt black', 1.0, '#1b1b1b'], ['Dull white', 0.45, '#ECECEC'], ['Shiny silver', 0.08, '#D7DCE1'], ['Dull grey', 0.7, '#7d7f84']];
+  function drawRad(ctx, W, H) {
+    // Leslie cube
+    var cx = W * 0.22, cy = H * 0.42, s = 90, f = FACES[st.face];
+    ctx.fillStyle = f[2]; ctx.fillRect(cx - s / 2, cy - s / 2, s, s); ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; ctx.strokeRect(cx - s / 2, cy - s / 2, s, s);
+    Lab.text(ctx, 'Leslie cube (hot water inside)', cx, cy + s / 2 + 18, { align: 'center', size: 12 });
+    Lab.text(ctx, 'face: ' + f[0], cx, cy - s / 2 - 12, { align: 'center', weight: 700 });
+    for (var k = 0; k < 5; k++) { var len = 20 + f[1] * 70; Lab.arrow(ctx, cx + s / 2 + 6, cy - 30 + k * 15, cx + s / 2 + 6 + len, cy - 30 + k * 15, { color: c('no'), width: 1 + f[1] * 2.5, head: 7 }); }
+    var dx = cx + s / 2 + 110; ctx.fillStyle = c('t0'); ctx.fillRect(dx, cy - 18, 40, 36); Lab.text(ctx, 'IR detector', dx + 20, cy + 32, { align: 'center', size: 11 });
+    ctx.fillStyle = c('surface'); ctx.fillRect(dx + 50, cy - 50, 16, 100); ctx.strokeStyle = c('ink'); ctx.strokeRect(dx + 50, cy - 50, 16, 100);
+    ctx.fillStyle = c('no'); ctx.fillRect(dx + 52, cy + 48 - f[1] * 96, 12, f[1] * 96);
+    // absorber race
+    var rx = W * 0.62, ry = H * 0.72;
+    Lab.text(ctx, 'Which absorbs radiation faster?', rx + 70, ry - 70, { align: 'center', weight: 700, size: 12 });
+    ctx.fillStyle = '#FF8A00'; ctx.beginPath(); ctx.arc(rx + 70, ry, 14, 0, 6.3); ctx.fill();
+    [['black', rx, '#1b1b1b'], ['shiny', rx + 140, '#D7DCE1']].forEach(function (b) {
+      ctx.fillStyle = b[2]; ctx.fillRect(b[1] - 14, ry - 30, 28, 60); ctx.strokeStyle = c('ink'); ctx.strokeRect(b[1] - 14, ry - 30, 28, 60);
+      Lab.text(ctx, st.race[b[0]].toFixed(1) + ' °C', b[1], ry + 44, { align: 'center', kind: 'mono', size: 12 });
+    });
+  }
+
+  var anim = Lab.loop(function (dt) {
+    if (st.mode === 'cond' && st.on) {
+      var h = dt * 1.5;
+      st.t += h * 20;
+      RODS.forEach(function (r, i) {
+        var T = st.T[i], n = T.slice(), D = r[1] * 2.2;
+        for (var sub = 0; sub < 6; sub++) {
+          n[0] = 250;
+          for (var k = 1; k < NS - 1; k++) n[k] = T[k] + D * h / 6 * NS * (T[k - 1] - 2 * T[k] + T[k + 1]) * 0.3 - 0.0003 * (T[k] - 25);
+          n[NS - 1] = n[NS - 2]; T = n.slice();
+        }
+        st.T[i] = T;
+        for (var p = 1; p <= 5; p++) { var idx = Math.round(p * NS / 6); if (T[idx] > 60 && st.drop[i].indexOf(p) < 0) st.drop[i].push(p); }
+      });
+      if (st.drop[0].length === 5) st.seen.copperAll = true;
+    }
+    if (st.mode === 'conv') {
+      st.dye.forEach(function (d) { var f = flow(d.x, d.y); d.x += f[0] * dt * 3 + (Math.random() - 0.5) * 0.004; d.y += f[1] * dt * 3 + (Math.random() - 0.5) * 0.004; d.x = Lab.clamp(d.x, 0.02, 0.98); d.y = Lab.clamp(d.y, 0.02, 0.98); if (st.on) d.age += dt; });
+      if (st.on) { st.t += dt; if (st.heatAt === 'bottom' && st.t > 6) st.seen.convBottom = true; if (st.heatAt === 'top' && st.t > 6) st.seen.convTop = true; }
+    }
+    if (st.mode === 'rad' && st.on) {
+      st.race.t += dt; st.race.black += (60 - st.race.black) * dt * 0.08; st.race.shiny += (60 - st.race.shiny) * dt * 0.012;
+      if (st.race.black - st.race.shiny > 10) st.seen.race = true;
+    }
+    view.redraw();
+  });
+
+  var bb = Lab.$('#btns');
+  var onB = Lab.button(bb, 'Start heating', function () { st.on = !st.on; onB.textContent = st.on ? 'Stop heating' : 'Start heating'; update(); });
+  Lab.button(bb, 'Reset', function () { st.on = false; onB.textContent = 'Start heating'; resetCond(); resetConv(); resetRad(); update(); view.redraw(); }, true);
+
+  function build() {
+    var ctl = Lab.$('#ctl'); ctl.innerHTML = '';
+    if (st.mode === 'cond') ctl.innerHTML = '<p class="note" style="margin:0">Each rod has drawing pins stuck on with wax. Heat one end and watch which rod drops its pins first.</p>';
+    if (st.mode === 'conv') { var r = Lab.el('div', { class: 'row' }); ctl.appendChild(r); Lab.seg(r, { label: 'Heat position', value: st.heatAt, options: [['bottom', 'Heat the bottom corner'], ['top', 'Heat the top']], onChange: function (v) { st.heatAt = v; resetConv(); update(); } }); }
+    if (st.mode === 'rad') { var r2 = Lab.el('div', { class: 'row' }); ctl.appendChild(r2); Lab.seg(r2, { label: 'Face of the cube', value: st.face, options: FACES.map(function (f, i) { return [i, f[0]]; }), onChange: function (v) { st.face = +v; st.seenFaces[v] = true; update(); } }); }
+  }
+  Lab.seg(Lab.$('#mode'), { label: 'Experiment', value: 'cond', options: [['cond', 'Conduction'], ['conv', 'Convection'], ['rad', 'Radiation']], onChange: function (v) { st.mode = v; st.on = false; onB.textContent = 'Start heating'; build(); update(); } });
+
+  var EXPL = {
+    cond: '<h2>Conduction</h2><p style="margin:0">Particles at the hot end vibrate more and pass the energy to their neighbours. In <b>metals</b>, <b>free electrons</b> move through the metal and carry energy much faster. Copper is the best conductor here; glass is an <b>insulator</b>.</p>',
+    conv: '<h2>Convection</h2><p style="margin:0">Water near the flame warms up, <b>expands</b> and becomes <b>less dense</b>, so it rises. Cooler, denser water sinks to replace it, forming a <b>convection current</b>. The purple dye shows the path. Heating at the <b>top</b> gives no convection: the warm water is already at the top.</p>',
+    rad: '<h2>Radiation</h2><p style="margin:0">All objects give out <b>infrared radiation</b>; hotter objects give out more. <b>Matt black</b> surfaces are the best emitters and the best absorbers. <b>Shiny silver</b> surfaces are the worst emitters and absorbers (they reflect). Radiation needs no medium.</p>',
+  };
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Conduction: heat the rods until every pin on the copper rod has dropped.', s: 'The order the pins drop shows which material conducts best.', ok: function (s) { return s.seen.copperAll; } },
+    { t: 'Convection: heat the bottom corner and watch the dye.', ok: function (s) { return s.seen.convBottom; } },
+    { t: 'Now heat the water at the top instead. What happens to the dye?', s: 'No convection current: the hot water stays at the top.', ok: function (s) { return s.seen.convTop; } },
+    { t: 'Radiation: test all four faces of the Leslie cube.', ok: function (s) { return Object.keys(s.seenFaces).length >= 3; } },
+    { t: 'Run the absorber race. Which thermometer warms up faster?', ok: function (s) { return s.seen.race; } },
+  ], { title: 'Investigate heat transfer' });
+
+  function update() { Lab.$('#explain').innerHTML = EXPL[st.mode]; view.redraw(); T.update(st); }
+  resetCond(); resetConv(); build(); update();
+  anim.start();
+  setInterval(function () { T.update(st); }, 1000);
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'Why are metals good conductors of heat?', o: ['They are shiny', 'They have free electrons that carry energy', 'Their particles are far apart', 'They are dense'], a: 1, why: ' Free (delocalised) electrons move through the metal, transferring energy quickly.' },
+    { q: 'Convection cannot happen in solids because…', o: ['solids are too cold', 'the particles in a solid cannot move from place to place', 'solids have no particles', 'solids are dense'], a: 1, why: ' Convection needs the fluid itself to move (flow).' },
+    { q: 'Which surface is the best absorber of radiation?', o: ['Shiny silver', 'Dull white', 'Matt black', 'Polished aluminium'], a: 2, why: ' Matt black surfaces are the best absorbers and the best emitters.' },
+    { q: 'How does heat from the Sun reach the Earth?', o: ['Conduction', 'Convection', 'Radiation', 'All three'], a: 2, why: ' Space is a vacuum. Only radiation can travel through a vacuum.' },
+  ]);
+})();
+</script>
+</body>
+</html>

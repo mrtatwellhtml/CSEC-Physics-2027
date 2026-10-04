@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Formula Coach · CSEC Physics 2027</title>
+<meta name="description" content="Pick any CSEC Physics formula, choose what to find, type the values, and see every step: rearrange, substitute, calculate, check.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script><script src="formulas.js"></script>
+<style>
+  .knowns{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:10px}
+  .knowns .field span.u{font-weight:400;color:var(--muted)}
+  .tri{display:block;margin:6px auto 0;max-width:180px}
+  .bigeq{font:700 30px var(--f-display);text-align:center;margin:6px 0 2px;letter-spacing:-.01em}
+</style>
+</head>
+<body data-page="coach">
+<div class="wrap">
+  <div id="lab-top"><span class="eyebrow">Step by step</span><h1>Formula coach</h1><p class="lead">Choose a formula, choose what you want to find, type in what you know. The coach shows every step the way the examiner wants to see it.</p></div>
+
+  <div class="simple"><strong class="lbl">The 4-step method for every calculation</strong>
+    <p><b>1 Formula</b>: write it down. <b>2 Rearrange</b>: get the unknown on its own (or substitute first, then rearrange). <b>3 Substitute</b>: put the numbers in, with units converted to SI. <b>4 Answer</b>: with the correct unit and a sensible number of significant figures. Then <b>check</b>: does it make sense?</p>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <section class="card">
+      <label class="field">Formula<select id="pick"></select></label>
+      <div class="bigeq" id="eq"></div>
+      <p class="note" id="eqname" style="text-align:center;margin:0"></p>
+      <svg id="tri" class="tri" viewBox="0 0 180 140" aria-hidden="true"></svg>
+      <h3>What do you want to find?</h3>
+      <div class="row" id="targets"></div>
+      <h3>What do you know?</h3>
+      <form id="knowns"><div class="knowns" id="inputs"></div><div class="row" style="margin-top:12px"><button class="btn" type="submit">Solve step by step</button><button class="btn ghost" type="button" id="ex">Fill in an example</button></div></form>
+    </section>
+    <div class="stack">
+      <section id="steps"></section>
+      <div class="watch" id="watch" hidden><strong class="lbl">Watch out</strong><p id="note"></p></div>
+      <section class="card"><h2>What each symbol means</h2><div id="symbols"></div></section>
+    </div>
+  </div>
+  <div id="lab-foot"></div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var L = window.WB_FORMULAS, SEC = window.WB_LAB_SECTIONS, cur = null, target = null;
+  var sel = Lab.$('#pick');
+  sel.innerHTML = Object.keys(SEC).map(function (k) {
+    return '<optgroup label="Section ' + k + ': ' + SEC[k][0] + '">' + L.filter(function (f) { return f.sec === k; }).map(function (f) { return '<option value="' + f.id + '">' + Lab.esc(f.name) + ' (' + Lab.esc(f.eq) + ')</option>'; }).join('') + '</optgroup>';
+  }).join('');
+  function targetsOf(f) { return Object.keys(f.vars).filter(function (v) { return f.forms[v]; }); }
+  function fmt(v) { return Math.abs(v) >= 1e5 || (Math.abs(v) < 0.01 && v !== 0) ? Lab.sci(v, 3) : Lab.sf(v, 3); }
+  function triangle(f) {
+    var svg = Lab.$('#tri');
+    if (!f.tri) { svg.style.display = 'none'; return; }
+    svg.style.display = '';
+    var t = f.tri, hl = function (s) { return s === target ? 'var(--pop)' : 'var(--ink)'; };
+    svg.innerHTML = '<path d="M90 8 L172 132 L8 132 Z" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="3"/>' +
+      '<line x1="40" y1="84" x2="140" y2="84" stroke="var(--accent)" stroke-width="2.5"/><line x1="90" y1="84" x2="90" y2="132" stroke="var(--accent)" stroke-width="2.5"/>' +
+      '<text x="90" y="66" text-anchor="middle" font-size="26" font-weight="700" fill="' + hl(t[0]) + '">' + t[0] + '</text>' +
+      '<text x="60" y="118" text-anchor="middle" font-size="24" font-weight="700" fill="' + hl(t[1]) + '">' + t[1] + '</text>' +
+      '<text x="120" y="118" text-anchor="middle" font-size="24" font-weight="700" fill="' + hl(t[2]) + '">' + t[2] + '</text>' +
+      '<title>Formula triangle: cover the letter you want; side by side means multiply, one above the other means divide</title>';
+  }
+  function choose(id) {
+    cur = L.find(function (f) { return f.id === id; }) || L[0];
+    sel.value = cur.id;
+    Lab.$('#eq').textContent = cur.eq; Lab.$('#eqname').textContent = cur.name;
+    var ts = Lab.$('#targets'); ts.innerHTML = '';
+    var tlist = targetsOf(cur); target = tlist[0];
+    Lab.seg(ts, { label: 'Unknown', value: target, options: tlist.map(function (v) { return [v, v + ' (' + cur.vars[v][0] + ')']; }), onChange: function (v) { target = v; inputs(); triangle(cur); Lab.$('#steps').innerHTML = ''; } });
+    Lab.$('#symbols').innerHTML = '<dl class="readout" style="grid-template-columns:auto 1fr">' + Object.keys(cur.vars).map(function (v) { var d = cur.vars[v]; return '<dt><b style="color:var(--ink);font-family:var(--f-mono)">' + v + '</b></dt><dd style="font-family:inherit;text-align:left">' + d[0] + (d[1] ? ', in <b>' + d[1] + '</b>' : '') + '</dd>'; }).join('') + '</dl>';
+    Lab.$('#watch').hidden = !cur.notes; Lab.$('#note').textContent = cur.notes || '';
+    inputs(); triangle(cur); Lab.$('#steps').innerHTML = '';
+    if (location.hash.slice(1) !== cur.id) history.replaceState(null, '', location.pathname + location.search + '#' + cur.id);
+  }
+  function inputs() {
+    Lab.$('#inputs').innerHTML = Object.keys(cur.vars).filter(function (v) { return v !== target; }).map(function (v) {
+      var d = cur.vars[v];
+      return '<label class="field">' + v + ' = <span class="u">' + d[0] + (d[1] ? ' (' + d[1] + ')' : '') + '</span><input data-v="' + v + '" inputmode="decimal" autocomplete="off"' + (d[2] != null ? ' value="' + (d[2] >= 1e5 ? '3e8' : d[2]) + '"' : '') + '></label>';
+    }).join('');
+  }
+  sel.addEventListener('change', function () { choose(sel.value); });
+  Lab.$('#ex').addEventListener('click', function () {
+    Lab.$('#inputs').querySelectorAll('input').forEach(function (inp, i) { if (!inp.value) inp.value = [4, 2, 5, 3, 6, 8][i % 6]; });
+  });
+  Lab.$('#knowns').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = {}, raw = {}, missing = [];
+    Lab.$('#inputs').querySelectorAll('input').forEach(function (inp) { var p = WBC.parseNumber(inp.value); var k = inp.getAttribute('data-v'); if (!p) missing.push(k); else { v[k] = p.value; raw[k] = Lab.esc(inp.value.trim()); } });
+    if (missing.length) { Lab.math(Lab.$('#steps'), 'Fill in every value first', [['Missing', missing.join(', ')]]); return; }
+    var form = cur.forms[target], ans = form[3](v), unit = cur.vars[target][1];
+    var sub = form[2].replace(/\{([^}]+)\}/g, function (_, k) { return raw[k] != null ? raw[k] : k; });
+    var steps = [['1 · Write the formula', cur.eq],
+      ['2 · Rearrange: ' + form[1], form[0]],
+      ['3 · Substitute the values', sub],
+      ['4 · Calculate', isFinite(ans) ? target + ' = <b>' + fmt(ans) + (unit ? ' ' + unit : '') + '</b>' : 'no answer: check your numbers (for example dividing by zero, or sin of more than 1)']];
+    if (isFinite(ans)) {
+      var others = targetsOf(cur).filter(function (t) { return t !== target; });
+      if (others.length) {
+        var chk = others[0], all = Object.assign({}, v); all[target] = ans;
+        var back = cur.forms[chk][3](all), ok = Math.abs(back - v[chk]) <= Math.abs(v[chk]) * 1e-6 + 1e-9;
+        steps.push(['5 · Check: put your answer back in', 'using ' + cur.forms[chk][0] + ' gives ' + chk + ' = ' + fmt(back) + (ok ? ' ✓ matches what you typed' : ' ✗ (check the values)')]);
+      }
+      steps.push(['Does it make sense?', 'units: ' + (unit || 'none') + '. Is the size sensible for the situation?']);
+    }
+    Lab.math(Lab.$('#steps'), 'Worked solution', steps);
+  });
+  choose(location.hash.slice(1) || 'speed');
+  window.addEventListener('hashchange', function () { if (location.hash.slice(1) !== cur.id) choose(location.hash.slice(1)); });
+})();
+</script>
+</body>
+</html>

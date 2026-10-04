@@ -84,7 +84,7 @@
     return '<header class="topbar" id="topbar">' +
       '<a class="brand" href="#/"><span class="brand-mark" aria-hidden="true">P27</span><span class="bn">CSEC Physics 2027</span><span class="sr">Home</span></a>' +
       '<nav class="topbar-tools" aria-label="Study tools">' +
-      '<a href="#/formulas">Formula cards</a><a href="#/keywords">Key words</a><a href="#/mistakes">Mistake log</a><a href="#/teacher">Teacher summary</a></nav>' +
+      '<a href="labs/index.html">Labs</a><a href="labs/maths.html">Maths help</a><a href="#/formulas">Formula cards</a><a href="#/keywords">Key words</a><a href="#/mistakes">Mistake log</a><a href="#/teacher">Teacher summary</a></nav>' +
       '<div class="tb-right">' +
       '<span class="chip xp" id="xpchip" title="XP: 10 for right first time, 5 after a retry">' + ico('bolt') + '<span>' + S.xp + '</span><span class="sr"> XP</span></span>' +
       '<span class="chip star" title="Stars from exit checks">' + ico('star') + '<span>' + stars() + '</span><span class="sr"> stars</span></span>' +
@@ -262,6 +262,10 @@
       '</div>' +
       '<h2 class="sr">How each lesson works</h2>' +
       '<ol class="flow">' + FLOW.map(function (f) { return '<li>' + f[0] + (f[1] ? ' <span>' + f[1] + '</span>' : '') + '</li>'; }).join('') + '</ol>' +
+      '<section class="tools-strip" aria-label="Labs and tools">' +
+        '<a href="labs/index.html"><b>Interactive labs</b><span>' + (window.WB_LABS || []).length + ' experiments to run on screen, one for every topic</span></a>' +
+        '<a href="labs/maths.html"><b>Maths help</b><span>Rearranging, units, standard form, graphs… with practice</span></a>' +
+        '<a href="labs/formula-coach.html"><b>Formula coach</b><span>Any formula, solved step by step</span></a></section>' +
       bySec + '</main>';
   }
 
@@ -316,7 +320,11 @@
         ? '<p class="intro" role="alert">' + esc(bookErrors[id].message) + ' <button class="btn ghost" type="button" data-retry-book="' + esc(id) + '">Try again</button></p>'
         : '<p class="intro tiny">Loading…</p>') + objHTML + '</section>' +
       '<section class="topic ' + sec.color + '"><div class="topic-h"><span class="dot" aria-hidden="true"></span><h2 style="font-size:20px">Lessons</h2><span class="tprog">' + doneCount(b.lessons) + '/' + b.lessons.length + '</span></div>' +
-      '<div class="daygrid">' + b.lessons.map(lessonCard).join('') + '</div></section></main>';
+      '<div class="daygrid">' + b.lessons.map(lessonCard).join('') + '</div></section>' + bookLabs(b) + '</main>';
+  }
+  function bookLabs(b) {
+    var labs = labsFor(b.lessons.map(function (l) { return l.id; }));
+    return labs.length ? '<section class="topic"><div class="topic-h"><h2 style="font-size:20px">Interactive labs for this book</h2></div><div class="lab-grid-cards">' + labCards(labs) + '</div></section>' : '';
   }
 
   // ---------- Lesson renderer ----------
@@ -344,7 +352,7 @@
       return '<aside class="' + cls + '">' + (b.label ? '<span class="block-label">' + esc(b.label) + '</span>' : '') +
         '<div class="formula-main">' + formula + '</div>' +
         (b.where && b.where.length ? '<ul class="formula-where">' + b.where.map(function (x) { return '<li>' + md(x) + '</li>'; }).join('') + '</ul>' : '') +
-        '</aside>';
+        coachLink(b.tex || b.text, lessonId) + '</aside>';
     }
     if (b.type === 'tip' || b.type === 'warn' || b.type === 'remember') {
       var label = b.label || (b.type === 'tip' ? 'Exam tip' : b.type === 'warn' ? 'Common mistake' : 'Remember');
@@ -1009,6 +1017,23 @@
     activeLessonAt = 0;
   }
 
+  // ---------- extra help: labs, maths help, formula coach, plain-language support ----------
+  function fromParam(lessonId) { return lessonId ? '?from=' + encodeURIComponent(lessonId) : ''; }
+  function coachLink(tex, lessonId) {
+    var id = window.WB_coachFor ? window.WB_coachFor(tex) : null;
+    return id ? '<a class="coach-link" href="labs/formula-coach.html' + fromParam(lessonId) + '#' + id + '">Practise this formula step by step →</a>' : '';
+  }
+  function labsFor(lessonIds) {
+    return (window.WB_LABS || []).filter(function (lab) { return lab.lessons.some(function (id) { return lessonIds.indexOf(id) >= 0; }); });
+  }
+  function labCards(labs, lessonId) {
+    return labs.map(function (lab) {
+      return '<a class="lab-card" href="labs/' + lab.id + '.html' + fromParam(lessonId) + '"><b>' + esc(lab.title) + '</b><span>' + esc(lab.blurb) + '</span><em>Open the lab →</em></a>';
+    }).join('');
+  }
+  function mathsTitle(id) { var m = (window.WB_MATHS || []).find(function (x) { return x.id === id; }); return m ? m.title : id; }
+  function supportFor(id) { return (window.WB_SUPPORT || {})[id] || {}; }
+
   function unitLessonHTML(l) {
     blockHTML.nextFill = 0;
     var st = lessonState(l.id) || {};
@@ -1018,8 +1043,14 @@
       ? '<section class="vocab"><h2>Words to know <span>· tap to open</span></h2><div class="vocab-chips">' +
         l.words.map(function (word, i) { return '<details class="vocab-chip"><summary>' + md(word.term) + '</summary><p>' + md(word.def) + '</p></details>'; }).join('') +
         '</div></section>' : '';
-    var learn = blocksHTML((l.learn && l.learn.notes) || [], l.id) +
-      ((l.learn && l.learn.examples) || []).map(exampleHTML).join('');
+    var sup = supportFor(l.id), labs = labsFor([l.id]);
+    var labHTML = labs.length ? '<div class="lab-links"><span class="block-label">Explore it in the lab · see it happen, then try it yourself</span><div class="lab-grid-cards">' + labCards(labs, l.id) + '</div></div>' : '';
+    var recapHTML = sup.recap && sup.recap.length ? '<aside class="recap"><strong>Quick recap · remember these</strong><ul>' + sup.recap.map(function (r) { return '<li>' + md(r) + '</li>'; }).join('') + '</ul></aside>' : '';
+    var learn = blocksHTML((l.learn && l.learn.notes) || [], l.id) + labHTML +
+      ((l.learn && l.learn.examples) || []).map(exampleHTML).join('') + recapHTML;
+    var simpleHTML = sup.simple ? '<aside class="simple-words"><strong>In simple words</strong><p>' + md(sup.simple) + '</p></aside>' : '';
+    var mathsHTML = sup.maths && sup.maths.length ? '<div class="maths-need"><span class="block-label">Maths you need · tap a skill for help and practice</span><div class="maths-chips">' +
+      sup.maths.map(function (id) { return '<a href="labs/maths.html' + fromParam(l.id) + '#' + id + '">' + esc(mathsTitle(id)) + '</a>'; }).join('') + '</div></div>' : '';
     var content = lessonSection('Warm-up', '5 min', 'Wake up what you already know.', quick + questionList(l.warmup, 'W', false, l.id), 'warm-section') +
       lessonSection('Learn', '10 min', 'Read, explore the diagrams and follow each worked example.', learn, 'learn-section') +
       lessonSection('Try it with help', '5 min', 'Have a go. Open a hint if you get stuck.', questionList(l.tryit, 'T', true, l.id), 'try-section') +
@@ -1029,14 +1060,14 @@
       return '<li><code>' + esc(goal.code) + '</code><span>' + md(goal.text) + '</span></li>';
     }).join('');
     return '<div class="lesson-goal"><span class="block-label">Today’s goal · I can…</span><ul>' + goals + '</ul></div>' +
-      vocab + content + finishHTML(l.id, st);
+      simpleHTML + mathsHTML + vocab + content + finishHTML(l.id, st);
   }
 
   function lessonPage(id) {
     var l = LESSON[id];
     if (!l) return notFound();
     var b = BOOK[l.book], sec = SECTIONS[b.section];
-    var bookData = (window.WB_BOOK || {})[b.id];
+    var bookData = window.WB_SUPPORT ? (window.WB_BOOK || {})[b.id] : null;
     var lessonData = bookData && bookData.lessons.find(function (x) { return x.id === id; });
     var i = LESSONS.indexOf(l), prev = LESSONS[i - 1], next = LESSONS[i + 1];
     var head = '<p class="crumb"><a href="#/book/' + b.id + '">' + (sec.id === 'X' ? 'Exam prep' : 'Section ' + sec.id) + ' · ' + esc(lessonLabel(l)) + '</a></p>' +
@@ -1569,7 +1600,7 @@
           '" data-search="' + esc([book.titleText, card.tex, card.text, card.meaning, card.units, book.section].join(' ').toLowerCase()) + '">' +
           '<div class="reference-meta"><span>' + esc(section.id === 'X' ? 'Exam prep' : 'Section ' + section.id) + '</span><a href="#/book/' + esc(book.id) + '">' + md(book.title) + '</a></div>' +
           '<div class="formula-equation">' + equation + '</div><p>' + md(card.meaning || '') + '</p>' +
-          (card.units ? '<p class="reference-units"><strong>Units:</strong> ' + md(card.units) + '</p>' : '') + '</article>';
+          (card.units ? '<p class="reference-units"><strong>Units:</strong> ' + md(card.units) + '</p>' : '') + coachLink(card.tex || card.text) + '</article>';
       }).join('');
     }).join('');
     var options = IDX.sections.map(function (section) {
@@ -1668,7 +1699,25 @@
   // ---------- book data (lazy, one file per book) ----------
   var loading = {};
   var bookErrors = {};
+  var bookInFlight = {};
+  // Extra-help text (data/support.js) loads with the first book. It is optional: if it fails, lessons still work.
+  var supportPromise = null;
+  function loadSupport() {
+    if (window.WB_SUPPORT) return Promise.resolve(window.WB_SUPPORT);
+    if (supportPromise) return supportPromise;
+    supportPromise = new Promise(function (resolve) {
+      var s = document.createElement('script');
+      s.src = 'data/support.js';
+      s.onload = function () { window.WB_SUPPORT = window.WB_SUPPORT || {}; resolve(window.WB_SUPPORT); };
+      s.onerror = function () { window.WB_SUPPORT = {}; resolve(window.WB_SUPPORT); };
+      document.head.appendChild(s);
+    });
+    return supportPromise;
+  }
   function loadBook(id) {
+    return Promise.all([loadBookData(id), loadSupport()]).then(function (r) { return r[0]; });
+  }
+  function loadBookData(id) {
     if ((window.WB_BOOK || {})[id]) return Promise.resolve(window.WB_BOOK[id]);
     if (loading[id]) return loading[id];
     loading[id] = new Promise(function (resolve, reject) {
@@ -1724,7 +1773,12 @@
     var html = r.view === 'home' ? home() : r.view === 'book' ? bookPage(r.id) : r.view === 'lesson' ? lessonPage(r.id) :
       r.view === 'formulas' ? formulasPage() : r.view === 'keywords' ? keywordsPage() :
         r.view === 'teacher' ? teacherPage() : r.view === 'mistakes' ? mistakesPage() : notFound();
+    // A re-render (e.g. when book data finishes loading) must not wipe a name the student is typing.
+    var gateBefore = document.getElementById('gate-name');
+    var gateKeep = gateBefore ? { value: gateBefore.value, focused: document.activeElement === gateBefore } : null;
     app.innerHTML = topbar() + html + footer();
+    var gateAfter = gateKeep && document.getElementById('gate-name');
+    if (gateAfter) { gateAfter.value = gateKeep.value; if (gateKeep.focused) gateAfter.focus(); }
     document.getElementById('themebtn').addEventListener('click', toggleTheme);
     document.querySelectorAll('[data-retry-book]').forEach(function (button) {
       button.addEventListener('click', function () {
@@ -1845,8 +1899,10 @@
     document.title = (r.view === 'home' ? '' : (app.querySelector('h1') || {}).textContent + ' · ') + 'CSEC Physics 2027';
     // book data for book / lesson pages
     var need = r.view === 'book' ? r.id : r.view === 'lesson' && LESSON[r.id] ? LESSON[r.id].book : null;
-    if (need && !(window.WB_BOOK || {})[need] && !bookErrors[need]) {
-      loadBook(need).then(render, function (error) {
+    if (need && (!(window.WB_BOOK || {})[need] || !window.WB_SUPPORT) && !bookErrors[need] && !bookInFlight[need]) {
+      bookInFlight[need] = true;
+      loadBook(need).then(function () { delete bookInFlight[need]; render(); }, function (error) {
+        delete bookInFlight[need];
         bookErrors[need] = error;
         render();
       });

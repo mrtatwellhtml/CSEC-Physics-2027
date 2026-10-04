@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motor Effect and d.c. Motor · CSEC Physics 2027 Labs</title>
+<meta name="description" content="A current-carrying wire in a magnetic field feels a force: Fleming's left-hand rule, F = BIL, and how a split-ring commutator keeps a d.c. motor turning. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="motor">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>A wire carrying a <b>current</b> inside a <b>magnetic field</b> feels a <b>force</b>. This is the <b>motor effect</b>. Use <b>Fleming's left-hand rule</b> to find which way: <b>F</b>irst finger = <b>F</b>ield (N → S), se<b>C</b>ond finger = <b>C</b>urrent (+ → −), thu<b>M</b>b = <b>M</b>otion (force).</p>
+    <p>In a motor, the forces on the two sides of a coil point opposite ways, so the coil <b>turns</b>. The <b>split-ring commutator</b> reverses the current every half turn so it keeps turning the same way.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="mode"></div>
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage"><canvas id="cv" aria-label="Motor effect demonstration"></canvas><div class="row" style="margin-top:8px" id="btns"></div></div>
+    <div class="stack">
+      <section class="card"><h2>Controls</h2><div id="ctl"></div></section>
+      <section id="maths"></section>
+    </div>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var st = { mode: 'wire', B: 0.4, I: 3, L: 0.1, out: true, fieldRight: true, y: 0, vy: 0, th: 0.3, w: 0, comm: true, seen: {}, stuck: false };
+  function forceDir() { return (st.out ? 1 : -1) * (st.fieldRight ? 1 : -1); }   // +1 = up (I out of page, B to the right)
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var cx = W / 2, cy = H / 2, pw = 54, gap = Math.min(W * 0.5, 320), top = H * 0.14, bot = H * 0.86;
+    var lx = cx - gap / 2 - pw, rx = cx + gap / 2, leftN = st.fieldRight;
+    ctx.fillStyle = leftN ? c('no') : c('t2'); ctx.fillRect(lx, top, pw, bot - top);
+    ctx.fillStyle = leftN ? c('t2') : c('no'); ctx.fillRect(rx, top, pw, bot - top);
+    Lab.text(ctx, leftN ? 'N' : 'S', lx + pw / 2, cy, { color: '#fff', weight: 700, size: 22, align: 'center' }); Lab.text(ctx, leftN ? 'S' : 'N', rx + pw / 2, cy, { color: '#fff', weight: 700, size: 22, align: 'center' });
+    for (var k = 0; k < 5; k++) { var y = top + (bot - top) * (k + 0.5) / 5; ctx.globalAlpha = 0.5; Lab.arrow(ctx, st.fieldRight ? lx + pw + 4 : rx - 4, y, st.fieldRight ? rx - 4 : lx + pw + 4, y, { color: c('accent'), width: 1.4, head: 7 }); ctx.globalAlpha = 1; }
+    if (st.mode === 'wire') {
+      var wy = cy + st.y, r = 18;
+      Lab.dot(ctx, cx, wy, r, c('surface'), c('pop'));
+      if (st.out) Lab.dot(ctx, cx, wy, 5, c('pop')); else { Lab.line(ctx, cx - 9, wy - 9, cx + 9, wy + 9, c('pop'), 3); Lab.line(ctx, cx + 9, wy - 9, cx - 9, wy + 9, c('pop'), 3); }
+      var len = 30 + st.B * st.I * st.L * 120;
+      Lab.arrow(ctx, cx, wy - forceDir() * (r + 2), cx, wy - forceDir() * (r + 2 + len), { color: c('ok'), width: 4, label: 'F', labelOff: 14 });
+      Lab.text(ctx, 'current ' + (st.out ? 'out of the page ⊙' : 'into the page ⊗'), cx, bot + 20, { align: 'center', size: 13, weight: 700, color: c('pop') });
+    } else {
+      // end-on view of the coil: two sides at ±R around the axis
+      var R = Math.min(gap * 0.38, (bot - top) * 0.4), a = st.th, s1 = [cx + R * Math.cos(a), cy - R * Math.sin(a)], s2 = [cx - R * Math.cos(a), cy + R * Math.sin(a)];
+      Lab.line(ctx, s1[0], s1[1], s2[0], s2[1], c('ink'), 4);
+      var cur = coilCurrent();   // +1: side 1 current out of page
+      [[s1, cur], [s2, -cur]].forEach(function (sd) {
+        Lab.dot(ctx, sd[0][0], sd[0][1], 13, c('surface'), c('pop'));
+        if (sd[1] > 0) Lab.dot(ctx, sd[0][0], sd[0][1], 4, c('pop')); else if (sd[1] < 0) { Lab.line(ctx, sd[0][0] - 7, sd[0][1] - 7, sd[0][0] + 7, sd[0][1] + 7, c('pop'), 2.5); Lab.line(ctx, sd[0][0] + 7, sd[0][1] - 7, sd[0][0] - 7, sd[0][1] + 7, c('pop'), 2.5); }
+        if (sd[1] !== 0) { var f = sd[1] * (st.fieldRight ? 1 : -1); Lab.arrow(ctx, sd[0][0] + 18, sd[0][1], sd[0][0] + 18, sd[0][1] - f * 46, { color: c('ok'), width: 3.5 }); }
+      });
+      Lab.dot(ctx, cx, cy, 5, c('ink'));
+      // commutator inset
+      var ix = cx, iy = bot + 2;
+      Lab.text(ctx, st.comm ? 'split-ring commutator' : 'slip rings (no commutator)', W - 12, H - 10, { align: 'right', size: 12, color: c('muted') });
+      Lab.text(ctx, 'speed: ' + Math.abs(st.w * 60 / (2 * Math.PI)).toFixed(0) + ' rpm (simulated)', 12, H - 10, { size: 12, kind: 'mono' });
+      if (st.stuck) Lab.text(ctx, 'STUCK: without a commutator the coil rocks and stops upright', W / 2, 18, { align: 'center', weight: 700, color: c('no') });
+    }
+  }, { ratio: 0.62, min: 320, max: 420 });
+
+  // which way the current goes in side 1. With a split ring it reverses each time the coil passes vertical.
+  function coilCurrent() { if (st.I === 0) return 0; if (!st.comm) return 1; var cosv = Math.cos(st.th); return cosv >= 0 ? 1 : -1; }
+  var anim = Lab.loop(function (dt) {
+    if (st.mode === 'wire') {
+      var acc = forceDir() * st.B * st.I * st.L * 900;
+      st.vy += -acc * dt; st.vy *= 0.94; st.y += st.vy * dt;
+      var lim = view.H * 0.3; if (Math.abs(st.y) > lim) { st.y = Math.sign(st.y) * lim; st.vy = 0; }
+    } else {
+      // torque ∝ B I cos(θ) (largest when the coil is parallel to the field)
+      var tq = st.B * st.I * Math.cos(st.th) * coilCurrent() * (st.fieldRight ? 1 : -1) * 40;
+      st.w += (tq - st.w * 0.8) * dt; st.th += st.w * dt;
+      if (!st.comm && Math.abs(st.w) < 0.05 && Math.abs(Math.cos(st.th)) < 0.08) st.stuck = true;
+      if (st.comm && Math.abs(st.w) > 3) st.seen.spin = true;
+    }
+    view.redraw();
+  });
+
+  function build() {
+    var ctl = Lab.$('#ctl'), bb = Lab.$('#btns'); ctl.innerHTML = ''; bb.innerHTML = '';
+    Lab.slider(ctl, { label: 'Magnetic field strength B', min: 0.1, max: 1, step: 0.1, value: st.B, unit: 'T', fmt: function (v) { return v.toFixed(1); }, onInput: function (v) { st.B = v; maths(); } });
+    Lab.slider(ctl, { label: 'Current I', min: 0, max: 5, step: 0.5, value: st.I, unit: 'A', onInput: function (v) { st.I = v; maths(); } });
+    if (st.mode === 'wire') {
+      Lab.slider(ctl, { label: 'Length of wire in the field L', min: 0.05, max: 0.3, step: 0.05, value: st.L, unit: 'm', fmt: function (v) { return v.toFixed(2); }, onInput: function (v) { st.L = v; maths(); } });
+      Lab.button(bb, 'Reverse the current', function () { st.out = !st.out; st.y = 0; st.vy = 0; st.seen.revI = true; maths(); });
+      Lab.button(bb, 'Reverse the field', function () { st.fieldRight = !st.fieldRight; st.y = 0; st.vy = 0; st.seen.revB = true; maths(); }, true);
+    } else {
+      ctl.insertAdjacentHTML('beforeend', '<label class="check"><input type="checkbox" id="comm"' + (st.comm ? ' checked' : '') + '> Split-ring commutator fitted</label>');
+      Lab.$('#comm').addEventListener('change', function (e) { st.comm = e.target.checked; st.stuck = false; if (!st.comm) st.seen.nocomm = true; maths(); });
+      Lab.button(bb, 'Give it a push', function () { st.w += 4; st.stuck = false; }, true);
+      Lab.button(bb, 'Reset', function () { st.th = 0.3; st.w = 0; st.stuck = false; }, true);
+    }
+  }
+  function maths() {
+    var F = st.B * st.I * st.L;
+    var steps = st.mode === 'wire'
+      ? [['Force on the wire', 'F = B I L = ' + st.B.toFixed(1) + ' × ' + st.I + ' × ' + st.L.toFixed(2) + ' = <b>' + Lab.sf(F, 3) + ' N</b>'],
+        ['Direction (Fleming\'s left-hand rule)', 'field ' + (st.fieldRight ? '→ right' : '← left') + ', current ' + (st.out ? 'out of the page' : 'into the page') + ' → force <b>' + (forceDir() > 0 ? 'UP' : 'DOWN') + '</b>'],
+        ['Reverse one thing', 'the current OR the field → the force reverses. Reverse both → no change']]
+      : [['Forces on the two sides', 'equal and opposite, so they make the coil turn (a couple)'], ['Turning effect is biggest', 'when the coil is parallel to the field; it is zero when the coil is vertical'],
+        ['Commutator', st.comm ? 'reverses the current every half turn, so the turning effect is always the same way' : 'without it, the forces push the coil back after the vertical position, so it rocks and stops'],
+        ['Faster motor', 'more current, a stronger magnet, more turns on the coil']];
+    Lab.math(Lab.$('#maths'), 'Show the maths', steps);
+    T.update(st);
+  }
+  Lab.seg(Lab.$('#mode'), { label: 'Experiment', value: 'wire', options: [['wire', 'Wire in a field'], ['motor', 'd.c. motor']], onChange: function (v) { st.mode = v; st.y = 0; st.vy = 0; build(); maths(); } });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Reverse the current. Which way does the force go now?', ok: function (s) { return s.seen.revI; } },
+    { t: 'Reverse the field instead. Check your answer with Fleming\'s left-hand rule.', ok: function (s) { return s.seen.revB; } },
+    { t: 'Switch to the d.c. motor and watch it spin.', ok: function (s) { return s.seen.spin; } },
+    { t: 'Remove the commutator. What happens to the coil?', s: 'It rocks back and forth and stops upright.', ok: function (s) { return s.stuck; } },
+  ], { title: 'Use the motor effect' });
+
+  build(); maths();
+  anim.start();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A 0.2 m wire carries 5 A at right angles to a 0.3 T field. What is the force on it?', n: 0.3, unit: 'N', why: ' F = BIL = 0.3 × 5 × 0.2 = 0.3 N.' },
+    { q: 'In Fleming\'s left-hand rule, the second finger points in the direction of the…', o: ['force', 'field', 'current', 'motion of electrons'], a: 2, why: ' seCond finger = Current (conventional, + to −).' },
+    { q: 'What does the split-ring commutator do in a d.c. motor?', o: ['Makes the magnet stronger', 'Reverses the current in the coil every half turn', 'Increases the voltage', 'Stops the motor overheating'], a: 1, why: ' This keeps the coil turning in the same direction.' },
+  ]);
+})();
+</script>
+</body>
+</html>

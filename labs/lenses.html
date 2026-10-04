@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lens Ray Diagrams · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Converging and diverging lens ray diagrams. Move the object, see the image, and check 1/f = 1/u + 1/v and magnification. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="lenses">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>A <b>converging</b> (convex) lens brings parallel rays together at the <b>principal focus F</b>. The <b>focal length f</b> is the distance from the lens to F. A <b>diverging</b> (concave) lens spreads rays out.</p>
+    <p>To find an image, draw <b>two of the three special rays</b> from the top of the object. Where they meet is the top of the image. If they really meet, the image is <b>real</b> (it can go on a screen). If they only <i>seem</i> to come from a point, it is <b>virtual</b>.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="type"></div>
+  <div class="stage" style="margin-top:12px">
+    <canvas id="cv" aria-label="Ray diagram for a lens with an object arrow and its image. Drag the object."></canvas>
+    <p class="cap">Drag the object (green arrow) left and right, or use the slider.</p>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <section class="card"><h2>Set up</h2><div id="ctl"></div><div id="img" style="margin-top:12px"></div></section>
+    <section id="maths"></section>
+  </div>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Converging lens: where is the object?</h2>
+    <div class="tbl-wrap"><table class="data"><thead><tr><th>Object position</th><th>Image</th><th>Use</th></tr></thead><tbody id="cases"></tbody></table></div>
+  </section>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var st = { conv: true, f: 10, u: 30, ho: 6, cases: {} };
+  var CASES = [
+    ['beyond 2F (u > 2f)', 'real, inverted, diminished, between F and 2F', 'camera, eye', function (u, f) { return u > 2 * f + 0.01; }],
+    ['at 2F (u = 2f)', 'real, inverted, same size, at 2F', 'photocopier (same size)', function (u, f) { return Math.abs(u - 2 * f) < 0.01; }],
+    ['between F and 2F', 'real, inverted, magnified, beyond 2F', 'projector', function (u, f) { return u > f + 0.01 && u < 2 * f - 0.01; }],
+    ['at F (u = f)', 'no image (rays emerge parallel); image at infinity', 'spotlight, torch', function (u, f) { return Math.abs(u - f) < 0.01; }],
+    ['inside F (u < f)', 'virtual, upright, magnified, same side as the object', 'magnifying glass', function (u, f) { return u < f - 0.01; }],
+  ];
+  function v() { var f = st.conv ? st.f : -st.f; return Math.abs(st.u - f) < 1e-9 ? Infinity : st.u * f / (st.u - f); }
+  var geo = {};
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var cx = W / 2, cy = H * 0.55, span = 70, ppc = (W - 40) / (2 * span), F = st.conv ? st.f : -st.f;
+    geo = { cx: cx, ppc: ppc };
+    function X(d) { return cx + d * ppc; } function Y(h) { return cy - h * ppc * 1.6; }
+    Lab.line(ctx, 10, cy, W - 10, cy, c('grid-strong'), 1.5);
+    // lens
+    ctx.strokeStyle = c('t6'); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(cx, Y(13)); ctx.lineTo(cx, Y(-13)); ctx.stroke();
+    var tip = st.conv ? -1 : 1;
+    [[Y(13), -1], [Y(-13), 1]].forEach(function (e) { ctx.beginPath(); ctx.moveTo(cx - 9, e[0] - e[1] * tip * 9 * -1); ctx.lineTo(cx, e[0]); ctx.lineTo(cx + 9, e[0] - e[1] * tip * 9 * -1); ctx.stroke(); });
+    [-2, -1, 1, 2].forEach(function (k) { var x = X(k * st.f); if (x > 10 && x < W - 10) { Lab.line(ctx, x, cy - 5, x, cy + 5, c('ink'), 2); Lab.text(ctx, (Math.abs(k) === 2 ? '2F' : 'F'), x, cy + 16, { align: 'center', size: 12, weight: 700 }); } });
+    // object
+    var ox = X(-st.u), oy = Y(st.ho);
+    Lab.arrow(ctx, ox, cy, ox, oy, { color: c('ok'), width: 4 });
+    geo.ox = ox;
+    var vv = v(), m = -vv / st.u, hi = m * st.ho, ix = X(vv), iy = Y(hi), real = vv > 0 && isFinite(vv);
+    var lensTop = [cx, oy];
+    function extend(p, q, len) { var dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy); return [q[0] + dx / l * len, q[1] + dy / l * len]; }
+    var R = c('no'), FAR = W * 2;
+    // ray 1: parallel to the axis, then through (or away from) F
+    Lab.line(ctx, ox, oy, cx, oy, R, 2);
+    var fFar = [X(F), cy];
+    if (st.conv) { var e1 = extend([cx, oy], fFar, FAR); Lab.line(ctx, cx, oy, e1[0], e1[1], R, 2); }
+    else { var d1 = extend(fFar, [cx, oy], FAR); Lab.line(ctx, cx, oy, d1[0], d1[1], R, 2); Lab.line(ctx, cx, oy, fFar[0], fFar[1], R, 1.2, [5, 4]); }
+    // ray 2: through the optical centre, undeviated
+    var e2 = extend([ox, oy], [cx, cy], FAR); Lab.line(ctx, ox, oy, e2[0], e2[1], c('t2'), 2);
+    // ray 3: towards the near F (converging) / far F (diverging), then parallel
+    var aim = st.conv ? [X(-st.f), cy] : [X(st.f), cy];
+    if (Math.abs(aim[0] - ox) > 2) {
+      var hitY = oy + (cy - oy) * (cx - ox) / (aim[0] - ox);
+      if (Math.abs(hitY - cy) < 13 * ppc * 1.6 * 1.6) {
+        Lab.line(ctx, ox, oy, cx, hitY, c('pop'), 2); Lab.line(ctx, cx, hitY, W, hitY, c('pop'), 2);
+        if (!real) Lab.line(ctx, cx, hitY, 0, hitY, c('pop'), 1.2, [5, 4]);
+      }
+    }
+    if (!real && isFinite(vv)) { Lab.line(ctx, cx, oy, ix, iy, R, 1.2, [5, 4]); }
+    // image
+    if (isFinite(vv) && Math.abs(vv) < span * 1.2) {
+      if (real) Lab.arrow(ctx, ix, cy, ix, iy, { color: c('t4'), width: 4 });
+      else { ctx.save(); ctx.setLineDash([6, 4]); Lab.arrow(ctx, ix, cy, ix, iy, { color: c('t4'), width: 3, dash: [6, 4] }); ctx.restore(); }
+      Lab.text(ctx, real ? 'real image' : 'virtual image', ix, iy + (hi > 0 ? -14 : 16), { color: c('t4'), weight: 700, align: 'center' });
+    } else Lab.text(ctx, isFinite(vv) ? 'image is off the screen (very far away)' : 'rays leave parallel: no image (at infinity)', W / 2, 18, { weight: 700, align: 'center', color: c('t4') });
+    Lab.text(ctx, 'object', ox, cy + 30, { color: c('ok'), weight: 700, align: 'center' });
+  }, { ratio: 0.5, min: 280, max: 420 });
+
+  Lab.drag(view.cv, {
+    down: function (x) { return Math.abs(x - geo.ox) < 24 ? 1 : null; },
+    move: function (t, x) { st.u = Lab.clamp(Math.round((geo.cx - x) / geo.ppc), 2, 65); uS.set(st.u, true); update(); },
+    hover: function (x) { return Math.abs(x - geo.ox) < 24; },
+  });
+
+  Lab.seg(Lab.$('#type'), { label: 'Lens', value: 'conv', options: [['conv', 'Converging (convex)'], ['div', 'Diverging (concave)']], onChange: function (val) { st.conv = val === 'conv'; st.usedDiv = st.usedDiv || !st.conv; update(); } });
+  var ctl = Lab.$('#ctl');
+  var uS = Lab.slider(ctl, { label: 'Object distance u', min: 2, max: 65, step: 1, value: st.u, unit: 'cm', onInput: function (val) { st.u = val; update(); } });
+  Lab.slider(ctl, { label: 'Focal length f', min: 5, max: 20, step: 1, value: st.f, unit: 'cm', onInput: function (val) { st.f = val; update(); } });
+  Lab.slider(ctl, { label: 'Object height', min: 2, max: 10, step: 1, value: st.ho, unit: 'cm', onInput: function (val) { st.ho = val; update(); } });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Put the object beyond 2F. You get the image a camera makes.', ok: function (s) { return s.cases[0]; } },
+    { t: 'Put the object between F and 2F. You get the image a projector makes.', ok: function (s) { return s.cases[2]; } },
+    { t: 'Put the object exactly at 2F. The image is the same size.', ok: function (s) { return s.cases[1]; } },
+    { t: 'Put the object inside F to make a magnifying glass.', ok: function (s) { return s.cases[4]; } },
+    { t: 'Switch to a diverging lens. Is the image ever real?', s: 'No. A diverging lens always gives a virtual, upright, diminished image.', ok: function (s) { return s.usedDiv; } },
+  ], { title: 'Make every kind of image' });
+
+  function update() {
+    var vv = v(), F = st.conv ? st.f : -st.f, m = isFinite(vv) ? vv / st.u : Infinity;
+    if (st.conv) CASES.forEach(function (k, i) { if (k[3](st.u, st.f)) st.cases[i] = true; });
+    var real = vv > 0 && isFinite(vv);
+    Lab.$('#img').innerHTML = '<dl class="readout"><dt>Image distance v</dt><dd class="big">' + (isFinite(vv) ? Lab.sf(Math.abs(vv), 3) + ' cm ' + (real ? '(other side)' : '(same side)') : '∞') + '</dd>' +
+      '<dt>Magnification</dt><dd>' + (isFinite(m) ? Lab.sf(Math.abs(m), 3) + '×' : '—') + '</dd><dt>Image is</dt><dd style="font-family:inherit">' +
+      (isFinite(vv) ? (real ? 'real, inverted' : 'virtual, upright') + ', ' + (Math.abs(m) > 1.01 ? 'magnified' : Math.abs(m) < 0.99 ? 'diminished' : 'same size') : 'not formed') + '</dd></dl>';
+    var steps = [['Lens formula', '1/f = 1/u + 1/v  (f is negative for a diverging lens)'], ['Rearrange for v', '1/v = 1/f − 1/u = 1/' + F + ' − 1/' + st.u]];
+    if (isFinite(vv)) steps.push(['So', '1/v = ' + Lab.dp(1 / F - 1 / st.u, 4) + ' → v = <b>' + Lab.sf(vv, 3) + ' cm</b>' + (vv < 0 ? ' (negative = virtual, on the same side as the object)' : '')], ['Magnification', 'm = v ÷ u = ' + Lab.sf(Math.abs(vv), 3) + ' ÷ ' + st.u + ' = <b>' + Lab.sf(Math.abs(m), 3) + '</b> = image height ÷ object height']);
+    else steps.push(['So', '1/v = 0 → v is infinite: no image']);
+    Lab.math(Lab.$('#maths'), 'Show the maths', steps);
+    Lab.$('#cases').innerHTML = CASES.map(function (k) { var on = st.conv && k[3](st.u, st.f); return '<tr' + (on ? ' class="hl"' : '') + '><td style="font-family:inherit">' + k[0] + '</td><td style="font-family:inherit">' + k[1] + '</td><td style="font-family:inherit">' + k[2] + '</td></tr>'; }).join('');
+    view.redraw(); T.update(st);
+  }
+  update();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'An object is 30 cm from a converging lens of focal length 10 cm. How far from the lens is the image?', n: 15, unit: 'cm', why: ' 1/v = 1/10 − 1/30 = 2/30, so v = 15 cm.', hint: ' 1/v = 1/f − 1/u.' },
+    { q: 'What is the magnification in the question above?', n: 0.5, unit: '', why: ' m = v ÷ u = 15 ÷ 30 = 0.5 (the image is half the size).' },
+    { q: 'A magnifying glass makes an image that is…', o: ['real and inverted', 'virtual, upright and magnified', 'real and diminished', 'virtual and inverted'], a: 1, why: ' The object is inside F, so the rays never meet. The image is virtual.' },
+    { q: 'A short-sighted person (myopia) needs which lens?', o: ['Converging', 'Diverging', 'No lens', 'A prism'], a: 1, why: ' The eye focuses light in front of the retina, so a diverging lens spreads the rays first.' },
+  ]);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Electromagnetic Induction · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Push a magnet into a coil and watch the galvanometer. Faraday's and Lenz's laws, and an a.c. generator with its output graph. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="induction">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>Move a magnet <b>into or out of</b> a coil and a voltage (e.m.f.) is made in the coil. If the circuit is complete, a current flows. This is <b>electromagnetic induction</b>. It only happens while something is <b>changing</b>: a magnet sitting still in a coil makes nothing.</p>
+    <p><b>Faraday</b>: faster movement, a stronger magnet or more turns → a bigger e.m.f. <b>Lenz</b>: the induced current always <b>opposes</b> the change that caused it, so the coil pushes back against the magnet.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="mode"></div>
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage"><canvas id="cv" aria-label="Electromagnetic induction experiment"></canvas><div id="drive"></div><div class="row" style="margin-top:8px" id="btns"></div></div>
+    <div class="stack">
+      <section class="card"><h2>Controls</h2><div id="ctl"></div></section>
+      <section class="card" id="explain"></section>
+    </div>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var st = { mode: 'coil', x: 0, v: 0, turns: 20, strong: 1, flip: false, emf: 0, maxEmf: 0, seen: {}, gTh: 0, rpm: 1, hist: [], t: 0, still: 0 };
+  var lastX = 0, xS = null;
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    if (st.mode === 'coil') drawCoil(ctx, W, H); else drawGen(ctx, W, H);
+  }, { ratio: 0.62, min: 320, max: 420 });
+
+  function galv(ctx, x, y, val) {
+    ctx.fillStyle = c('surface'); ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 46, Math.PI, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+    for (var k = -4; k <= 4; k++) { var a = -Math.PI / 2 + k * 0.3; Lab.line(ctx, x + Math.cos(a) * 36, y + Math.sin(a) * 36, x + Math.cos(a) * 44, y + Math.sin(a) * 44, c('ink'), 1); }
+    var ang = -Math.PI / 2 + Lab.clamp(val, -1.25, 1.25);
+    Lab.line(ctx, x, y, x + Math.cos(ang) * 40, y + Math.sin(ang) * 40, c('no'), 3);
+    Lab.text(ctx, '0', x, y - 52, { size: 11, align: 'center' }); Lab.text(ctx, 'G', x, y - 14, { weight: 700, align: 'center' });
+  }
+  function drawCoil(ctx, W, H) {
+    var cy = H * 0.42, cx0 = W * 0.55, cw = W * 0.28, n = Math.min(18, 4 + st.turns / 5);
+    for (var k = 0; k < n; k++) { var x = cx0 + cw * k / (n - 1); ctx.strokeStyle = c('pop'); ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x, cy, 7, 44, 0, 0, 7); ctx.stroke(); }
+    // wires to galvanometer
+    var gx = cx0 + cw / 2, gy = H - 40;
+    Lab.line(ctx, cx0, cy + 44, cx0, gy, c('ink'), 2); Lab.line(ctx, cx0 + cw, cy + 44, cx0 + cw, gy, c('ink'), 2);
+    Lab.line(ctx, cx0, gy, gx - 46, gy, c('ink'), 2); Lab.line(ctx, cx0 + cw, gy, gx + 46, gy, c('ink'), 2);
+    galv(ctx, gx, gy, st.emf / 4);
+    // magnet: x = 0 far left, 1 deep inside the coil
+    var mx = 20 + st.x * (cx0 + cw * 0.6 - 20), mw = 120, nRight = !st.flip;
+    ctx.fillStyle = nRight ? c('t2') : c('no'); ctx.fillRect(mx - mw, cy - 16, mw / 2, 32);
+    ctx.fillStyle = nRight ? c('no') : c('t2'); ctx.fillRect(mx - mw / 2, cy - 16, mw / 2, 32);
+    Lab.text(ctx, nRight ? 'S' : 'N', mx - mw * 0.75, cy, { color: '#fff', weight: 700, align: 'center' }); Lab.text(ctx, nRight ? 'N' : 'S', mx - mw * 0.25, cy, { color: '#fff', weight: 700, align: 'center' });
+    // Lenz: the coil end facing the magnet becomes a pole that opposes the motion
+    if (Math.abs(st.v) > 0.05) {
+      var facing = nRight ? 'N' : 'S', opp = facing === 'N' ? 'S' : 'N', pole = st.v > 0 ? facing : opp;
+      Lab.text(ctx, pole, cx0 - 16, cy - 58, { weight: 700, size: 18, align: 'center', color: pole === 'N' ? c('no') : c('t2') });
+      Lab.text(ctx, st.v > 0 ? 'coil repels the magnet coming in' : 'coil attracts the magnet going out', cx0 + cw / 2, cy - 64, { size: 12, align: 'center', color: c('muted') });
+    }
+    Lab.text(ctx, 'e.m.f. = ' + st.emf.toFixed(2) + ' V', 14, 20, { kind: 'mono', weight: 500 });
+  }
+  function drawGen(ctx, W, H) {
+    var gx = W * 0.25, gy = H * 0.42, R = Math.min(W, H) * 0.2;
+    ctx.fillStyle = c('no'); ctx.fillRect(gx - R - 50, gy - R, 34, 2 * R); ctx.fillStyle = c('t2'); ctx.fillRect(gx + R + 16, gy - R, 34, 2 * R);
+    Lab.text(ctx, 'N', gx - R - 33, gy, { color: '#fff', weight: 700, align: 'center' }); Lab.text(ctx, 'S', gx + R + 33, gy, { color: '#fff', weight: 700, align: 'center' });
+    var a = st.gTh, p1 = [gx + R * Math.cos(a), gy - R * Math.sin(a)], p2 = [gx - R * Math.cos(a), gy + R * Math.sin(a)];
+    Lab.line(ctx, p1[0], p1[1], p2[0], p2[1], c('ink'), 4); Lab.dot(ctx, p1[0], p1[1], 8, c('pop')); Lab.dot(ctx, p2[0], p2[1], 8, c('pop')); Lab.dot(ctx, gx, gy, 4, c('ink'));
+    Lab.text(ctx, 'coil (end view)', gx, gy + R + 22, { align: 'center', size: 12, color: c('muted') });
+    var a2 = Lab.axes(ctx, { x: W * 0.52, y: 24, w: W * 0.45, h: H - 70 }, { xmin: 0, xmax: 4, ymin: -12, ymax: 12, xstep: 1, ystep: 4, xlabel: 't / s', ylabel: 'e.m.f. / V' });
+    ctx.strokeStyle = c('ok'); ctx.lineWidth = 2.5; ctx.beginPath();
+    st.hist.forEach(function (p, i) { if (i) ctx.lineTo(a2.X(p[0]), a2.Y(p[1])); else ctx.moveTo(a2.X(p[0]), a2.Y(p[1])); }); ctx.stroke();
+    Lab.text(ctx, 'e.m.f. = ' + st.emf.toFixed(1) + ' V', 14, 20, { kind: 'mono' });
+  }
+
+  var anim = Lab.loop(function (dt) {
+    if (st.mode === 'coil') {
+      st.v = dt > 0 ? (st.x - lastX) / dt : 0; lastX = st.x;
+      // e.m.f. ∝ turns × magnet strength × rate of change of flux (flux rises as the magnet enters)
+      var dflux = Math.exp(-Math.pow((st.x - 0.75) / 0.18, 2));
+      var target = st.turns / 20 * st.strong * st.v * dflux * 3 * (st.flip ? -1 : 1);
+      st.emf += (target - st.emf) * Math.min(1, dt * 12);
+      st.maxEmf = Math.max(st.maxEmf, Math.abs(st.emf));
+      if (Math.abs(st.emf) > 0.3) st.seen[st.emf > 0 ? 'pos' : 'neg'] = true;
+      if (st.x > 0.85 && Math.abs(st.v) < 0.01) { st.still += dt; } else st.still = 0;
+    } else {
+      var w = st.rpm * 2 * Math.PI * 0.5;
+      st.gTh += w * dt; st.t += dt;
+      st.emf = st.turns / 20 * st.strong * w * 1.6 * Math.cos(st.gTh);   // biggest when the coil is horizontal (sides cut the field fastest)
+      st.hist.push([st.t % 4, st.emf]); if (st.t % 4 < dt * 1.5) st.hist = [];
+      if (st.rpm >= 2) st.seen.fast = true;
+    }
+    view.redraw(); T.update(st);
+  });
+
+  function build() {
+    var ctl = Lab.$('#ctl'), bb = Lab.$('#btns'), dv = Lab.$('#drive'); ctl.innerHTML = ''; bb.innerHTML = ''; dv.innerHTML = '';
+    Lab.slider(ctl, { label: 'Number of turns on the coil', min: 10, max: 60, step: 10, value: st.turns, onInput: function (v) { st.turns = v; } });
+    Lab.slider(ctl, { label: 'Magnet strength', min: 0.5, max: 2, step: 0.5, value: st.strong, fmt: function (v) { return v + '×'; }, onInput: function (v) { st.strong = v; } });
+    if (st.mode === 'coil') {
+      xS = Lab.slider(dv, { label: 'Move the magnet (drag the slider quickly or slowly)', min: 0, max: 1, step: 0.01, value: st.x, fmt: function (v) { return v < 0.5 ? 'outside the coil' : v < 0.85 ? 'entering' : 'inside'; }, onInput: function (v) { st.x = v; } });
+      Lab.button(bb, 'Turn the magnet round', function () { st.flip = !st.flip; st.seen.flip = true; }, true);
+      Lab.button(bb, 'Push in fast', function () { glide(1, 0.25); });
+      Lab.button(bb, 'Push in slowly', function () { glide(1, 1.5); }, true);
+      Lab.button(bb, 'Pull out', function () { glide(0, 0.4); }, true);
+    } else {
+      Lab.slider(ctl, { label: 'Speed of rotation', min: 0.5, max: 3, step: 0.5, value: st.rpm, fmt: function (v) { return v + ' turns per 2 s'; }, onInput: function (v) { st.rpm = v; st.hist = []; } });
+    }
+  }
+  function glide(to, secs) {
+    var from = st.x, t0 = performance.now();
+    (function step(t) { var f = Math.min(1, (t - t0) / (secs * 1000)); st.x = from + (to - from) * f; if (xS) xS.set(st.x, true); if (f < 1) requestAnimationFrame(step); })(t0);
+    if (to === 1) st.seen[secs < 0.5 ? 'fastIn' : 'slowIn'] = true; else st.seen.out = true;
+  }
+  var EXPL = {
+    coil: '<h2>Magnet and coil</h2><p style="margin:0">The needle moves only while the magnet is <b>moving</b>. Pushing in and pulling out give deflections in <b>opposite</b> directions. Faster movement → bigger deflection. When the magnet stops, even inside the coil, the reading drops to <b>zero</b>.</p>',
+    gen: '<h2>a.c. generator</h2><p style="margin:0">A coil spinning in a magnetic field makes an <b>alternating</b> e.m.f.: a sine wave. It is biggest when the coil sides cut straight across the field lines (coil horizontal) and zero when the coil is vertical. Spinning <b>faster</b> makes the e.m.f. both <b>bigger</b> and <b>higher in frequency</b>. Slip rings and brushes connect the coil to the outside circuit.</p>',
+  };
+  Lab.seg(Lab.$('#mode'), { label: 'Experiment', value: 'coil', options: [['coil', 'Magnet and coil'], ['gen', 'a.c. generator']], onChange: function (v) { st.mode = v; st.emf = 0; st.hist = []; Lab.$('#explain').innerHTML = EXPL[v]; build(); } });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Push the magnet in, then pull it out. Do the deflections go the same way?', s: 'No: they are opposite.', ok: function (s) { return s.seen.pos && s.seen.neg; } },
+    { t: 'Compare pushing in fast with pushing in slowly.', s: 'Faster → a bigger e.m.f. (Faraday\'s law).', ok: function (s) { return s.seen.fastIn && s.seen.slowIn; } },
+    { t: 'Leave the magnet still inside the coil for 2 seconds. What does the meter read?', s: 'Zero: no change, so no e.m.f.', ok: function (s) { return s.still > 2; } },
+    { t: 'Spin the a.c. generator faster. What happens to the graph?', s: 'Taller peaks AND more waves per second.', ok: function (s) { return s.seen.fast; } },
+  ], { title: 'Induce an e.m.f.' });
+
+  Lab.$('#explain').innerHTML = EXPL.coil; build(); anim.start();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A magnet is held still inside a coil. The galvanometer reads…', o: ['a large current', 'a small current', 'zero', 'it depends on the magnet'], a: 2, why: ' Induction needs a CHANGE in the magnetic field.' },
+    { q: 'Which change would NOT increase the induced e.m.f.?', o: ['moving the magnet faster', 'using a stronger magnet', 'more turns on the coil', 'using a thicker galvanometer needle'], a: 3, why: ' The e.m.f. depends on the rate of change of magnetic field linked with the coil.' },
+    { q: 'The N pole of a magnet is pushed into a coil. By Lenz\'s law, the end of the coil nearest the magnet becomes…', o: ['an N pole, repelling the magnet', 'an S pole, attracting the magnet', 'neutral', 'positively charged'], a: 0, why: ' The induced current opposes the change, so it repels the approaching N pole.' },
+  ]);
+})();
+</script>
+</body>
+</html>

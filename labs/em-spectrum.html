@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Electromagnetic Spectrum Explorer · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Slide across the electromagnetic spectrum from radio waves to gamma rays: wavelength, frequency, uses and dangers, with c = fλ. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="em-spectrum">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>Light is one member of a family of <b>electromagnetic (EM) waves</b>. They are all <b>transverse</b>, can travel through a <b>vacuum</b>, and all travel at the <b>same speed in a vacuum: 3 × 10⁸ m/s</b>.</p>
+    <p>They differ in <b>wavelength</b> and <b>frequency</b>. In order from longest wavelength: <b>R</b>adio, <b>M</b>icrowave, <b>I</b>nfrared, <b>V</b>isible, <b>U</b>ltraviolet, <b>X</b>-ray, <b>G</b>amma ("<b>R</b>abbits <b>M</b>eet <b>I</b>n <b>V</b>ery <b>U</b>nusual e<b>X</b>otic <b>G</b>ardens"). Higher frequency means more energy, and the radiation is usually more dangerous.</p>
+  </div>
+
+  <div class="stage" style="margin-top:16px">
+    <canvas id="cv" aria-label="The electromagnetic spectrum with a marker showing the selected wavelength"></canvas>
+    <div id="ctl"></div>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <section class="card" id="info"></section>
+    <section id="maths"></section>
+  </div>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Calculator: c = f λ</h2>
+    <form class="qnum" id="calc"><label for="lam-in" style="font-weight:700">Wavelength λ =</label><input id="lam-in" value="3" inputmode="decimal"><span>m</span><button class="btn" type="submit">Find f</button></form>
+    <div id="calc-out" style="margin-top:10px"></div>
+    <p class="note">You can type standard form, for example <code>5e-7</code> or <code>5 × 10^-7</code>.</p>
+  </section>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c, C = 3e8;
+  var REG = [
+    { n: 'Radio waves', lo: 1e-1, hi: 1e4, col: '#8B5CF6', uses: 'radio and TV broadcasting, communication', danger: 'very low risk at normal levels', src: 'aerials (transmitters)', det: 'aerial and radio receiver' },
+    { n: 'Microwaves', lo: 1e-3, hi: 1e-1, col: '#4F46E5', uses: 'microwave ovens, mobile phones, satellite communication, radar', danger: 'can heat body tissue (internal heating)', src: 'magnetron, phone masts', det: 'aerial, phone' },
+    { n: 'Infrared', lo: 7e-7, hi: 1e-3, col: '#DC2626', uses: 'TV remote controls, thermal imaging, toasters and grills, night-vision cameras', danger: 'skin burns', src: 'all warm objects, the Sun', det: 'skin, thermometer with a blackened bulb, thermal camera' },
+    { n: 'Visible light', lo: 4e-7, hi: 7e-7, col: 'rainbow', uses: 'seeing, photography, optical fibres, lasers', danger: 'very bright light can damage the retina', src: 'the Sun, lamps, flames', det: 'eye, camera, photographic film' },
+    { n: 'Ultraviolet', lo: 1e-8, hi: 4e-7, col: '#7C3AED', uses: 'sterilising water and surgical equipment, security marks, sun beds', danger: 'sunburn, skin cancer, eye damage', src: 'the Sun, UV lamps', det: 'fluorescent materials, photographic film' },
+    { n: 'X-rays', lo: 1e-11, hi: 1e-8, col: '#0891B2', uses: 'medical X-ray images of bones, airport security scanners', danger: 'ionising: damages cells and can cause cancer', src: 'X-ray tubes', det: 'photographic film, GM tube' },
+    { n: 'Gamma rays', lo: 1e-14, hi: 1e-11, col: '#16A34A', uses: 'killing cancer cells (radiotherapy), sterilising medical equipment and food', danger: 'ionising: most dangerous, causes cancer and mutations', src: 'radioactive nuclei', det: 'GM tube, photographic film' },
+  ];
+  var st = { logL: -6.3, seen: {}, calc: false };
+  function lam() { return Math.pow(10, st.logL); }
+  function region() { var L = lam(); return REG.find(function (r) { return L >= r.lo && L < r.hi; }) || (L >= 1e4 ? REG[0] : REG[6]); }
+  var LMIN = -13, LMAX = 3;
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var x0 = 16, x1 = W - 16, X = function (lg) { return x0 + (LMAX - lg) / (LMAX - LMIN) * (x1 - x0); }, by = H * 0.52, bh = 34;
+    REG.forEach(function (r) {
+      var a = X(Math.log10(Math.min(r.hi, Math.pow(10, LMAX)))), b = X(Math.log10(Math.max(r.lo, Math.pow(10, LMIN))));
+      if (r.col === 'rainbow') { var g = ctx.createLinearGradient(a, 0, b, 0); ['#ff0000', '#ff8800', '#ffee00', '#00cc44', '#0066ff', '#7a00ff'].forEach(function (cc, i) { g.addColorStop(i / 5, cc); }); ctx.fillStyle = g; }
+      else { ctx.fillStyle = r.col; ctx.globalAlpha = r === region() ? 1 : 0.55; }
+      ctx.fillRect(a, by, b - a, bh); ctx.globalAlpha = 1;
+      if (b - a > 40) Lab.text(ctx, r.n.split(' ')[0], (a + b) / 2, by + bh / 2, { color: '#fff', size: 11, weight: 700, align: 'center' });
+    });
+    Lab.text(ctx, '← longer wavelength, lower frequency, less energy', x0, by + bh + 16, { size: 11, color: c('muted') });
+    Lab.text(ctx, 'shorter wavelength, higher frequency, more energy →', x1, by + bh + 32, { size: 11, color: c('muted'), align: 'right' });
+    var mx = X(st.logL);
+    Lab.line(ctx, mx, by - 8, mx, by + bh + 4, c('ink'), 3);
+    Lab.dot(ctx, mx, by - 10, 6, c('ink'));
+    // wave drawing: wavelength shown relative (more cycles = shorter λ)
+    var cycles = 1 + (LMAX - st.logL) / (LMAX - LMIN) * 22, wy = by - 50;
+    ctx.strokeStyle = region().col === 'rainbow' ? '#00aa44' : region().col; ctx.lineWidth = 2.5; ctx.beginPath();
+    for (var i = 0; i <= 400; i++) { var x = x0 + i / 400 * (x1 - x0), y = wy - Math.sin(i / 400 * cycles * 2 * Math.PI) * 18; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+    ctx.stroke();
+    Lab.text(ctx, region().n + '   λ ≈ ' + Lab.sci(lam(), 2) + ' m', W / 2, 16, { weight: 700, align: 'center', size: 15 });
+  }, { ratio: 0.32, min: 210, max: 260 });
+
+  // the slider runs left = long λ (radio) to right = short λ (gamma), like the diagram
+  Lab.slider(Lab.$('#ctl'), { label: 'Slide along the spectrum', min: LMIN + 0.5, max: LMAX - 0.5, step: 0.1, value: LMAX + LMIN - st.logL, fmt: function (v) { return 'λ ≈ ' + Lab.sci(Math.pow(10, LMAX + LMIN - v), 2) + ' m'; }, onInput: function (v) { st.logL = LMAX + LMIN - v; update(); } });
+
+  Lab.$('#calc').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var got = WBC.parseNumber(Lab.$('#lam-in').value);
+    if (!got || got.value <= 0) { Lab.$('#calc-out').innerHTML = '<p class="qfb no"><strong>Type a wavelength in metres.</strong></p>'; return; }
+    var f = C / got.value, r = REG.find(function (q) { return got.value >= q.lo && got.value < q.hi; });
+    Lab.math(Lab.$('#calc-out'), 'Show the maths', [['Rearrange c = fλ', 'f = c ÷ λ'], ['Substitute', 'f = 3 × 10⁸ ÷ ' + Lab.sci(got.value, 3)], ['Answer', 'f = <b>' + Lab.sci(f, 3) + ' Hz</b>' + (r ? ' (' + r.n.toLowerCase() + ')' : '')]]);
+    st.calc = true; T.update(st);
+  });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Slide through all seven regions of the spectrum.', ok: function (s) { return Object.keys(s.seen).length >= 7; } },
+    { t: 'Find the region with wavelengths between 400 nm and 700 nm.', s: '1 nm = 10⁻⁹ m. It is the only part we can see.', ok: function (s) { return s.seen['Visible light']; } },
+    { t: 'Use the calculator to find the frequency of a 3 m radio wave.', s: 'f = 3 × 10⁸ ÷ 3 = 1 × 10⁸ Hz (100 MHz, FM radio).', ok: function (s) { return s.calc; } },
+  ], { title: 'Explore the spectrum' });
+
+  function update() {
+    var r = region(), L = lam(), f = C / L;
+    st.seen[r.n] = true;
+    Lab.$('#info').innerHTML = '<h2>' + r.n + '</h2><dl class="readout" style="grid-template-columns:auto 1fr">' +
+      '<dt>Uses</dt><dd style="font-family:inherit;text-align:left">' + r.uses + '</dd><dt>Dangers</dt><dd style="font-family:inherit;text-align:left">' + r.danger + '</dd>' +
+      '<dt>Produced by</dt><dd style="font-family:inherit;text-align:left">' + r.src + '</dd><dt>Detected by</dt><dd style="font-family:inherit;text-align:left">' + r.det + '</dd></dl>';
+    Lab.math(Lab.$('#maths'), 'Show the maths', [['Speed (all EM waves in a vacuum)', 'c = 3 × 10⁸ m/s'], ['Wavelength', 'λ = ' + Lab.sci(L, 3) + ' m'], ['Frequency', 'f = c ÷ λ = 3 × 10⁸ ÷ ' + Lab.sci(L, 3) + ' = <b>' + Lab.sci(f, 3) + ' Hz</b>']]);
+    view.redraw(); T.update(st);
+  }
+  update();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'Which EM wave has the longest wavelength?', o: ['Gamma rays', 'Visible light', 'Radio waves', 'X-rays'], a: 2, why: ' Radio waves can be kilometres long.' },
+    { q: 'A microwave has a wavelength of 0.03 m. What is its frequency? (c = 3 × 10⁸ m/s)', n: 1e10, unit: 'Hz', why: ' f = 3 × 10⁸ ÷ 0.03 = 1 × 10¹⁰ Hz.', hint: ' f = c ÷ λ. Type your answer like 1e10 or 1 × 10^10.' },
+    { q: 'Which EM radiation is used to sterilise surgical instruments?', o: ['Infrared', 'Radio waves', 'Gamma rays', 'Microwaves'], a: 2, why: ' High-energy gamma rays kill bacteria.' },
+    { q: 'What do all EM waves have in common?', o: ['Same frequency', 'Same wavelength', 'Same speed in a vacuum', 'Same energy'], a: 2, why: ' All EM waves travel at 3 × 10⁸ m/s in a vacuum.' },
+  ]);
+})();
+</script>
+</body>
+</html>

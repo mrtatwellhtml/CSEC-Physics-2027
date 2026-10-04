@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heating Curve and Latent Heat · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Heat ice until it boils, watch the heating curve's flat parts and calculate specific latent heat with E = mL. Cooling curves. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="latent-heat">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>When ice melts or water boils, you keep heating but the <b>temperature stops rising</b>. Where does the energy go? It is used to <b>break the bonds</b> between particles so they can change state. This hidden energy is called <b>latent heat</b>.</p>
+    <p><b>E = mL</b>. L (specific latent heat) is the energy needed to change the state of 1 kg without changing its temperature. Boiling needs far more energy than melting, because the particles must be pulled completely apart.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="mode"></div>
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage">
+      <canvas id="cv" aria-label="Temperature against time graph for heating ice, with a picture of the beaker"></canvas>
+      <div class="row" style="margin-top:8px" id="btns"></div>
+    </div>
+    <div class="stack">
+      <section class="card"><h2>Set up</h2><div id="ctl"></div></section>
+      <section class="card"><h2>Right now</h2><div id="live"></div></section>
+    </div>
+  </div>
+  <section id="maths" style="margin-top:16px"></section>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Evaporation and boiling</h2>
+    <div class="tbl-wrap"><table class="data"><thead><tr><th></th><th>Evaporation</th><th>Boiling</th></tr></thead><tbody>
+      <tr><th>Temperature</th><td style="font-family:inherit">any temperature</td><td style="font-family:inherit">only at the boiling point</td></tr>
+      <tr><th>Where</th><td style="font-family:inherit">only at the surface</td><td style="font-family:inherit">throughout the liquid (bubbles form)</td></tr>
+      <tr><th>Speed</th><td style="font-family:inherit">slow</td><td style="font-family:inherit">fast</td></tr>
+      <tr><th>Effect</th><td style="font-family:inherit">causes <b>cooling</b>: the fastest particles escape, so the average KE of those left drops</td><td style="font-family:inherit">needs a constant supply of heat</td></tr>
+    </tbody></table></div>
+    <p class="note">Evaporation is faster with a higher temperature, a larger surface area, wind (moving air) and dry air. That is why sweating cools you, and why clothes dry fastest on a hot, windy day.</p>
+  </section>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var CI = 2100, CW = 4200, CS = 2000, LF = 334000, LV = 2260000;
+  var st = { mode: 'heat', m: 0.2, P: 500, E: 0, t: 0, hist: [[0, -20]], sel: null, seen: {}, cool: { t: 0, theta: 120, hist: [[0, 120]] } };
+  // temperature and state for total energy E supplied to ice that started at −20 °C
+  function stage(E, m) {
+    var e1 = m * CI * 20, e2 = e1 + m * LF, e3 = e2 + m * CW * 100, e4 = e3 + m * LV;
+    if (E < e1) return { th: -20 + E / (m * CI), s: 'ice warming up', k: 'solid' };
+    if (E < e2) return { th: 0, s: 'MELTING at 0 °C', k: 'melt', f: (E - e1) / (m * LF) };
+    if (E < e3) return { th: (E - e2) / (m * CW), s: 'water warming up', k: 'liquid' };
+    if (E < e4) return { th: 100, s: 'BOILING at 100 °C', k: 'boil', f: (E - e3) / (m * LV) };
+    return { th: 100 + (E - e4) / (m * CS), s: 'steam warming up', k: 'gas' };
+  }
+  function totalE() { return st.m * (CI * 20 + LF + CW * 100 + LV) + st.m * CS * 20; }
+  function tMax() { return totalE() / st.P; }
+  // cooling curve: a substance (like stearic acid) that freezes at 70 °C
+  var FP = 70, CL = 80;
+  function coolStep(h) {
+    var q = st.cool, k = 0.012;
+    if (q.theta > FP + 0.01 || q.frozen === 1) q.theta += -k * (q.theta - 25) * h;
+    else { q.frozen = Math.min(1, (q.frozen || 0) + h / CL); q.theta = FP; }
+    q.t += h;
+  }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var gw = W - 150, heat = st.mode === 'heat';
+    var a = Lab.axes(ctx, { x: 48, y: 26, w: gw - 60, h: H - 70 }, heat
+      ? { xmin: 0, xmax: Math.ceil(tMax() / 200) * 200, ymin: -40, ymax: 140, ystep: 20, xlabel: 't / s', ylabel: 'θ / °C' }
+      : { xmin: 0, xmax: 400, ymin: 20, ymax: 130, ystep: 10, xstep: 50, xlabel: 't / s', ylabel: 'θ / °C' });
+    if (heat && st.sel) {
+      ctx.fillStyle = c('accent'); ctx.globalAlpha = 0.15; ctx.fillRect(a.X(st.sel[0]), a.r.y, a.X(st.sel[1]) - a.X(st.sel[0]), a.r.h); ctx.globalAlpha = 1;
+    }
+    var hist = heat ? st.hist : st.cool.hist;
+    ctx.strokeStyle = c('no'); ctx.lineWidth = 2.5; ctx.beginPath();
+    hist.forEach(function (p, i) { var X = a.X(p[0]), Y = a.Y(p[1]); if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); }); ctx.stroke();
+    // beaker picture
+    var bx = W - 110, by = H * 0.3, info = heat ? stage(st.E, st.m) : null;
+    ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx, by + 120); ctx.lineTo(bx + 90, by + 120); ctx.lineTo(bx + 90, by); ctx.stroke();
+    if (heat) {
+      var iceFrac = info.k === 'solid' ? 1 : info.k === 'melt' ? 1 - info.f : 0, waterFrac = info.k === 'melt' ? info.f : info.k === 'liquid' ? 1 : info.k === 'boil' ? 1 - info.f : 0;
+      ctx.fillStyle = c('t6'); ctx.globalAlpha = 0.4; ctx.fillRect(bx + 2, by + 118 - waterFrac * 70, 86, waterFrac * 70); ctx.globalAlpha = 1;
+      for (var i = 0; i < Math.round(iceFrac * 9); i++) { ctx.fillStyle = '#fff'; ctx.strokeStyle = '#8fb7c9'; ctx.lineWidth = 1; var ix = bx + 8 + (i % 3) * 26, iy = by + 96 - Math.floor(i / 3) * 22; ctx.fillRect(ix, iy, 20, 16); ctx.strokeRect(ix, iy, 20, 16); }
+      if (info.k === 'boil') for (var b = 0; b < 8; b++) Lab.dot(ctx, bx + 10 + (b * 37 % 70), by + 110 - ((st.t * 30 + b * 23) % 60), 3, c('surface'), c('t6'));
+      if (info.k === 'boil' || info.k === 'gas') for (var s = 0; s < 3; s++) { ctx.strokeStyle = c('muted'); ctx.lineWidth = 1.5; ctx.beginPath(); var sx = bx + 20 + s * 25; ctx.moveTo(sx, by - 4); ctx.bezierCurveTo(sx + 8, by - 20, sx - 8, by - 30, sx, by - 46); ctx.stroke(); }
+      ctx.fillStyle = st.timer ? c('no') : c('t0'); ctx.fillRect(bx + 10, by + 126, 70, 8);
+      Lab.text(ctx, info.s, bx + 45, by + 150, { align: 'center', size: 12, weight: 700, color: info.k === 'melt' || info.k === 'boil' ? c('no') : c('ink') });
+      Lab.text(ctx, info.th.toFixed(1) + ' °C', bx + 45, by - 60, { align: 'center', kind: 'mono', weight: 500 });
+    } else {
+      var q = st.cool, sol = q.theta < FP + 0.01 ? (q.frozen || 0) : 0;
+      ctx.fillStyle = '#E3B341'; ctx.globalAlpha = 0.5; ctx.fillRect(bx + 2, by + 50, 86, 68); ctx.globalAlpha = 1;
+      ctx.fillStyle = '#C4962A'; ctx.fillRect(bx + 2, by + 118 - sol * 68, 86, sol * 68);
+      Lab.text(ctx, q.theta > FP + 0.01 ? 'liquid cooling' : sol < 1 ? 'FREEZING at ' + FP + ' °C' : 'solid cooling', bx + 45, by + 150, { align: 'center', size: 12, weight: 700 });
+      Lab.text(ctx, q.theta.toFixed(1) + ' °C', bx + 45, by - 20, { align: 'center', kind: 'mono' });
+    }
+  }, { ratio: 0.6, min: 320, max: 440 });
+
+  var anim = Lab.loop(function (dt) {
+    if (st.mode === 'heat') {
+      var h = dt * tMax() / 25;   // whole curve in about 25 s
+      st.t += h; st.E = st.P * st.t;
+      var s = stage(st.E, st.m); st.seen[s.k] = true;
+      st.hist.push([st.t, s.th]);
+      if (st.E >= totalE()) stop();
+    } else {
+      for (var i = 0; i < 20; i++) coolStep(dt);
+      var q = st.cool; if (q.t - q.hist[q.hist.length - 1][0] > 1) q.hist.push([q.t, q.theta]);
+      if (q.t >= 400) { stop(); st.seen.cooled = true; }
+    }
+    view.redraw(); live();
+  });
+  function stop() { anim.stop(); st.timer = false; goB.textContent = 'Start'; live(); }
+  function reset() { anim.stop(); st.timer = false; goB.textContent = 'Start'; st.E = 0; st.t = 0; st.hist = [[0, -20]]; st.sel = null; st.cool = { t: 0, theta: 120, hist: [[0, 120]] }; view.redraw(); live(); }
+  var bb = Lab.$('#btns');
+  var goB = Lab.button(bb, 'Start', function () { if (anim.running) stop(); else { st.timer = true; anim.start(); goB.textContent = 'Pause'; } });
+  Lab.button(bb, 'Reset', reset, true);
+  var selM = Lab.button(bb, 'Measure the melting plateau', function () { pick('melt'); }, true);
+  var selB = Lab.button(bb, 'Measure the boiling plateau', function () { pick('boil'); }, true);
+  function pick(k) {
+    var m = st.m, e1 = m * CI * 20, e2 = e1 + m * LF, e3 = e2 + m * CW * 100, e4 = e3 + m * LV;
+    st.sel = k === 'melt' ? [e1 / st.P, e2 / st.P, 'melt'] : [e3 / st.P, e4 / st.P, 'boil'];
+    st.seen['sel-' + k] = true; view.redraw(); live();
+  }
+
+  function build() {
+    var ctl = Lab.$('#ctl'); ctl.innerHTML = '';
+    if (st.mode === 'heat') {
+      Lab.slider(ctl, { label: 'Mass of ice m', min: 0.1, max: 0.5, step: 0.1, value: st.m, unit: 'kg', fmt: function (v) { return v.toFixed(1); }, onInput: function (v) { st.m = v; reset(); } });
+      Lab.slider(ctl, { label: 'Heater power P', min: 250, max: 2000, step: 250, value: st.P, unit: 'W', onInput: function (v) { st.P = v; reset(); } });
+      selM.hidden = selB.hidden = false;
+    } else {
+      ctl.innerHTML = '<p class="note" style="margin:0">A test tube of molten stearic acid (a waxy solid) cools in air. It freezes at 70 °C. Watch the temperature stay constant while it freezes: it is giving out latent heat.</p>';
+      selM.hidden = selB.hidden = true;
+    }
+  }
+  Lab.seg(Lab.$('#mode'), { label: 'Curve', value: 'heat', options: [['heat', 'Heating curve (ice → steam)'], ['cool', 'Cooling curve']], onChange: function (v) { st.mode = v; build(); reset(); } });
+
+  function live() {
+    if (st.mode === 'heat') {
+      var s = stage(st.E, st.m);
+      Lab.readout(Lab.$('#live'), [['Time', Math.round(st.t) + ' s'], ['Energy supplied', Lab.sci(st.E, 3) + ' J'], ['Temperature', s.th.toFixed(1) + ' °C', true], ['State', s.s]]);
+      if (st.sel) {
+        var dt = st.sel[1] - st.sel[0], E = st.P * dt;
+        Lab.math(Lab.$('#maths'), 'Show the maths: the ' + (st.sel[2] === 'melt' ? 'melting' : 'boiling') + ' plateau', [
+          ['Time on the flat part', 'Δt = ' + Math.round(st.sel[1]) + ' − ' + Math.round(st.sel[0]) + ' = <b>' + Math.round(dt) + ' s</b>'],
+          ['Energy supplied while changing state', 'E = P × t = ' + st.P + ' × ' + Math.round(dt) + ' = <b>' + Lab.sci(E, 3) + ' J</b>'],
+          ['Rearrange E = mL', 'L = E ÷ m = ' + Lab.sci(E, 3) + ' ÷ ' + st.m.toFixed(1) + ' = <b>' + Lab.sci(E / st.m, 3) + ' J/kg</b>'],
+          ['Accepted value', st.sel[2] === 'melt' ? 'specific latent heat of fusion of ice = 3.34 × 10⁵ J/kg' : 'specific latent heat of vaporisation of water = 2.26 × 10⁶ J/kg'],
+        ]);
+      } else Lab.math(Lab.$('#maths'), 'Why the flat parts?', [['While melting or boiling', 'the energy breaks bonds between particles (increasing their potential energy), not speeding them up'], ['Temperature measures', 'the average kinetic energy of the particles, so it stays the same'], ['Try it', 'press a "Measure the … plateau" button to calculate L']]);
+    } else {
+      var q = st.cool;
+      Lab.readout(Lab.$('#live'), [['Time', Math.round(q.t) + ' s'], ['Temperature', q.theta.toFixed(1) + ' °C', true]]);
+      Lab.math(Lab.$('#maths'), 'Reading a cooling curve', [['Sloping part', 'the liquid cools, losing kinetic energy'], ['Flat part at ' + FP + ' °C', 'it is freezing: bonds form and latent heat is released, which keeps the temperature steady'], ['So the freezing point', 'is the temperature of the flat part: <b>' + FP + ' °C</b>']]);
+    }
+    T.update(st);
+  }
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Heat the ice all the way to steam. Find the two flat parts of the graph.', ok: function (s) { return s.seen.solid && s.seen.melt && s.seen.boil && s.seen.gas; } },
+    { t: 'Measure the melting plateau and calculate the specific latent heat of fusion.', ok: function (s) { return s.seen['sel-melt']; } },
+    { t: 'Measure the boiling plateau. Why is it so much longer?', s: 'L for boiling (2.26 × 10⁶ J/kg) is almost 7 times L for melting.', ok: function (s) { return s.seen['sel-boil']; } },
+    { t: 'Watch a cooling curve and read off the freezing point.', ok: function (s) { return s.seen.cooled; } },
+  ], { title: 'Explore changes of state' });
+
+  build(); reset();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'How much energy is needed to melt 0.5 kg of ice at 0 °C? (L = 3.34 × 10⁵ J/kg)', n: 167000, unit: 'J', why: ' E = mL = 0.5 × 334 000 = 167 000 J.' },
+    { q: 'A 1000 W kettle boils water for 113 s and 0.05 kg turns into steam. What is L?', n: 2260000, unit: 'J/kg', why: ' E = Pt = 113 000 J; L = 113 000 ÷ 0.05 = 2.26 × 10⁶ J/kg.' },
+    { q: 'While water boils, its temperature stays at 100 °C because the energy…', o: ['is lost to the room', 'is used to separate the particles (change of state)', 'makes the particles move faster', 'stops being supplied'], a: 1, why: ' Energy goes into breaking bonds, not into kinetic energy.' },
+    { q: 'Sweating cools you down because…', o: ['sweat is cold', 'evaporation removes the fastest particles, taking energy from your skin', 'sweat reflects heat', 'water conducts heat'], a: 1, why: ' The latent heat needed for evaporation comes from your body.' },
+  ]);
+})();
+</script>
+</body>
+</html>

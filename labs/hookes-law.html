@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hooke's Law Spring Lab · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Load a spring with 100 g masses, record a results table, plot force against extension and find the spring constant. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="hookes-law">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>When you hang a load on a spring, it gets longer. The <b>extension</b> is how much longer it gets: <b>new length − original length</b>.</p>
+    <p>Double the load and the extension doubles. That is <b>Hooke's law</b>: <b>F = kx</b>. It works only up to the <b>limit of proportionality</b>. Pull harder than that and the spring stretches unevenly, and it may never go back to its original length.</p>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <div class="stage">
+      <canvas id="rig" aria-label="A spring hanging from a clamp stand beside a vertical metre rule, with slotted masses on a hanger"></canvas>
+      <p class="cap" id="rig-cap"></p>
+      <div class="row" style="margin-top:8px" id="mass-btns"></div>
+      <div class="row" id="spring-pick"></div>
+    </div>
+    <div class="stack">
+      <section class="card"><h2>Live readings</h2><div id="live"></div></section>
+      <section id="maths"></section>
+      <div class="watch"><strong class="lbl">Common mistake</strong><p>Putting the <b>length</b> into F = kx. Always subtract the original length first to get the <b>extension</b>.</p></div>
+    </div>
+  </div>
+
+  <div class="split" style="margin-top:16px">
+    <section class="card">
+      <h2>Results table</h2>
+      <p class="note" style="margin:0 0 8px">Press <b>Record reading</b> after each mass you add. Read the pointer at eye level so you avoid parallax error.</p>
+      <div class="tbl-wrap"><table class="data" id="table"><thead><tr><th scope="col">Load F / N</th><th scope="col">Reading l / cm</th><th scope="col">Extension x / cm</th></tr></thead><tbody></tbody></table></div>
+      <div class="row" style="margin-top:10px" id="table-btns"></div>
+    </section>
+    <section class="stage">
+      <canvas id="graph" aria-label="Graph of load F in newtons against extension x in centimetres, built from your recorded readings"></canvas>
+      <p class="cap" id="graph-cap">Each recorded reading is plotted as a point. Record at least 4, then draw the best-fit line.</p>
+    </section>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  // Springs: k in N/m, limit of proportionality (N), elastic limit (N). One 100 g mass weighs 1.0 N (g = 10 N/kg).
+  var SPRINGS = {
+    A: { k: 25, lop: 6, el: 6.5, name: 'Spring A (soft)' },
+    B: { k: 50, lop: 7, el: 7.5, name: 'Spring B (stiff)' },
+    M: { k: [16, 20, 32, 40][Math.floor(Math.random() * 4)], lop: 5, el: 5.5, name: 'Mystery spring' },
+  };
+  var L0 = 12.0;          // pointer reading with no load (cm)
+  var MAX = 8;            // slotted masses available
+  var st = { spring: 'A', n: 0, maxLoad: 0, rows: [], fit: false, sawCurve: false, sawSet: false };
+
+  function spring() { return SPRINGS[st.spring]; }
+  function load() { return st.n * 1.0; }
+  // Extension in cm for load F, including the curve past the limit and any permanent set.
+  function extension(F) {
+    var s = spring(), x;
+    if (F <= s.lop) x = F / s.k;
+    else { var d = F - s.lop; x = s.lop / s.k + d / s.k * (1 + 0.6 * d); }
+    var set = st.maxLoad > s.el ? (st.maxLoad - s.el) / s.k * 0.9 + 0.004 : 0;
+    return Math.round((x + set) * 1000) / 10;   // m → cm, to 0.1 cm
+  }
+  function reading() { return Math.round((L0 + extension(load())) * 10) / 10; }
+
+  // ---------- rig drawing ----------
+  var rig = Lab.canvas(Lab.$('#rig'), function (ctx, W, H) {
+    var top = 26, bottom = H - 18, cmMax = 60, ppc = (bottom - top) / cmMax;
+    var rx = Math.min(W * 0.62, W - 70);      // ruler x
+    var sx = rx - 70;                          // spring x
+    // stand
+    ctx.fillStyle = c('t0'); ctx.fillRect(24, top - 14, 10, H - top);
+    ctx.fillRect(24, top - 14, sx - 10, 8); ctx.fillRect(12, H - 12, 60, 8);
+    // ruler
+    ctx.fillStyle = c('hint-bg'); ctx.fillRect(rx, top, 38, bottom - top);
+    ctx.strokeStyle = c('t7'); ctx.lineWidth = 1; ctx.strokeRect(rx, top, 38, bottom - top);
+    for (var cm = 0; cm <= cmMax; cm++) {
+      var y = top + cm * ppc, big = cm % 5 === 0;
+      Lab.line(ctx, rx, y, rx + (big ? 14 : 7), y, c('ink'), 1);
+      if (cm % 10 === 0) Lab.text(ctx, String(cm), rx + 16, y, { size: 11, kind: 'mono', color: c('ink') });
+    }
+    Lab.text(ctx, 'cm', rx + 19, top - 12, { size: 11, kind: 'mono', color: c('muted'), align: 'center' });
+    // spring: zig-zag from top hook to pointer
+    var l = reading(), py = top + l * ppc, sTop = top + 2, coils = 9;
+    var springTop = sTop + 8, springBot = py - 6;
+    ctx.strokeStyle = c('accent'); ctx.lineWidth = 2.4; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(sx, sTop); ctx.lineTo(sx, springTop);
+    for (var i = 1; i <= coils * 2; i++) {
+      var yy = springTop + (springBot - springTop) * i / (coils * 2);
+      ctx.lineTo(sx + (i === coils * 2 ? 0 : (i % 2 ? 9 : -9)), yy);
+    }
+    ctx.lineTo(sx, py); ctx.stroke();
+    // pointer
+    Lab.line(ctx, sx, py, rx + 2, py, c('no'), 2);
+    Lab.dot(ctx, rx + 2, py, 3, c('no'));
+    // hanger + masses
+    var hy = py + 4;
+    Lab.line(ctx, sx, py, sx, hy + 10, c('ink'), 2);
+    ctx.fillStyle = c('t0'); ctx.fillRect(sx - 3, hy + 8, 6, 8 + st.n * 9);
+    for (var m = 0; m < st.n; m++) {
+      var my = hy + 14 + m * 9;
+      ctx.fillStyle = m % 2 ? c('t7') : c('pop');
+      Lab.roundRect(ctx, sx - 24, my, 48, 8, 2); ctx.fill();
+    }
+    Lab.text(ctx, load().toFixed(1) + ' N', sx - 32, hy + 18 + st.n * 4.5, { size: 13, weight: 700, align: 'right', color: c('ink') });
+    // eye-level hint
+    Lab.text(ctx, 'read here →', rx - 8, py - 12, { size: 11, color: c('no'), align: 'right' });
+  }, { ratio: 0.9, min: 380, max: 520 });
+
+  // ---------- graph ----------
+  var graph = Lab.canvas(Lab.$('#graph'), function (ctx, W, H) {
+    var xs = st.rows.map(function (r) { return r.x; }), maxX = Math.max(10, Math.max.apply(null, xs.concat([0])) * 1.1);
+    var a = Lab.axes(ctx, { x: 46, y: 22, w: W - 64, h: H - 64 }, { xmin: 0, xmax: maxX, ymin: 0, ymax: 9, ystep: 1, xlabel: 'extension x / cm', ylabel: 'load F / N' });
+    if (st.fit) {
+      var k = fitK();
+      if (k) {
+        var xEnd = Math.min(maxX, 9 / k);
+        Lab.line(ctx, a.X(0), a.Y(0), a.X(xEnd), a.Y(k * xEnd), c('accent'), 2.5);
+        // gradient triangle
+        var x1 = xEnd * 0.25, x2 = xEnd * 0.8;
+        Lab.line(ctx, a.X(x1), a.Y(k * x1), a.X(x2), a.Y(k * x1), c('pop'), 1.5, [5, 4]);
+        Lab.line(ctx, a.X(x2), a.Y(k * x1), a.X(x2), a.Y(k * x2), c('pop'), 1.5, [5, 4]);
+        Lab.text(ctx, 'Δx', (a.X(x1) + a.X(x2)) / 2, a.Y(k * x1) + 10, { color: c('pop'), size: 12, weight: 700, align: 'center' });
+        Lab.text(ctx, 'ΔF', a.X(x2) + 6, (a.Y(k * x1) + a.Y(k * x2)) / 2, { color: c('pop'), size: 12, weight: 700 });
+      }
+    }
+    st.rows.forEach(function (r) {
+      var lin = r.F <= SPRINGS[r.sp].lop + 1e-9;
+      var X = a.X(r.x), Y = a.Y(r.F);
+      ctx.strokeStyle = lin ? c('ink') : c('no'); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(X - 5, Y - 5); ctx.lineTo(X + 5, Y + 5); ctx.moveTo(X + 5, Y - 5); ctx.lineTo(X - 5, Y + 5); ctx.stroke();
+    });
+  }, { ratio: 0.72, min: 260, max: 380 });
+
+  // Best-fit line through the origin using only points within the limit of proportionality (least squares).
+  function fitK() {
+    var pts = st.rows.filter(function (r) { return r.sp === st.spring && r.F > 0 && r.F <= spring().lop + 1e-9 && r.x > 0; });
+    if (pts.length < 2) return 0;
+    var sxy = 0, sxx = 0;
+    pts.forEach(function (p) { sxy += p.x * p.F; sxx += p.x * p.x; });
+    return sxy / sxx;   // N per cm
+  }
+
+  // ---------- controls ----------
+  var btns = Lab.$('#mass-btns');
+  var addB = Lab.button(btns, '+ Add 100 g mass', function () { if (st.n < MAX) { st.n++; st.maxLoad = Math.max(st.maxLoad, load()); update(); } });
+  var remB = Lab.button(btns, '− Remove mass', function () { if (st.n > 0) { st.n--; update(); } }, true);
+  var recB = Lab.button(btns, 'Record reading', function () {
+    var F = load(), l = reading();
+    st.rows = st.rows.filter(function (r) { return !(r.F === F && r.sp === st.spring); });
+    st.rows.push({ F: F, l: l, x: Math.round((l - L0) * 10) / 10, sp: st.spring });
+    st.rows.sort(function (p, q) { return p.F - q.F; });
+    update();
+  });
+  var pick = Lab.seg(Lab.$('#spring-pick'), {
+    label: 'Choose a spring', value: 'A',
+    options: [['A', 'Spring A'], ['B', 'Spring B'], ['M', 'Mystery spring']],
+    onChange: function (v) { st.spring = v; st.n = 0; st.maxLoad = 0; st.rows = []; st.fit = false; update(); },
+  });
+  var tb = Lab.$('#table-btns');
+  Lab.button(tb, 'Draw best-fit line', function () { st.fit = true; update(); });
+  Lab.button(tb, 'Clear table', function () { st.rows = []; st.fit = false; update(); }, true);
+  Lab.button(tb, 'New spring (reset damage)', function () { st.n = 0; st.maxLoad = 0; st.rows = []; st.fit = false; update(); }, true);
+
+  // ---------- update ----------
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Add one 100 g mass and press <b>Record reading</b>.', s: 'A 100 g mass has a weight of 1.0 N.', ok: function (s) { return s.rows.length >= 1; } },
+    { t: 'Record at least 5 readings for the same spring.', s: 'Good experiments use at least 5 or 6 readings.', ok: function (s) { return s.rows.length >= 5; } },
+    { t: 'Draw the best-fit line and read the spring constant k from the gradient.', s: 'Gradient = ΔF ÷ Δx.', ok: function (s) { return s.fit && fitK() > 0; } },
+    { t: 'Find k for the <b>Mystery spring</b> and type it into the quick check below.', s: 'Use the best-fit line, then change N/cm to N/m by multiplying by 100.', ok: function (s) { return s.spring === 'M' && s.fit && fitK() > 0; } },
+    { t: 'Load a spring past its limit of proportionality and see the points curve away from the line.', s: 'Red crosses are beyond the limit.', ok: function (s) { return s.sawCurve; } },
+    { t: 'Overload a spring, then remove <b>all</b> the masses. Does the pointer go back to ' + L0.toFixed(1) + ' cm?', s: 'If not, the spring went past its elastic limit and is permanently stretched.', ok: function (s) { return s.sawSet; } },
+  ], { title: 'Investigate Hooke\'s law', intro: 'Work through these in order. They tick themselves when you have done them.' });
+
+  function update() {
+    var s = spring(), F = load(), l = reading(), x = Math.round((l - L0) * 10) / 10;
+    if (st.rows.some(function (r) { return r.sp === st.spring && r.F > s.lop; })) st.sawCurve = true;
+    if (st.n === 0 && st.maxLoad > s.el) st.sawSet = true;
+    addB.disabled = st.n >= MAX; remB.disabled = st.n === 0;
+    var beyond = F > s.lop, damaged = st.maxLoad > s.el;
+    Lab.readout(Lab.$('#live'), [
+      ['Spring', s.name],
+      ['Load F (' + st.n + ' × 100 g)', F.toFixed(1) + ' N'],
+      ['Original reading l₀', L0.toFixed(1) + ' cm'],
+      ['Pointer reading l', l.toFixed(1) + ' cm'],
+      ['Extension x = l − l₀', x.toFixed(1) + ' cm', true],
+      ['Obeys Hooke\'s law?', beyond ? '<span style="color:var(--no)">No, past the limit</span>' : '<span style="color:var(--ok)">Yes</span>'],
+    ]);
+    Lab.$('#rig-cap').innerHTML = damaged
+      ? '⚠ This spring went past its <b>elastic limit</b>. It is now permanently stretched, so with no load the pointer no longer reads ' + L0.toFixed(1) + ' cm.'
+      : 'The pointer is fixed to the bottom of the spring. Each slotted mass is 100 g, which weighs 1.0 N.';
+    var steps = [['Weight of the load', 'F = mg = ' + (st.n * 0.1).toFixed(1) + ' kg × 10 N/kg = <b>' + F.toFixed(1) + ' N</b>'],
+      ['Extension', 'x = l − l₀ = ' + l.toFixed(1) + ' − ' + L0.toFixed(1) + ' = <b>' + x.toFixed(1) + ' cm</b> = ' + Lab.sf(x / 100, 2) + ' m']];
+    if (F > 0 && !beyond) steps.push(['Spring constant', 'k = F ÷ x = ' + F.toFixed(1) + ' ÷ ' + Lab.sf(x / 100, 2) + ' = <b>' + Lab.sf(F / (x / 100), 3) + ' N/m</b>']);
+    else if (beyond) steps.push(['Careful', 'Past the limit of proportionality, F ÷ x is <b>not</b> constant, so do not use these points for k.']);
+    var k = st.fit ? fitK() : 0;
+    if (k) steps.push(['From the best-fit line', 'gradient = ΔF ÷ Δx = ' + Lab.sf(k, 3) + ' N/cm = <b>' + Lab.sf(k * 100, 3) + ' N/m</b>']);
+    Lab.math(Lab.$('#maths'), 'Show the maths', steps);
+    var body = Lab.$('#table tbody');
+    body.innerHTML = st.rows.length ? st.rows.map(function (r) {
+      return '<tr' + (r.F === F && r.sp === st.spring ? ' class="hl"' : '') + '><td>' + r.F.toFixed(1) + '</td><td>' + r.l.toFixed(1) + '</td><td>' + r.x.toFixed(1) + '</td></tr>';
+    }).join('') : '<tr><td colspan="3" style="font-family:inherit;color:var(--muted)">No readings yet</td></tr>';
+    Lab.$('#graph-cap').innerHTML = k
+      ? 'Best-fit line (through the origin, using points within the limit): gradient k = <b>' + Lab.sf(k, 3) + ' N/cm = ' + Lab.sf(k * 100, 3) + ' N/m</b>.'
+      : 'Each recorded reading is plotted as a point. Record at least 4, then draw the best-fit line.';
+    rig.redraw(); graph.redraw();
+    T.update(st);
+  }
+  update();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A spring is 12.0 cm long with no load. With a 3.0 N load it is 18.0 cm long. What is the extension?', o: ['18.0 cm', '6.0 cm', '30.0 cm', '3.0 cm'], a: 1, why: ' Extension = 18.0 − 12.0 = 6.0 cm. Never use the total length.' },
+    { q: 'Using the spring above, calculate k in N/m. (Change 6.0 cm into metres first.)', n: 50, unit: 'N/m', why: ' x = 0.060 m, so k = F ÷ x = 3.0 ÷ 0.060 = 50 N/m.', hint: ' Change 6.0 cm into 0.060 m, then divide 3.0 N by 0.060 m.' },
+    { q: 'What is the spring constant of the <b>Mystery spring</b>? (Use the lab.)', n: SPRINGS.M.k, tol: 0.08, unit: 'N/m', why: ' Your gradient in N/cm × 100 gives N/m.', hint: ' Choose the Mystery spring, record 5 readings within the limit, draw the best-fit line and read the gradient.' },
+    { q: 'A spring is loaded past its <b>elastic limit</b>. What happens when the load is removed?', o: ['It returns to its original length', 'It stays permanently stretched', 'It becomes shorter than before', 'Its spring constant doubles'], a: 1, why: ' Beyond the elastic limit the deformation is plastic, so the spring does not return to its original length.' },
+  ]);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Balancing Moments · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Hang weights on a beam, compare clockwise and anticlockwise moments, find a mystery weight, and explore the three classes of lever. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="moments">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>A force can make things <b>turn</b>. Its turning effect is called its <b>moment</b>: <b>moment = force × perpendicular distance from the pivot</b> (unit: N m). A small force far from the pivot can balance a big force close to it. That's why a door handle is far from the hinges.</p>
+    <p>A beam balances when the <b>total clockwise moment = total anticlockwise moment</b>. This is the <b>principle of moments</b>.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="mode"></div>
+
+  <div id="beam-mode">
+    <div class="lab-grid" style="margin-top:12px">
+      <div class="stage">
+        <canvas id="cv" aria-label="A metre rule balanced on a central pivot with weights hanging from it"></canvas>
+        <p class="cap">Drag a weight along the beam, or use its slider. Drag it off the beam to remove it. The beam is marked in cm from the pivot.</p>
+        <div class="row" id="add"></div>
+      </div>
+      <div class="stack">
+        <section class="card"><h2>Moments about the pivot</h2><div id="table"></div></section>
+        <section id="maths"></section>
+      </div>
+    </div>
+    <section class="card" style="margin-top:16px"><h2>Your weights</h2><div id="masses"></div></section>
+  </div>
+
+  <div id="lever-mode" hidden>
+    <div class="lab-grid" style="margin-top:12px">
+      <div class="stage">
+        <canvas id="lv" aria-label="A lever showing the pivot, the load and the effort"></canvas>
+        <div class="row" id="lclass" style="margin-top:8px"></div>
+        <p class="cap" id="lcap"></p>
+      </div>
+      <div class="stack">
+        <section class="card"><h2>Lever settings</h2><div id="lctl"></div></section>
+        <section id="lmaths"></section>
+      </div>
+    </div>
+  </div>
+
+  <div class="watch" style="margin-top:16px"><strong class="lbl">Common mistake</strong>
+    <p>Use the distance <b>from the pivot</b>, not from the end of the ruler. And use <b>force in newtons</b>: a 200 g mass has a weight of 0.2 kg × 10 N/kg = 2 N.</p>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var MYSTERY = [1.5, 2.5, 3, 4][Math.floor(Math.random() * 4)];
+  var st = { masses: [{ w: 2, x: -30, id: 1 }, { w: 1, x: 40, id: 2 }], tilt: 0, nextId: 3, mode: 'beam', everBalanced: 0, mysteryBal: false, cls: 1, L: 60, dl: 0.3, de: 0.9, seenCls: {} };
+  function moments() {
+    var cw = 0, acw = 0;
+    st.masses.forEach(function (m) { var w = m.w === '?' ? MYSTERY : m.w; if (m.x > 0) cw += w * m.x / 100; else acw += w * -m.x / 100; });
+    return { cw: cw, acw: acw, net: cw - acw };
+  }
+  function wLabel(m) { return m.w === '?' ? '?' : m.w + ' N'; }
+  var geo = {};
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var half = Math.min(W * 0.44, 340), cx = W / 2, cy = H * 0.36, ppc = half / 50;
+    geo = { cx: cx, cy: cy, ppc: ppc, half: half };
+    var th = st.tilt, cos = Math.cos(th), sin = Math.sin(th);
+    function B(xcm) { return [cx + xcm * ppc * cos, cy + xcm * ppc * sin]; }
+    // pivot
+    ctx.fillStyle = c('t0'); ctx.beginPath(); ctx.moveTo(cx, cy + 6); ctx.lineTo(cx - 22, cy + 46); ctx.lineTo(cx + 22, cy + 46); ctx.closePath(); ctx.fill();
+    ctx.fillRect(cx - 60, cy + 46, 120, 8);
+    // beam
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(th);
+    ctx.fillStyle = c('hint-bg'); ctx.fillRect(-half - 6, -8, 2 * half + 12, 16); ctx.strokeStyle = c('t7'); ctx.strokeRect(-half - 6, -8, 2 * half + 12, 16);
+    for (var x = -50; x <= 50; x += 5) {
+      ctx.strokeStyle = c('ink'); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x * ppc, -8); ctx.lineTo(x * ppc, x % 10 ? -3 : 2); ctx.stroke();
+      if (x % 10 === 0 && x !== 0) { ctx.fillStyle = c('muted'); ctx.font = Lab.font(10, 'mono'); ctx.textAlign = 'center'; ctx.fillText(String(Math.abs(x)), x * ppc, -12); }
+    }
+    ctx.restore();
+    Lab.dot(ctx, cx, cy, 5, c('ink'));
+    // weights hang vertically
+    st.masses.forEach(function (m) {
+      var p = B(m.x), w = m.w === '?' ? MYSTERY : m.w, h = 16 + w * 6, wid = 30;
+      Lab.line(ctx, p[0], p[1] + 8, p[0], p[1] + 30, c('ink'), 1.5);
+      ctx.fillStyle = m.w === '?' ? c('t4') : m.x > 0 ? c('t2') : c('pop');
+      Lab.roundRect(ctx, p[0] - wid / 2, p[1] + 30, wid, h, 5); ctx.fill();
+      Lab.text(ctx, wLabel(m), p[0], p[1] + 30 + h / 2, { color: '#fff', size: 12, weight: 700, align: 'center' });
+      Lab.arrow(ctx, p[0] + 22, p[1] + 30, p[0] + 22, p[1] + 30 + 12 + w * 9, { color: c('muted'), width: 1.5, head: 7 });
+      m._hit = [p[0], p[1] + 30 + h / 2];
+    });
+    var M = moments(), bal = Math.abs(M.net) < 1e-9;
+    Lab.text(ctx, bal ? 'BALANCED' : M.net > 0 ? 'turns clockwise ↻' : 'turns anticlockwise ↺', cx, H - 18, { weight: 700, size: 16, align: 'center', color: bal ? c('ok') : c('no') });
+    Lab.text(ctx, '↺ anticlockwise side', cx - half, 18, { size: 12, color: c('pop'), weight: 700 });
+    Lab.text(ctx, 'clockwise side ↻', cx + half, 18, { size: 12, color: c('t2'), weight: 700, align: 'right' });
+  }, { ratio: 0.62, min: 300, max: 440 });
+
+  Lab.drag(view.cv, {
+    down: function (x, y) {
+      var best = null, bd = 30;
+      st.masses.forEach(function (m) { if (m._hit) { var d = Math.hypot(x - m._hit[0], y - m._hit[1]); if (d < bd) { bd = d; best = m; } } });
+      return best;
+    },
+    move: function (m, x, y) {
+      m.x = Lab.clamp(Math.round((x - geo.cx) / geo.ppc / 5) * 5, -50, 50);
+      if (m.x === 0) m.x = x > geo.cx ? 5 : -5;
+      m._off = y > geo.cy + 200 || y < geo.cy - 120;
+      update(true);
+    },
+    up: function (m) { if (m._off) st.masses = st.masses.filter(function (q) { return q !== m; }); buildList(); update(); },
+  });
+
+  var add = Lab.$('#add');
+  [1, 2, 5].forEach(function (w) { Lab.button(add, '+ ' + w + ' N (' + w * 100 + ' g)', function () { addMass(w); }, true); });
+  Lab.button(add, '+ Mystery weight ?', function () { if (!st.masses.some(function (m) { return m.w === '?'; })) addMass('?'); }, true);
+  Lab.button(add, 'Clear', function () { st.masses = []; buildList(); update(); }, true);
+  function addMass(w) {
+    if (st.masses.length >= 6) return;
+    var used = st.masses.map(function (m) { return m.x; }), x = [20, -20, 40, -40, 10, -10, 30, -30, 50, -50].find(function (p) { return used.indexOf(p) < 0; }) || 25;
+    st.masses.push({ w: w, x: x, id: st.nextId++ }); buildList(); update();
+  }
+  function buildList() {
+    var box = Lab.$('#masses'); box.innerHTML = '';
+    if (!st.masses.length) { box.innerHTML = '<p class="note">No weights. Add one above.</p>'; return; }
+    st.masses.forEach(function (m) {
+      var row = Lab.el('div', { class: 'row', style: 'align-items:end' });
+      var holder = Lab.el('div', { style: 'flex:1 1 240px' }); row.appendChild(holder);
+      m._slider = Lab.slider(holder, { label: 'Weight ' + wLabel(m) + ', distance from pivot', min: -50, max: 50, step: 5, value: m.x,
+        fmt: function (v) { return Math.abs(v) + ' cm ' + (v < 0 ? 'left' : v > 0 ? 'right' : '(on pivot)'); },
+        onInput: function (v) { m.x = v; update(true); } });
+      Lab.button(row, 'Remove', function () { st.masses = st.masses.filter(function (q) { return q !== m; }); buildList(); update(); }, true);
+      box.appendChild(row);
+    });
+  }
+
+  // tilt animation towards the target angle
+  var target = 0;
+  var anim = Lab.loop(function (dt) {
+    st.tilt += (target - st.tilt) * Math.min(1, dt * 6);
+    view.redraw();
+    if (Math.abs(target - st.tilt) < 0.0005) { st.tilt = target; view.redraw(); anim.stop(); }
+  });
+
+  // ---------- lever mode ----------
+  var lv = Lab.canvas(Lab.$('#lv'), function (ctx, W, H) {
+    var y = H * 0.5, x0 = 40, len = W - 80, P, Lx, Ex;
+    var dl = st.dl, de = st.de, scale = len / 1.0;
+    if (st.cls === 1) { P = x0 + len * 0.5; Lx = P + dl * scale / 2; Ex = P - de * scale / 2; }
+    else if (st.cls === 2) { P = x0; Lx = P + dl * scale; Ex = P + de * scale; }
+    else { P = x0; Ex = P + de * scale; Lx = P + dl * scale; }
+    ctx.fillStyle = c('hint-bg'); ctx.fillRect(x0 - 10, y - 7, len + 20, 14); ctx.strokeStyle = c('t7'); ctx.strokeRect(x0 - 10, y - 7, len + 20, 14);
+    ctx.fillStyle = c('t0'); ctx.beginPath(); ctx.moveTo(P, y + 7); ctx.lineTo(P - 16, y + 36); ctx.lineTo(P + 16, y + 36); ctx.closePath(); ctx.fill();
+    Lab.text(ctx, 'pivot', P, y + 50, { size: 12, align: 'center', weight: 700 });
+    var E = effort();
+    Lab.arrow(ctx, Lx, y + 8, Lx, y + 8 + Math.min(110, 20 + st.L * 0.9), { color: c('pop'), width: 4, label: 'load ' + st.L + ' N', labelOff: -50 });
+    var up = st.cls !== 1, eh = Math.min(120, 20 + E * 0.9);
+    if (up) Lab.arrow(ctx, Ex, y - 8, Ex, y - 8 - eh, { color: c('ok'), width: 4, label: 'effort ' + Lab.sf(E, 3) + ' N', labelOff: -60 });
+    else Lab.arrow(ctx, Ex, y - 8 - eh, Ex, y - 8, { color: c('ok'), width: 4, label: 'effort ' + Lab.sf(E, 3) + ' N', labelOff: 60 });
+    Lab.text(ctx, ['', 'Class 1: pivot in the middle (see-saw, scissors, crowbar)', 'Class 2: load in the middle (wheelbarrow, nutcracker)', 'Class 3: effort in the middle (tweezers, tongs, your forearm)'][st.cls], W / 2, 20, { weight: 700, align: 'center', size: 14 });
+  }, { ratio: 0.5, min: 280, max: 360 });
+  function effort() { return st.L * st.dl / st.de; }
+  Lab.seg(Lab.$('#lclass'), { label: 'Class of lever', value: 1, options: [[1, 'Class 1'], [2, 'Class 2'], [3, 'Class 3']], onChange: function (v) { st.cls = +v; st.seenCls[v] = true; fixLever(); updateLever(); } });
+  var lctl = Lab.$('#lctl');
+  Lab.slider(lctl, { label: 'Load', min: 10, max: 100, step: 10, value: 60, unit: 'N', onInput: function (v) { st.L = v; updateLever(); } });
+  var dlS = Lab.slider(lctl, { label: 'Load distance from pivot', min: 0.1, max: 1, step: 0.05, value: 0.3, unit: 'm', fmt: function (v) { return v.toFixed(2); }, onInput: function (v) { st.dl = v; fixLever(); updateLever(); } });
+  var deS = Lab.slider(lctl, { label: 'Effort distance from pivot', min: 0.1, max: 1, step: 0.05, value: 0.9, unit: 'm', fmt: function (v) { return v.toFixed(2); }, onInput: function (v) { st.de = v; fixLever(); updateLever(); } });
+  function fixLever() {
+    // class 2: load nearer the pivot than the effort; class 3: effort nearer the pivot than the load
+    if (st.cls === 2 && st.dl >= st.de) { st.dl = Math.max(0.1, Math.round((st.de - 0.05) * 20) / 20); dlS.set(st.dl, true); }
+    if (st.cls === 3 && st.de >= st.dl) { st.de = Math.max(0.1, Math.round((st.dl - 0.05) * 20) / 20); deS.set(st.de, true); }
+  }
+  function updateLever() {
+    var E = effort();
+    Lab.math(Lab.$('#lmaths'), 'Show the maths', [
+      ['Principle of moments', 'effort × effort distance = load × load distance'],
+      ['Rearrange', 'effort = load × load distance ÷ effort distance'],
+      ['Substitute', 'effort = ' + st.L + ' × ' + st.dl.toFixed(2) + ' ÷ ' + st.de.toFixed(2) + ' = <b>' + Lab.sf(E, 3) + ' N</b>'],
+      ['So the lever…', E < st.L ? 'makes the job <b>easier</b>: the effort is smaller than the load' : E > st.L ? 'needs <b>more</b> effort than the load, but the load moves further and faster' : 'needs the same effort as the load'],
+    ]);
+    Lab.$('#lcap').innerHTML = st.cls === 2 ? 'In a class 2 lever the effort is always further from the pivot than the load, so the effort is always <b>less</b> than the load.' : st.cls === 3 ? 'In a class 3 lever the effort is always nearer the pivot, so the effort is always <b>more</b> than the load.' : 'In a class 1 lever, moving the effort further from the pivot reduces the effort needed.';
+    lv.redraw(); T.update(st);
+  }
+
+  Lab.seg(Lab.$('#mode'), { label: 'Mode', value: 'beam', options: [['beam', 'Balance a beam'], ['lever', 'Levers']], onChange: function (v) {
+    st.mode = v; Lab.$('#beam-mode').hidden = v !== 'beam'; Lab.$('#lever-mode').hidden = v !== 'lever';
+    if (v === 'lever') { st.seenCls[st.cls] = true; lv.redraw(); updateLever(); } else view.redraw();
+  } });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Balance the beam: 2 N at 30 cm left and 1 N on the right. Where must the 1 N go?', s: '2 × 30 = 1 × d, so d = 60 cm… that is off the beam! Try a 2 N or 5 N weight instead.', ok: function (s) { return s.everBalanced >= 1; } },
+    { t: 'Balance the beam using three weights.', ok: function (s) { return s.bal3; } },
+    { t: 'Add the mystery weight and balance it. Then work out its weight from the principle of moments.', s: 'Its weight = (moment on the other side) ÷ (its distance in m).', ok: function (s) { return s.mysteryBal; } },
+    { t: 'In Levers mode, look at all three classes.', ok: function (s) { return s.seenCls[1] && s.seenCls[2] && s.seenCls[3]; } },
+    { t: 'Make the effort less than 20 N while lifting a 60 N load.', s: 'Move the load close to the pivot and the effort far away.', ok: function (s) { return s.mode === 'lever' && s.L === 60 && effort() < 20; } },
+  ], { title: 'Use the principle of moments' });
+
+  function update(fromDrag) {
+    var M = moments(), bal = Math.abs(M.net) < 1e-9 && st.masses.length > 0;
+    target = Math.sign(M.net) * Math.min(0.2, 0.07 + Math.abs(M.net) * 0.12);
+    if (Math.abs(M.net) < 1e-9) target = 0;
+    if (!anim.running) anim.start();
+    if (bal && M.cw > 0) {
+      st.everBalanced++;
+      if (st.masses.length >= 3) st.bal3 = true;
+      if (st.masses.some(function (m) { return m.w === '?'; })) st.mysteryBal = true;
+    }
+    st.masses.forEach(function (m) { if (m._slider && !fromDrag) m._slider.set(m.x, true); else if (m._slider && fromDrag) m._slider.set(m.x, true); });
+    var rows = st.masses.slice().sort(function (a, b) { return a.x - b.x; }).map(function (m) {
+      var d = Math.abs(m.x) / 100, w = m.w === '?' ? null : m.w;
+      return '<tr><td>' + wLabel(m) + '</td><td>' + d.toFixed(2) + ' m ' + (m.x < 0 ? 'L' : 'R') + '</td><td>' + (w == null ? '? × ' + d.toFixed(2) : Lab.sf(w * d, 3)) + '</td><td style="font-family:inherit">' + (m.x < 0 ? '↺ anticlockwise' : '↻ clockwise') + '</td></tr>';
+    }).join('');
+    var hasQ = st.masses.some(function (m) { return m.w === '?'; });
+    Lab.$('#table').innerHTML = '<div class="tbl-wrap"><table class="data"><thead><tr><th>Weight</th><th>Distance</th><th>Moment / N m</th><th>Turns</th></tr></thead><tbody>' + (rows || '<tr><td colspan="4">No weights</td></tr>') + '</tbody></table></div>' +
+      (hasQ ? '<p class="note">The mystery weight\'s moment is hidden. Balance the beam, then use the principle of moments to find it.</p>' : '');
+    var steps = hasQ ? [['When balanced', 'sum of clockwise moments = sum of anticlockwise moments'], ['Then', 'mystery weight × its distance = the known moment on the other side'], ['Rearrange', 'mystery weight = known moment ÷ its distance (in m)']]
+      : [['Total clockwise moment', 'Σ (F × d) on the right = <b>' + Lab.sf(M.cw, 3) + ' N m</b>'],
+         ['Total anticlockwise moment', 'Σ (F × d) on the left = <b>' + Lab.sf(M.acw, 3) + ' N m</b>'],
+         ['Compare', bal ? 'They are equal, so the beam is in <b>equilibrium</b>' : 'They are not equal, so the beam turns ' + (M.net > 0 ? 'clockwise' : 'anticlockwise')]];
+    Lab.math(Lab.$('#maths'), 'Show the maths', steps);
+    view.redraw();
+    T.update(st);
+  }
+  buildList(); update();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A force of 20 N acts 0.40 m from a pivot. What is its moment?', n: 8, unit: 'N m', why: ' Moment = F × d = 20 × 0.40 = 8.0 N m.' },
+    { q: 'A 3 N weight hangs 40 cm left of the pivot. How far right must a 4 N weight hang to balance it?', n: 30, unit: 'cm', why: ' 3 × 40 = 4 × d, so d = 120 ÷ 4 = 30 cm.', hint: ' Anticlockwise moment = clockwise moment: 3 × 40 = 4 × d.' },
+    { q: 'What is the <b>mystery weight</b> in this lab? (Balance it first.)', n: MYSTERY, tol: 0.03, unit: 'N', why: ' Mystery weight = known moment ÷ its distance from the pivot.', hint: ' Balance the beam. Then divide the moment on the other side (N m) by the mystery weight\'s distance (m).' },
+    { q: 'A wheelbarrow is which class of lever?', o: ['Class 1', 'Class 2', 'Class 3', 'It is not a lever'], a: 1, why: ' The wheel is the pivot, the load is in the middle and you lift at the handles.' },
+  ]);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vector Adder · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Add two forces by the parallelogram and tip-to-tail methods, see the resultant, equilibrant and components. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="vectors">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>A <b>scalar</b> has size only (mass, time, speed, energy). A <b>vector</b> has size <b>and direction</b> (force, velocity, displacement, acceleration, momentum).</p>
+    <p>When two forces act on one object, they combine into one <b>resultant</b> force. You can't just add the numbers, because the directions matter: 3 N and 4 N can give anything from 1 N to 7 N. Draw them to scale and measure.</p>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <div class="stage">
+      <canvas id="cv" aria-label="Grid with two force arrows from the origin and their resultant. Drag the arrow tips."></canvas>
+      <p class="cap">Drag the tip of <b style="color:var(--t2)">F₁</b> or <b style="color:var(--t1)">F₂</b>, or use the sliders. 1 square = 1 N.</p>
+      <div class="row" id="mode"></div>
+      <div class="row" id="opts"></div>
+    </div>
+    <div class="stack">
+      <section class="card"><h2>Forces</h2><div id="ctl"></div></section>
+      <section class="card"><h2>Resultant</h2><div id="live"></div></section>
+      <section id="maths"></section>
+    </div>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c, RAD = Math.PI / 180;
+  var st = { f1: { m: 4, a: 0 }, f2: { m: 3, a: 90 }, mode: 'para', comps: false, equil: false, seen: {} };
+  function xy(f) { return [f.m * Math.cos(f.a * RAD), f.m * Math.sin(f.a * RAD)]; }
+  function res() { var a = xy(st.f1), b = xy(st.f2); return [a[0] + b[0], a[1] + b[1]]; }
+  function mag(v) { return Math.hypot(v[0], v[1]); }
+  function ang(v) { var a = Math.atan2(v[1], v[0]) / RAD; return (a + 360) % 360; }
+  var geo = {};
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var u = Math.min(W, H) / 18, ox = W / 2, oy = H / 2;
+    geo = { u: u, ox: ox, oy: oy };
+    for (var gx = ox % u; gx < W; gx += u) Lab.line(ctx, gx, 0, gx, H, c('grid'), 1);
+    for (var gy = oy % u; gy < H; gy += u) Lab.line(ctx, 0, gy, W, gy, c('grid'), 1);
+    Lab.line(ctx, 0, oy, W, oy, c('grid-strong'), 1.5); Lab.line(ctx, ox, 0, ox, H, c('grid-strong'), 1.5);
+    function P(v) { return [ox + v[0] * u, oy - v[1] * u]; }
+    var a = xy(st.f1), b = xy(st.f2), r = res(), O = [ox, oy];
+    if (st.mode === 'para') {
+      Lab.line(ctx, P(a)[0], P(a)[1], P(r)[0], P(r)[1], c('t1'), 1.5, [6, 5]);
+      Lab.line(ctx, P(b)[0], P(b)[1], P(r)[0], P(r)[1], c('t2'), 1.5, [6, 5]);
+      Lab.arrow(ctx, ox, oy, P(b)[0], P(b)[1], { color: c('t1'), width: 3.5, label: 'F₂' });
+    } else {
+      Lab.arrow(ctx, P(a)[0], P(a)[1], P(r)[0], P(r)[1], { color: c('t1'), width: 3.5, label: 'F₂' });
+    }
+    Lab.arrow(ctx, ox, oy, P(a)[0], P(a)[1], { color: c('t2'), width: 3.5, label: 'F₁' });
+    if (mag(r) > 0.05) Lab.arrow(ctx, ox, oy, P(r)[0], P(r)[1], { color: c('ok'), width: 4, label: 'R', labelOff: -16 });
+    if (st.equil && mag(r) > 0.05) Lab.arrow(ctx, ox, oy, P([-r[0], -r[1]])[0], P([-r[0], -r[1]])[1], { color: c('t4'), width: 3, dash: [7, 5], label: 'equilibrant' });
+    if (st.comps) {
+      Lab.line(ctx, ox, oy, P([r[0], 0])[0], oy, c('pop'), 3);
+      Lab.line(ctx, P([r[0], 0])[0], oy, P(r)[0], P(r)[1], c('pop'), 3, [4, 4]);
+      Lab.text(ctx, 'Rx', (ox + P([r[0], 0])[0]) / 2, oy + 14, { color: c('pop'), weight: 700, align: 'center' });
+      Lab.text(ctx, 'Ry', P(r)[0] + 8, (oy + P(r)[1]) / 2, { color: c('pop'), weight: 700 });
+    }
+    // draggable handles
+    [[a, c('t2')], [st.mode === 'para' ? b : r, c('t1')]].forEach(function (h) { var p = P(h[0]); Lab.dot(ctx, p[0], p[1], 7, c('surface'), h[1]); });
+    Lab.dot(ctx, ox, oy, 5, c('ink'));
+  }, { ratio: 0.8, min: 320, max: 520 });
+
+  Lab.drag(view.cv, {
+    down: function (x, y) {
+      var u = geo.u, P = function (v) { return [geo.ox + v[0] * u, geo.oy - v[1] * u]; };
+      var a = P(xy(st.f1)), h2 = P(st.mode === 'para' ? xy(st.f2) : res());
+      if (Math.hypot(x - a[0], y - a[1]) < 22) return 1;
+      if (Math.hypot(x - h2[0], y - h2[1]) < 22) return 2;
+      return null;
+    },
+    move: function (t, x, y) {
+      var vx = (x - geo.ox) / geo.u, vy = (geo.oy - y) / geo.u;
+      if (t === 2 && st.mode !== 'para') { var a = xy(st.f1); vx -= a[0]; vy -= a[1]; }
+      vx = Math.round(vx); vy = Math.round(vy);  // snap to grid
+      var f = t === 1 ? st.f1 : st.f2;
+      f.m = Lab.clamp(Math.round(Math.hypot(vx, vy) * 10) / 10, 0, 8); f.a = Math.round(ang([vx, vy]));
+      sync(); update();
+    },
+  });
+
+  var ctl = Lab.$('#ctl');
+  var s1m = Lab.slider(ctl, { label: 'F₁ size', min: 0, max: 8, step: 0.5, value: 4, unit: 'N', onInput: function (v) { st.f1.m = v; update(); } });
+  var s1a = Lab.slider(ctl, { label: 'F₁ direction', min: 0, max: 355, step: 5, value: 0, unit: '°', onInput: function (v) { st.f1.a = v; update(); } });
+  var s2m = Lab.slider(ctl, { label: 'F₂ size', min: 0, max: 8, step: 0.5, value: 3, unit: 'N', onInput: function (v) { st.f2.m = v; update(); } });
+  var s2a = Lab.slider(ctl, { label: 'F₂ direction', min: 0, max: 355, step: 5, value: 90, unit: '°', onInput: function (v) { st.f2.a = v; update(); } });
+  function sync() { s1m.set(st.f1.m, true); s1a.set(st.f1.a, true); s2m.set(st.f2.m, true); s2a.set(st.f2.a, true); }
+  Lab.$('#ctl').insertAdjacentHTML('beforeend', '<p class="note" style="margin:8px 0 0">Directions are measured anticlockwise from the positive x-axis (east).</p>');
+
+  Lab.seg(Lab.$('#mode'), { label: 'Method', value: 'para', options: [['para', 'Parallelogram'], ['tip', 'Tip-to-tail (triangle)']], onChange: function (v) { st.mode = v; st.seen[v] = true; update(); } });
+  var opts = Lab.$('#opts');
+  opts.innerHTML = '<label class="check"><input type="checkbox" id="cb-comp"> Show components</label><label class="check"><input type="checkbox" id="cb-eq"> Show equilibrant</label>';
+  Lab.$('#cb-comp').addEventListener('change', function (e) { st.comps = e.target.checked; update(); });
+  Lab.$('#cb-eq').addEventListener('change', function (e) { st.equil = e.target.checked; update(); });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Set F₁ = 4 N east (0°) and F₂ = 3 N north (90°). Is the resultant 7 N?', s: 'No! At right angles it is √(4² + 3²) = 5 N.', ok: function () { var r = mag(res()); return Math.abs(r - 5) < 0.05 && Math.abs(Math.abs(st.f1.a - st.f2.a) - 90) < 1; } },
+    { t: 'Find the biggest possible resultant of 4 N and 3 N.', s: 'Point them the same way: 4 + 3 = 7 N.', ok: function () { return st.f1.m === 4 && st.f2.m === 3 && Math.abs(mag(res()) - 7) < 0.05; } },
+    { t: 'Find the smallest possible resultant of 4 N and 3 N.', s: 'Point them in opposite directions: 4 − 3 = 1 N.', ok: function () { return st.f1.m === 4 && st.f2.m === 3 && Math.abs(mag(res()) - 1) < 0.05; } },
+    { t: 'Make the resultant zero, so the object is in equilibrium.', s: 'Two equal forces in opposite directions.', ok: function () { return st.f1.m > 0 && mag(res()) < 0.05; } },
+    { t: 'Switch to tip-to-tail and turn on the equilibrant.', s: 'The equilibrant is equal in size and opposite in direction to the resultant.', ok: function () { return st.mode === 'tip' && st.equil; } },
+  ], { title: 'Add forces' });
+
+  function update() {
+    var a = xy(st.f1), b = xy(st.f2), r = res(), R = mag(r);
+    Lab.readout(Lab.$('#live'), [['Resultant R', Lab.dp(R, 2) + ' N', true], ['Direction of R', R > 0.05 ? Lab.dp(ang(r), 0) + '°' : '—'],
+      ['Equilibrant', R > 0.05 ? Lab.dp(R, 2) + ' N at ' + Lab.dp((ang(r) + 180) % 360, 0) + '°' : 'none needed'], ['Simple sum F₁ + F₂', (st.f1.m + st.f2.m).toFixed(1) + ' N']]);
+    Lab.math(Lab.$('#maths'), 'Show the maths: components', [
+      ['F₁ components', 'F₁x = ' + st.f1.m + ' cos ' + st.f1.a + '° = ' + Lab.dp(a[0], 2) + ' N, F₁y = ' + st.f1.m + ' sin ' + st.f1.a + '° = ' + Lab.dp(a[1], 2) + ' N'],
+      ['F₂ components', 'F₂x = ' + Lab.dp(b[0], 2) + ' N, F₂y = ' + Lab.dp(b[1], 2) + ' N'],
+      ['Add the components', 'Rx = ' + Lab.dp(r[0], 2) + ' N, Ry = ' + Lab.dp(r[1], 2) + ' N'],
+      ['Size of R (Pythagoras)', 'R = √(Rx² + Ry²) = <b>' + Lab.dp(R, 2) + ' N</b>'],
+    ]);
+    view.redraw();
+    T.update(st);
+  }
+  update();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'Which list contains only vectors?', o: ['mass, time, energy', 'force, velocity, acceleration', 'speed, distance, temperature', 'force, mass, speed'], a: 1, why: ' Force, velocity and acceleration all have a direction.' },
+    { q: 'Forces of 6 N and 8 N act at right angles. What is the size of the resultant?', n: 10, unit: 'N', why: ' R = √(6² + 8²) = √100 = 10 N.', hint: ' Use Pythagoras: R = √(6² + 8²).' },
+    { q: 'A 10 N force acts at 30° above the horizontal. What is its horizontal component? (cos 30° = 0.866)', n: 8.66, unit: 'N', why: ' Fx = F cos θ = 10 × 0.866 = 8.66 N.' },
+    { q: 'The equilibrant of a resultant force is…', o: ['the same as the resultant', 'equal in size but opposite in direction to the resultant', 'always zero', 'at right angles to the resultant'], a: 1, why: ' Adding the equilibrant makes the total force zero.' },
+  ]);
+})();
+</script>
+</body>
+</html>

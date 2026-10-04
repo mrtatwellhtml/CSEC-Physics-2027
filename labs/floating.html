@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Archimedes' Principle · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Lower an object on a spring balance into an overflow can. Upthrust equals the weight of liquid displaced. Floating and sinking. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="floating">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>When you put an object in water, the water pushes up on it. This push is the <b>upthrust</b>. That is why things feel lighter in a swimming pool.</p>
+    <p><b>Archimedes' principle:</b> the upthrust equals the <b>weight of liquid pushed aside (displaced)</b>. An object <b>floats</b> when the upthrust is big enough to equal its weight before it is completely under water.</p>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <div class="stage"><canvas id="cv" aria-label="An object hanging from a spring balance lowered into an overflow can, with the overflow collected on a scale"></canvas></div>
+    <div class="stack">
+      <section class="card"><h2>Controls</h2><div id="ctl"></div><div class="row" id="obj" style="margin-top:10px"></div><div class="row" id="liq" style="margin-top:8px"></div></section>
+      <section class="card"><h2>Readings</h2><div id="live"></div></section>
+    </div>
+  </div>
+  <section id="maths" style="margin-top:16px"></section>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c, g = 10, V = 5e-4, A = 5e-3, HB = 0.1; // block: 500 cm³, base 50 cm², height 10 cm
+  var OBJ = { wood: [600, 'Wood', '#D8B072'], plastic: [900, 'Plastic', '#7FB3D5'], alu: [2700, 'Aluminium', '#C7CDD4'], iron: [7900, 'Iron', '#6B6F76'] };
+  var LIQ = { water: [1000, 'Water'], salt: [1200, 'Salt water'], oil: [800, 'Oil'] };
+  var st = { obj: 'alu', liq: 'water', lower: 0, done: {}, floated: {} };
+  function Wt() { return OBJ[st.obj][0] * V * g; }
+  function state() {
+    var rhoL = LIQ[st.liq][0], dWant = st.lower * HB, W = Wt();
+    var dFloat = W / (rhoL * g * A);                    // depth at which upthrust = weight
+    var floats = dFloat < HB, d = floats ? Math.min(dWant, dFloat) : dWant;
+    var U = rhoL * g * A * d;
+    return { d: d, U: U, W: W, bal: Math.max(0, W - U), floats: floats, floating: floats && dWant >= dFloat - 1e-9, rhoL: rhoL };
+  }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var s = state(), cx = W * 0.36, can = { x: cx - 70, w: 140, top: H * 0.42, bot: H - 30 }, ppm = 900 * (H / 440);
+    var waterTop = can.top + 26, bw = 60, bh = HB * ppm;
+    // spring balance
+    ctx.fillStyle = c('surface'); ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; Lab.roundRect(ctx, cx - 18, 10, 36, 90, 6); ctx.fill(); ctx.stroke();
+    var frac = Math.min(1, s.bal / 40);
+    for (var n = 0; n <= 40; n += 5) { var yy = 18 + n / 40 * 70; Lab.line(ctx, cx - 18, yy, cx - 8, yy, c('ink'), 1); if (n % 10 === 0) Lab.text(ctx, String(n), cx + 22, yy, { size: 10, kind: 'mono' }); }
+    Lab.line(ctx, cx - 18, 18 + frac * 70, cx + 4, 18 + frac * 70, c('no'), 3);
+    Lab.text(ctx, 'N', cx + 22, 6, { size: 10, color: c('muted') });
+    // block position: bottom of block at waterTop + d
+    var by = waterTop + s.d * ppm - bh;
+    if (st.lower === 0) by = waterTop - bh - 40 * (1 - 0);
+    Lab.line(ctx, cx, 100, cx, by, s.floating ? c('grid-strong') : c('ink'), 1.5, s.floating ? [4, 4] : null);
+    // overflow can + liquid
+    ctx.fillStyle = st.liq === 'oil' ? '#E3B341' : c('t6'); ctx.globalAlpha = 0.35; ctx.fillRect(can.x, waterTop, can.w, can.bot - waterTop); ctx.globalAlpha = 1;
+    ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(can.x, can.top); ctx.lineTo(can.x, can.bot); ctx.lineTo(can.x + can.w, can.bot); ctx.lineTo(can.x + can.w, can.top); ctx.stroke();
+    Lab.line(ctx, can.x + can.w, waterTop + 2, can.x + can.w + 40, waterTop + 18, c('ink'), 2);  // spout
+    ctx.fillStyle = OBJ[st.obj][2]; ctx.fillRect(cx - bw / 2, by, bw, bh); ctx.strokeStyle = c('ink'); ctx.strokeRect(cx - bw / 2, by, bw, bh);
+    if (s.U > 0.01) Lab.arrow(ctx, cx, by + bh + 26, cx, by + bh - 4, { color: c('ok'), width: 3, label: 'U', labelOff: 12 });
+    // catch beaker on scale
+    var bx = can.x + can.w + 30, bwid = 70, btop = H * 0.6, bbot = H - 46;
+    var vol = s.d * A, lev = vol / 6e-4 * (bbot - btop);
+    ctx.fillStyle = st.liq === 'oil' ? '#E3B341' : c('t6'); ctx.globalAlpha = 0.45; ctx.fillRect(bx, bbot - lev, bwid, lev); ctx.globalAlpha = 1;
+    ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(bx, btop); ctx.lineTo(bx, bbot); ctx.lineTo(bx + bwid, bbot); ctx.lineTo(bx + bwid, btop); ctx.stroke();
+    ctx.fillStyle = c('t0'); ctx.fillRect(bx - 10, bbot, bwid + 20, 18);
+    ctx.fillStyle = '#0b1a10'; ctx.fillRect(bx + 4, bbot + 3, bwid - 8, 12);
+    Lab.text(ctx, (s.U).toFixed(2) + ' N', bx + bwid / 2, bbot + 9, { color: '#4ef08a', kind: 'mono', size: 11, align: 'center' });
+    Lab.text(ctx, 'weight of liquid displaced', bx + bwid / 2, bbot + 28, { size: 11, align: 'center', color: c('muted') });
+    if (s.floating) { Lab.text(ctx, 'FLOATING', W * 0.74, 40, { weight: 700, size: 16, align: 'center', color: c('ok') }); Lab.text(ctx, 'balance reads 0,', W * 0.74, 62, { align: 'center', color: c('ok') }); Lab.text(ctx, 'so upthrust = weight', W * 0.74, 80, { align: 'center', color: c('ok') }); }
+  }, { ratio: 0.8, min: 360, max: 460 });
+
+  Lab.slider(Lab.$('#ctl'), { label: 'Lower the object into the liquid', min: 0, max: 1, step: 0.05, value: 0, fmt: function (v) { return Math.round(v * 100) + '% of its height'; }, onInput: function (v) { st.lower = v; update(); } });
+  Lab.seg(Lab.$('#obj'), { label: 'Object', value: 'alu', options: Object.keys(OBJ).map(function (k) { return [k, OBJ[k][1]]; }), onChange: function (v) { st.obj = v; update(); } });
+  Lab.seg(Lab.$('#liq'), { label: 'Liquid', value: 'water', options: Object.keys(LIQ).map(function (k) { return [k, LIQ[k][1]]; }), onChange: function (v) { st.liq = v; update(); } });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Lower the aluminium block completely into water. Compare the loss in weight with the weight of water displaced.', s: 'They are equal: that is Archimedes\' principle.', ok: function (s) { return s.done['alu/water']; } },
+    { t: 'Do the same in salt water. Is the upthrust bigger or smaller?', s: 'Denser liquid → bigger upthrust.', ok: function (s) { return s.done['alu/salt']; } },
+    { t: 'Make the wooden block float in water.', s: 'The balance reads 0 and the block is only partly under water.', ok: function (s) { return s.floated['wood/water']; } },
+    { t: 'Find an object that floats in water but sinks in oil.', s: 'Its density must be between 800 and 1000 kg/m³.', ok: function (s) { return s.floated['plastic/water'] && s.done['plastic/oil']; } },
+  ], { title: 'Test Archimedes\' principle' });
+
+  function update() {
+    var s = state();
+    if (st.lower >= 1 && !s.floats) st.done[st.obj + '/' + st.liq] = true;
+    if (s.floating) st.floated[st.obj + '/' + st.liq] = true;
+    Lab.readout(Lab.$('#live'), [['Weight in air', s.W.toFixed(2) + ' N'], ['Spring balance reading', s.bal.toFixed(2) + ' N', true], ['Loss in weight = upthrust', s.U.toFixed(2) + ' N'],
+      ['Weight of liquid displaced', s.U.toFixed(2) + ' N'], ['Part under the liquid', Math.round(s.d / HB * 100) + '%']]);
+    var steps = [['Volume under the liquid', 'V = ' + Math.round(s.d / HB * 100) + '% of 500 cm³ = ' + Math.round(s.d * A * 1e6) + ' cm³ = ' + Lab.sci(s.d * A, 2) + ' m³'],
+      ['Mass of liquid displaced', 'm = ρV = ' + s.rhoL + ' × ' + Lab.sci(s.d * A, 2) + ' = ' + Lab.sf(s.rhoL * s.d * A, 3) + ' kg'],
+      ['Upthrust = weight of liquid displaced', 'U = mg = <b>' + s.U.toFixed(2) + ' N</b>'],
+      ['Balance reading', 'weight − upthrust = ' + s.W.toFixed(2) + ' − ' + s.U.toFixed(2) + ' = <b>' + s.bal.toFixed(2) + ' N</b>']];
+    if (s.floats) steps.push(['Floats?', 'Yes. Object density ' + OBJ[st.obj][0] + ' < liquid density ' + s.rhoL + ' kg/m³, so it floats with ' + Math.round(OBJ[st.obj][0] / s.rhoL * 100) + '% under the liquid']);
+    else steps.push(['Floats?', 'No. Object density ' + OBJ[st.obj][0] + ' > liquid density ' + s.rhoL + ' kg/m³, so even fully under, U < W']);
+    Lab.math(Lab.$('#maths'), 'Show the maths', steps);
+    view.redraw(); T.update(st);
+  }
+  update();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A stone weighs 6.0 N in air and 4.0 N in water. What is the upthrust?', n: 2, unit: 'N', why: ' Upthrust = loss in weight = 6.0 − 4.0 = 2.0 N.' },
+    { q: 'For a floating object, the upthrust is…', o: ['greater than its weight', 'equal to its weight', 'less than its weight', 'zero'], a: 1, why: ' Balanced forces: it neither rises nor sinks.' },
+    { q: 'A steel ship floats although steel is denser than water because…', o: ['steel is less dense in sea water', 'its hollow hull displaces a large volume of water, so the upthrust equals its weight', 'the engines push it up', 'air pushes it up'], a: 1, why: ' The ship\'s average density (steel + air) is less than the density of water.' },
+    { q: 'A ship moves from a river into the sea (denser water). It will…', o: ['sink lower', 'rise slightly higher', 'stay exactly the same', 'sink'], a: 1, why: ' Denser water gives the same upthrust with less volume displaced.' },
+  ]);
+})();
+</script>
+</body>
+</html>

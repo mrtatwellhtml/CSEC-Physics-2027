@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Magnetic Fields · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Field lines around bar magnets, a straight wire and a solenoid. Plot them with a compass and make an electromagnet stronger. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="magnetism">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>A <b>magnetic field</b> is the region around a magnet where magnetic materials feel a force. Field lines show which way a compass's north end points: <b>out of N, into S</b>. Where the lines are close together, the field is strong.</p>
+    <p>An <b>electric current makes a magnetic field</b> too. That is how an <b>electromagnet</b> works, and you can switch it off.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="mode"></div>
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage"><canvas id="cv" aria-label="Magnetic field lines with a compass you can drag"></canvas><p class="cap" id="cap"></p></div>
+    <div class="stack">
+      <section class="card"><h2>Controls</h2><div id="ctl"></div></section>
+      <section class="card" id="explain"></section>
+    </div>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var st = { mode: 'bar', pair: 'attract', out: true, flipped: false, compass: [0.75, 0.25], grid: false, N: 40, I: 1.5, core: false, moved: 0, seen: {} };
+  var poles = [];
+  function setup(W, H) {
+    var cx = W / 2, cy = H / 2, d = Math.min(W, H) * 0.18;
+    if (st.mode === 'bar') poles = [{ x: cx + d, y: cy, q: 1 }, { x: cx - d, y: cy, q: -1 }];
+    else if (st.mode === 'two') { var g = W * 0.08, L = W * 0.14; poles = st.pair === 'attract' ? [{ x: cx - g - 2 * L, y: cy, q: -1 }, { x: cx - g, y: cy, q: 1 }, { x: cx + g, y: cy, q: -1 }, { x: cx + g + 2 * L, y: cy, q: 1 }] : [{ x: cx - g - 2 * L, y: cy, q: -1 }, { x: cx - g, y: cy, q: 1 }, { x: cx + g, y: cy, q: 1 }, { x: cx + g + 2 * L, y: cy, q: -1 }]; }
+    else if (st.mode === 'sol') { var s = st.flipped ? -1 : 1; poles = [{ x: cx + W * 0.2, y: cy, q: s }, { x: cx - W * 0.2, y: cy, q: -s }]; }
+    else poles = [];
+  }
+  function B(x, y) {
+    if (st.mode === 'wire') { var dx = x - view.W / 2, dy = y - view.H / 2, r2 = dx * dx + dy * dy + 40, s = st.out ? 1 : -1; return [s * dy / r2 * 400, -s * dx / r2 * 400]; }
+    var bx = 0, by = 0;
+    poles.forEach(function (p) { var dx = x - p.x, dy = y - p.y, r2 = dx * dx + dy * dy + 60, r = Math.sqrt(r2); bx += p.q * dx / (r2 * r); by += p.q * dy / (r2 * r); });
+    return [bx, by];
+  }
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    setup(W, H);
+    var cx = W / 2, cy = H / 2;
+    ctx.strokeStyle = c('accent'); ctx.lineWidth = 1.5;
+    if (st.mode === 'wire') {
+      for (var r = 30; r < Math.max(W, H); r += 26 + r * 0.15) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.stroke(); var a = st.out ? -Math.PI / 2 : Math.PI / 2; Lab.arrow(ctx, cx + r - 1, cy - 6 * (st.out ? -1 : 1), cx + r, cy + 6 * (st.out ? -1 : 1) * -1, { color: c('accent'), width: 1.5, head: 8 }); }
+      Lab.dot(ctx, cx, cy, 14, c('surface'), c('pop'));
+      if (st.out) Lab.dot(ctx, cx, cy, 4, c('pop')); else { Lab.line(ctx, cx - 7, cy - 7, cx + 7, cy + 7, c('pop'), 2.5); Lab.line(ctx, cx + 7, cy - 7, cx - 7, cy + 7, c('pop'), 2.5); }
+      Lab.text(ctx, st.out ? 'current OUT of the page (•): field anticlockwise' : 'current INTO the page (×): field clockwise', W / 2, 18, { align: 'center', weight: 700 });
+    } else {
+      poles.filter(function (p) { return p.q > 0; }).forEach(function (p) {
+        for (var k = 0; k < 14; k++) {
+          var a2 = k / 14 * Math.PI * 2, x = p.x + Math.cos(a2) * 12, y = p.y + Math.sin(a2) * 12, pts = [[x, y]];
+          for (var s = 0; s < 700; s++) { var b = B(x, y), m = Math.hypot(b[0], b[1]) || 1; x += b[0] / m * 3; y += b[1] / m * 3; pts.push([x, y]); if (x < -50 || y < -50 || x > W + 50 || y > H + 50) break; if (poles.some(function (o) { return o.q < 0 && Math.hypot(o.x - x, o.y - y) < 10; })) break; }
+          ctx.beginPath(); pts.forEach(function (q, i) { if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); }); ctx.stroke();
+          var mi = Math.min(pts.length - 2, 40); if (mi > 2) Lab.arrow(ctx, pts[mi - 2][0], pts[mi - 2][1], pts[mi + 1][0], pts[mi + 1][1], { color: c('accent'), width: 1.5, head: 8 });
+        }
+      });
+      // magnets / solenoid body
+      if (st.mode === 'sol') {
+        var l = poles[1].x, rgt = poles[0].x;
+        for (var t = 0; t < 12; t++) { var x2 = l + (rgt - l) * t / 11; ctx.strokeStyle = c('pop'); ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x2, cy, 7, 34, 0, 0, 7); ctx.stroke(); }
+        if (st.core) { ctx.fillStyle = c('t0'); ctx.globalAlpha = 0.5; ctx.fillRect(l, cy - 12, rgt - l, 24); ctx.globalAlpha = 1; }
+        Lab.text(ctx, st.flipped ? 'S' : 'N', rgt + 18, cy, { weight: 700, size: 18, color: c('no'), align: 'center' }); Lab.text(ctx, st.flipped ? 'N' : 'S', l - 18, cy, { weight: 700, size: 18, color: c('t2'), align: 'center' });
+        var clips = strength() * 20 | 0;
+        for (var p2 = 0; p2 < Math.min(clips, 14); p2++) { ctx.strokeStyle = c('muted'); ctx.lineWidth = 2; Lab.roundRect(ctx, rgt + 30 + (p2 % 7) * 12, cy + 20 + Math.floor(p2 / 7) * 22, 8, 18, 4); ctx.stroke(); }
+        Lab.text(ctx, 'paperclips picked up: ' + clips, rgt + 30, cy + 76, { size: 12 });
+      } else {
+        for (var m2 = 0; m2 < poles.length; m2 += 2) {
+          var a3 = poles[m2], b3 = poles[m2 + 1], lft = Math.min(a3.x, b3.x), wdt = Math.abs(a3.x - b3.x);
+          ctx.fillStyle = a3.x < b3.x ? (a3.q > 0 ? c('no') : c('t2')) : (b3.q > 0 ? c('no') : c('t2')); ctx.fillRect(lft - 8, cy - 16, wdt / 2 + 8, 32);
+          ctx.fillStyle = a3.x < b3.x ? (b3.q > 0 ? c('no') : c('t2')) : (a3.q > 0 ? c('no') : c('t2')); ctx.fillRect(lft + wdt / 2, cy - 16, wdt / 2 + 8, 32);
+          [a3, b3].forEach(function (p) { Lab.text(ctx, p.q > 0 ? 'N' : 'S', p.x + (p.x > (a3.x + b3.x) / 2 ? -2 : 2), cy, { color: '#fff', weight: 700, size: 16, align: 'center' }); });
+        }
+      }
+    }
+    // plotting compasses
+    function compass(x, y, size) {
+      var b = B(x, y), a = Math.atan2(b[1], b[0]);
+      Lab.dot(ctx, x, y, size, c('surface'), c('ink'));
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+      ctx.fillStyle = c('no'); ctx.beginPath(); ctx.moveTo(size - 3, 0); ctx.lineTo(0, -size * 0.28); ctx.lineTo(0, size * 0.28); ctx.fill();
+      ctx.fillStyle = c('t0'); ctx.beginPath(); ctx.moveTo(-size + 3, 0); ctx.lineTo(0, -size * 0.28); ctx.lineTo(0, size * 0.28); ctx.fill();
+      ctx.restore();
+    }
+    if (st.grid) for (var gx = 40; gx < W; gx += 60) for (var gy = 30; gy < H; gy += 56) compass(gx, gy, 10);
+    compass(st.compass[0] * W, st.compass[1] * H, 18);
+  }, { ratio: 0.62, min: 320, max: 440 });
+
+  Lab.drag(view.cv, {
+    down: function (x, y) { return Math.hypot(x - st.compass[0] * view.W, y - st.compass[1] * view.H) < 26 ? 1 : null; },
+    move: function (t, x, y) { st.compass = [Lab.clamp(x / view.W, 0.03, 0.97), Lab.clamp(y / view.H, 0.04, 0.96)]; st.moved++; view.redraw(); T.update(st); },
+    hover: function (x, y) { return Math.hypot(x - st.compass[0] * view.W, y - st.compass[1] * view.H) < 26; },
+  });
+  function strength() { return st.N / 100 * st.I / 3 * (st.core ? 1 : 0.15); }
+
+  function build() {
+    var ctl = Lab.$('#ctl'); ctl.innerHTML = '';
+    ctl.insertAdjacentHTML('beforeend', '<label class="check"><input type="checkbox" id="grid"' + (st.grid ? ' checked' : '') + '> Show many plotting compasses</label>');
+    Lab.$('#grid').addEventListener('change', function (e) { st.grid = e.target.checked; view.redraw(); });
+    var r = Lab.el('div', { class: 'row', style: 'margin-top:8px' }); ctl.appendChild(r);
+    if (st.mode === 'two') Lab.seg(r, { label: 'Facing poles', value: st.pair, options: [['attract', 'N facing S (attract)'], ['repel', 'N facing N (repel)']], onChange: function (v) { st.pair = v; st.seen[v] = true; update(); } });
+    if (st.mode === 'wire') Lab.button(r, 'Reverse the current', function () { st.out = !st.out; st.seen.rev = true; update(); });
+    if (st.mode === 'sol') {
+      Lab.button(r, 'Reverse the current', function () { st.flipped = !st.flipped; st.seen.solrev = true; update(); });
+      Lab.slider(ctl, { label: 'Number of turns', min: 10, max: 100, step: 10, value: st.N, onInput: function (v) { st.N = v; update(); } });
+      Lab.slider(ctl, { label: 'Current', min: 0.5, max: 3, step: 0.5, value: st.I, unit: 'A', onInput: function (v) { st.I = v; update(); } });
+      ctl.insertAdjacentHTML('beforeend', '<label class="check"><input type="checkbox" id="core"' + (st.core ? ' checked' : '') + '> Soft iron core</label>');
+      Lab.$('#core').addEventListener('change', function (e) { st.core = e.target.checked; update(); });
+    }
+  }
+  var EXPL = {
+    bar: '<h2>Bar magnet</h2><p style="margin:0">Field lines go from the <b>N pole to the S pole</b> outside the magnet. The field is strongest at the poles, where the lines are closest. A plotting compass lines up with the field, with its N end pointing along the arrows.</p>',
+    two: '<h2>Two magnets</h2><p style="margin:0"><b>Unlike poles attract</b>: the lines join straight across. <b>Like poles repel</b>: the lines push away from each other, leaving a <b>neutral point</b> in the middle where the field is zero.</p>',
+    wire: '<h2>Straight wire</h2><p style="margin:0">The field is a set of <b>circles</b> around the wire, getting weaker further away. <b>Right-hand grip rule</b>: point your right thumb along the current, and your fingers curl the way the field goes.</p>',
+    sol: '<h2>Solenoid (a coil)</h2><p style="margin:0">Outside, the field looks like a <b>bar magnet\'s</b>. Inside, it is strong and uniform. Make an electromagnet <b>stronger</b> with <b>more turns</b>, <b>more current</b> and a <b>soft iron core</b>. Soft iron loses its magnetism as soon as the current stops, so you can switch the magnet off.</p>',
+  };
+  Lab.seg(Lab.$('#mode'), { label: 'Field', value: 'bar', options: [['bar', 'Bar magnet'], ['two', 'Two magnets'], ['wire', 'Straight wire'], ['sol', 'Solenoid']], onChange: function (v) { st.mode = v; st.seen[v] = true; build(); update(); } });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Drag the compass all the way around the bar magnet. Which way does its N end point?', s: 'Along the field lines, from N to S.', ok: function (s) { return s.moved > 20; } },
+    { t: 'Find the neutral point between two like poles.', s: 'The point where the field is zero, in the middle.', ok: function (s) { return s.seen.repel; } },
+    { t: 'Look at the field of a straight wire, then reverse the current.', ok: function (s) { return s.seen.rev; } },
+    { t: 'Make the electromagnet pick up at least 10 paperclips.', s: 'More turns, more current and an iron core.', ok: function (s) { return s.mode === 'sol' && strength() * 20 >= 10; } },
+  ], { title: 'Map magnetic fields' });
+
+  function update() { Lab.$('#explain').innerHTML = EXPL[st.mode]; Lab.$('#cap').textContent = 'Drag the big compass to plot the field.'; view.redraw(); T.update(st); }
+  build(); update();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'Which material is used for the core of an electromagnet?', o: ['Steel', 'Soft iron', 'Copper', 'Aluminium'], a: 1, why: ' Soft iron magnetises strongly but loses its magnetism easily when the current stops.' },
+    { q: 'Outside a bar magnet, field lines go…', o: ['from S to N', 'from N to S', 'in circles around the middle', 'nowhere'], a: 1, why: ' They point the way a compass N pole would be pushed.' },
+    { q: 'Which change would NOT make an electromagnet stronger?', o: ['more turns of wire', 'a bigger current', 'adding a soft iron core', 'using thicker insulation'], a: 3, why: ' Insulation does not affect the magnetic field.' },
+  ]);
+})();
+</script>
+</body>
+</html>

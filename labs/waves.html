@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wave Workshop · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Transverse and longitudinal waves: change amplitude, frequency and wavelength, see v = fλ and the two wave graphs. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="waves">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>A wave carries <b>energy</b> from place to place, but the material it travels through does <b>not</b> travel with it. Watch the red particle: it only moves back and forth around one spot.</p>
+    <p><b>Transverse</b>: particles vibrate at right angles to the direction the wave travels (light, water waves). <b>Longitudinal</b>: particles vibrate along the direction of travel, making compressions and rarefactions (sound).</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="type"></div>
+  <div class="stage" style="margin-top:12px">
+    <canvas id="cv" aria-label="A row of particles carrying a wave from left to right"></canvas>
+    <div class="row" style="margin-top:8px" id="btns"></div>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <section class="card"><h2>Wave controls</h2><div id="ctl"></div><label class="check"><input type="checkbox" id="fixv"> Same medium (keep the speed v fixed)</label></section>
+    <section id="maths"></section>
+  </div>
+
+  <div class="split" style="margin-top:16px">
+    <section class="stage"><canvas id="g1" aria-label="Displacement against distance graph"></canvas><p class="cap"><b>Displacement–distance</b> (a snapshot). Peak to peak = <b>wavelength λ</b>.</p></section>
+    <section class="stage"><canvas id="g2" aria-label="Displacement against time graph for the red particle"></canvas><p class="cap"><b>Displacement–time</b> (the red particle). Peak to peak = <b>period T</b>.</p></section>
+  </div>
+
+  <div class="watch" style="margin-top:16px"><strong class="lbl">Common mistake</strong>
+    <p>The two graphs look the same. Always read the x-axis label first: <b>distance</b> on the axis means you can read λ, <b>time</b> on the axis means you can read T (then f = 1 ÷ T). Amplitude is measured from the <b>middle line to a crest</b>, not from a crest to a trough.</p>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var st = { type: 'trans', A: 2, f: 1, lam: 4, t: 0, fixV: false, v: 4, seen: {}, hist: [] };
+  var XMAX = 12;   // metres shown
+  function disp(x, t) { return st.A * Math.sin(2 * Math.PI * (x / st.lam - st.f * t)); }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var ppm = (W - 40) / XMAX, x0 = 20, mid = H / 2, ppa = Math.min(26, (H / 2 - 40) / 3.5);
+    Lab.line(ctx, x0, mid, W - 20, mid, c('grid-strong'), 1, [5, 5]);
+    var n = st.type === 'trans' ? 60 : 90, red = Math.round(n * 0.25);
+    for (var i = 0; i < n; i++) {
+      var x = i / (n - 1) * XMAX, d = disp(x, st.t), px, py;
+      if (st.type === 'trans') { px = x0 + x * ppm; py = mid - d * ppa; }
+      else { px = x0 + (x + d * 0.18) * ppm; py = mid; }
+      if (st.type === 'long') Lab.line(ctx, px, mid - 50, px, mid + 50, i === red ? c('no') : c('t6'), i === red ? 3 : 1.5);
+      else Lab.dot(ctx, px, py, i === red ? 7 : 5, i === red ? c('no') : c('t6'));
+    }
+    if (st.type === 'trans' && st.marks) {
+      // crest, trough, λ and A markers based on the current snapshot
+      var phase = st.f * st.t, xc = ((0.25 + phase) * st.lam) % st.lam;   // first crest position
+      if (xc < 0.5) xc += st.lam;
+      Lab.text(ctx, 'crest', x0 + xc * ppm, mid - st.A * ppa - 14, { align: 'center', weight: 700, size: 12, color: c('pop') });
+      if (xc + st.lam / 2 < XMAX) Lab.text(ctx, 'trough', x0 + (xc + st.lam / 2) * ppm, mid + st.A * ppa + 16, { align: 'center', weight: 700, size: 12, color: c('pop') });
+      if (xc + st.lam < XMAX) {
+        var yT = mid - st.A * ppa - 34;
+        Lab.arrow(ctx, x0 + xc * ppm, yT, x0 + (xc + st.lam) * ppm, yT, { color: c('accent'), width: 2, head: 8 });
+        Lab.arrow(ctx, x0 + (xc + st.lam) * ppm, yT, x0 + xc * ppm, yT, { color: c('accent'), width: 2, head: 8 });
+        Lab.text(ctx, 'λ = ' + st.lam.toFixed(1) + ' m', x0 + (xc + st.lam / 2) * ppm, yT - 12, { align: 'center', weight: 700, color: c('accent') });
+      }
+      Lab.arrow(ctx, x0 + xc * ppm + 10, mid, x0 + xc * ppm + 10, mid - st.A * ppa, { color: c('ok'), width: 2, head: 7 });
+      Lab.text(ctx, 'A', x0 + xc * ppm + 16, mid - st.A * ppa / 2, { weight: 700, color: c('ok') });
+    }
+    if (st.type === 'long' && st.marks) {
+      // compression where particles bunch (displacement gradient most negative)
+      // compressions where neighbouring particles bunch together: phase x/λ − ft = ½ (+ whole numbers)
+      var base = ((st.lam * (st.f * st.t + 0.5)) % st.lam + st.lam) % st.lam;
+      for (var xc2 = base; xc2 < XMAX; xc2 += st.lam) Lab.text(ctx, 'C', x0 + xc2 * ppm, mid - 62, { align: 'center', weight: 700, color: c('pop') });
+      for (var xr2 = (base + st.lam / 2) % st.lam; xr2 < XMAX; xr2 += st.lam) Lab.text(ctx, 'R', x0 + xr2 * ppm, mid - 62, { align: 'center', weight: 700, color: c('t2') });
+      Lab.text(ctx, 'C = compression (particles close)   R = rarefaction (particles spread out)', W / 2, H - 14, { align: 'center', size: 12, color: c('muted') });
+    }
+    Lab.arrow(ctx, W - 120, 18, W - 30, 18, { color: c('muted'), width: 2, head: 8 });
+    Lab.text(ctx, 'wave travels →', W - 124, 18, { align: 'right', size: 12, color: c('muted') });
+  }, { ratio: 0.32, min: 200, max: 300 });
+
+  function graph(id, kind) {
+    return Lab.canvas(Lab.$('#' + id), function (ctx, W, H) {
+      var a = kind === 'x' ? Lab.axes(ctx, { x: 40, y: 20, w: W - 56, h: H - 56 }, { xmin: 0, xmax: XMAX, ymin: -4, ymax: 4, xstep: 1, ystep: 1, xlabel: 'distance / m', ylabel: 'displacement / cm' })
+        : Lab.axes(ctx, { x: 40, y: 20, w: W - 56, h: H - 56 }, { xmin: 0, xmax: 4, ymin: -4, ymax: 4, xstep: 0.5, ystep: 1, xlabel: 'time / s', ylabel: 'displacement / cm' });
+      ctx.strokeStyle = kind === 'x' ? c('t6') : c('no'); ctx.lineWidth = 2.5; ctx.beginPath();
+      var xr = 0.25 * XMAX;
+      for (var i = 0; i <= 200; i++) {
+        var u = i / 200 * (kind === 'x' ? XMAX : 4), d = kind === 'x' ? disp(u, st.t) : st.A * Math.sin(2 * Math.PI * (xr / st.lam - st.f * u));
+        if (i) ctx.lineTo(a.X(u), a.Y(d)); else ctx.moveTo(a.X(u), a.Y(d));
+      }
+      ctx.stroke();
+      if (kind === 'x') Lab.dot(ctx, a.X(xr), a.Y(disp(xr, st.t)), 5, c('no'));
+    }, { ratio: 0.6, min: 220, max: 300 });
+  }
+  var g1 = graph('g1', 'x'), g2 = graph('g2', 't');
+
+  var anim = Lab.loop(function (dt) { st.t += dt * 0.5; view.redraw(); g1.redraw(); });
+  st.marks = true;
+
+  Lab.seg(Lab.$('#type'), { label: 'Wave type', value: 'trans', options: [['trans', 'Transverse'], ['long', 'Longitudinal']], onChange: function (v) { st.type = v; st.seen[v] = true; update(); } });
+  var bb = Lab.$('#btns');
+  var playB = Lab.button(bb, 'Pause', function () { if (anim.running) { anim.stop(); playB.textContent = 'Play'; } else { anim.start(); playB.textContent = 'Pause'; } }, true);
+  Lab.button(bb, 'Step', function () { st.t += 0.05; view.redraw(); g1.redraw(); }, true);
+  var mk = Lab.button(bb, 'Labels: on', function () { st.marks = !st.marks; mk.textContent = 'Labels: ' + (st.marks ? 'on' : 'off'); view.redraw(); }, true);
+
+  var ctl = Lab.$('#ctl');
+  var aS = Lab.slider(ctl, { label: 'Amplitude A', min: 0.5, max: 3.5, step: 0.5, value: 2, unit: 'cm', onInput: function (v) { st.A = v; update(); } });
+  var fS = Lab.slider(ctl, { label: 'Frequency f', min: 0.25, max: 2, step: 0.25, value: 1, unit: 'Hz', onInput: function (v) { st.f = v; if (st.fixV) { st.lam = Lab.clamp(st.v / v, 1, 8); lS.set(st.lam, true); } st.seen['f' + v] = true; update(); } });
+  var lS = Lab.slider(ctl, { label: 'Wavelength λ', min: 1, max: 8, step: 0.5, value: 4, unit: 'm', onInput: function (v) { st.lam = v; if (st.fixV) { st.f = Lab.clamp(st.v / v, 0.25, 2); fS.set(Math.round(st.f * 4) / 4, true); st.f = Math.round(st.f * 4) / 4; } update(); } });
+  Lab.$('#fixv').addEventListener('change', function (e) { st.fixV = e.target.checked; st.v = st.f * st.lam; if (st.fixV) st.usedFix = true; update(); });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Watch the red particle. Does it travel along with the wave?', s: 'No. It moves up and down about one spot. Only energy is carried along.', ok: function (s) { return s.t > 6; } },
+    { t: 'Switch to a longitudinal wave and find the compressions and rarefactions.', ok: function (s) { return s.seen.long; } },
+    { t: 'Set f = 2 Hz and λ = 2 m. What is the wave speed?', s: 'v = fλ = 2 × 2 = 4 m/s.', ok: function (s) { return s.f === 2 && s.lam === 2; } },
+    { t: 'Tick "Same medium" and double the frequency. What happens to the wavelength?', s: 'It halves: v stays the same, so if f doubles, λ halves.', ok: function (s) { return s.usedFix && s.seen.f2 && s.fixV; } },
+  ], { title: 'Investigate waves' });
+
+  function update() {
+    var v = st.f * st.lam, Tp = 1 / st.f;
+    Lab.math(Lab.$('#maths'), 'Show the maths', [
+      ['Period', 'T = 1 ÷ f = 1 ÷ ' + st.f + ' = <b>' + Lab.sf(Tp, 3) + ' s</b> (the time for one complete wave)'],
+      ['Wave equation', 'v = f × λ = ' + st.f + ' × ' + st.lam + ' = <b>' + Lab.sf(v, 3) + ' m/s</b>'],
+      ['Amplitude', 'A = <b>' + st.A + ' cm</b> (bigger A = more energy; a louder sound or brighter light)'],
+    ]);
+    view.redraw(); g1.redraw(); g2.redraw(); T.update(st);
+  }
+  update();
+  setInterval(function () { T.update(st); }, 1000);
+  if (!Lab.reducedMotion) anim.start(); else playB.textContent = 'Play';
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A wave has frequency 50 Hz and wavelength 6 m. What is its speed?', n: 300, unit: 'm/s', why: ' v = fλ = 50 × 6 = 300 m/s.' },
+    { q: 'A wave has a period of 0.02 s. What is its frequency?', n: 50, unit: 'Hz', why: ' f = 1 ÷ T = 1 ÷ 0.02 = 50 Hz.' },
+    { q: 'Sound is a longitudinal wave. This means the particles vibrate…', o: ['at right angles to the direction of travel', 'parallel to the direction of travel', 'in circles', 'not at all'], a: 1, why: ' Longitudinal waves make compressions and rarefactions along the direction of travel.' },
+    { q: 'Which graph lets you read the wavelength?', o: ['displacement–time', 'displacement–distance', 'velocity–time', 'distance–time'], a: 1, why: ' The distance between two crests on a displacement–distance graph is λ.' },
+  ]);
+})();
+</script>
+</body>
+</html>

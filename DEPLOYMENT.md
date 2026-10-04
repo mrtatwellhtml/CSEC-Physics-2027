@@ -1,6 +1,6 @@
 # Build and deployment
 
-The student workbook is a static site. Its GitHub Pages artifact contains only `index.html`, `teacher.html`, `config.js`, `assets/`, `data/` and `img/`; it excludes source workbooks, test code and build tools.
+The student workbook is a static site. Its GitHub Pages artifact contains only `index.html`, `teacher.html`, `config.js`, `assets/`, `data/`, `img/` and `labs/` (the interactive labs, Maths help and Formula coach); it excludes source workbooks, test code and build tools.
 
 ## First-time GitHub Pages setup
 

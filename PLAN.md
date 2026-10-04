@@ -373,3 +373,13 @@ Keep a `#printarea` like the reference site. "Print this lesson" renders a clean
 - Keep tutor-only content (`tutor_session_plan`, `tutor_notes`, `past_paper_suggestions`) out of the student pages.
 - Keep it fast. The first load (index + Home) must be under 300 KB before images.
 - Commit after each phase with a clear message. Ask me before deleting anything.
+
+## 16. Phase 10 — Labs, maths help and weak-student support (added 4 Oct 2026)
+Goal: take a very weak student from "I don't understand" → "I understand the idea" → "I can apply it" → CSEC questions.
+- **Labs** (`labs/<id>.html`, registry `labs/registry.js` → `window.WB_LABS`): one page per lab, built on the shared kit `labs/lab.js` + `labs/lab.css` (same tokens as the workbook). Every lab has: In simple words · a canvas simulation with controls (sliders always available as a keyboard alternative to dragging) · live "Show the maths" · "Try this" guided tasks that tick themselves (saved in `localStorage['csec-phys-2027-labs']`, separate from the workbook key) · a quick check · links back to the related lessons. `?from=<lessonId>` shows a "Back to Lesson N" button.
+- **Maths help** (`labs/maths.html#<skill>`): 12 skills (registry `window.WB_MATHS`), each with explanation, worked example and a generator of checked practice questions with full solutions.
+- **Formula coach** (`labs/formula-coach.html#<id>`, data `labs/formulas.js`): every workbook formula, each unknown, steps: formula → rearrange (with the reason) → substitute → answer + unit → check. Formula boxes and formula cards link to it through `WB_coachFor(tex)`.
+- **Support data** (`data/support.js` → `window.WB_SUPPORT[lessonId] = {simple, recap[], maths[]}`): authored for the site (not from `source/`, so the "do not change the physics" rule is respected: nothing in the books changes). Loaded lazily with the first book; optional (a failed load just hides it).
+- **Lesson layout** (unit lessons): goal → In simple words → Maths you need → Words to know → Warm-up → Learn (notes → Explore it in the lab → worked examples → Quick recap) → Try it → Practice → Exit check → Finish.
+- Home has a Labs/Maths help/Formula coach strip; the top bar links Labs and Maths help; book pages list their labs.
+

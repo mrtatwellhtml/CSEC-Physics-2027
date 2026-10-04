@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stability and Toppling · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Tilt an object and see when the line of action of its weight falls outside its base. Centre of gravity and stability. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="stability">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>The <b>centre of gravity</b> (C.G.) is the point where the whole weight of an object seems to act.</p>
+    <p>When you tilt an object, imagine a line going straight down from its C.G. While that line stays <b>inside the base</b>, the weight pulls the object back upright. Once the line falls <b>outside the base</b>, the weight turns it over, and it topples. A <b>wide base</b> and a <b>low C.G.</b> make an object more stable.</p>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <div class="stage">
+      <canvas id="cv" aria-label="A box tilted on one edge with a vertical line drawn down from its centre of gravity"></canvas>
+      <div id="tilt"></div>
+      <div class="row" id="btns" style="margin-top:8px"></div>
+    </div>
+    <div class="stack">
+      <section class="card"><h2>The object</h2><div class="row" id="preset"></div><div id="ctl"></div></section>
+      <section class="card"><h2>Readings</h2><div id="live"></div></section>
+    </div>
+  </div>
+
+  <section id="maths" style="margin-top:16px"></section>
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c, RAD = Math.PI / 180;
+  var st = { b: 0.6, h: 1.2, g: 0.5, ang: 0, falling: 0, fallen: false, toppled: 0, recovered: 0, maxCrit: 0 };
+  function cgH() { return st.h * st.g; }
+  function crit() { return Math.atan((st.b / 2) / cgH()) / RAD; }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var ground = H - 40, s = Math.min((H - 80) / 1.8, W / 3), px = W * 0.55;
+    Lab.line(ctx, 10, ground, W - 10, ground, c('ink'), 2);
+    ctx.save(); ctx.translate(px, ground); ctx.rotate(st.ang * RAD);
+    // box rotates about its right bottom corner (the pivot)
+    var bw = st.b * s, bh = st.h * s;
+    ctx.fillStyle = c('accent-soft'); ctx.strokeStyle = c('accent'); ctx.lineWidth = 2.5;
+    ctx.fillRect(-bw, -bh, bw, bh); ctx.strokeRect(-bw, -bh, bw, bh);
+    // heavy part shading near the C.G.
+    var gy = -cgH() * s;
+    ctx.restore();
+    // C.G. position in world coords
+    var a = st.ang * RAD, cx = px + (-bw / 2) * Math.cos(a) - gy * Math.sin(a), cy = ground + (-bw / 2) * Math.sin(a) + gy * Math.cos(a);
+    var outside = cx > px + 0.5;
+    Lab.line(ctx, cx, cy, cx, ground, outside ? c('no') : c('ok'), 2.5, [7, 5]);
+    Lab.arrow(ctx, cx, cy, cx, cy + 50, { color: outside ? c('no') : c('ok'), width: 3.5, label: 'W', labelOff: 14 });
+    Lab.dot(ctx, cx, cy, 7, c('pop'), c('ink'));
+    Lab.text(ctx, 'C.G.', cx - 12, cy - 12, { weight: 700, align: 'right' });
+    // base extent marker (pivot corner)
+    Lab.dot(ctx, px, ground, 5, c('ink'));
+    Lab.text(ctx, 'pivot (edge of base)', px + 8, ground + 16, { size: 12, color: c('muted') });
+    Lab.text(ctx, st.fallen ? 'TOPPLED!' : outside ? 'Weight line is OUTSIDE the base → it will topple' : 'Weight line is inside the base → it falls back', W / 2, 20, { weight: 700, align: 'center', color: outside || st.fallen ? c('no') : c('ok') });
+  }, { ratio: 0.75, min: 320, max: 460 });
+
+  var tiltS = Lab.slider(Lab.$('#tilt'), { label: 'Tilt angle', min: 0, max: 90, step: 1, value: 0, unit: '°', onInput: function (v) { st.ang = v; st.fallen = false; update(); } });
+  var bb = Lab.$('#btns');
+  Lab.button(bb, 'Let go', function () { letGo(); });
+  Lab.button(bb, 'Stand it up', function () { st.ang = 0; st.fallen = false; tiltS.set(0, true); update(); }, true);
+
+  var anim = Lab.loop(function (dt) {
+    var target = st.falling > 0 ? 90 : 0, speed = 120 * dt;
+    if (Math.abs(st.ang - target) <= speed) { st.ang = target; anim.stop(); if (st.falling > 0) { st.fallen = true; st.toppled++; } else st.recovered++; st.falling = 0; update(); }
+    else st.ang += st.ang > target ? -speed : speed;
+    tiltS.set(st.ang, true); view.redraw();
+  });
+  function letGo() {
+    if (st.ang === 0) return;
+    st.falling = st.ang > crit() ? 1 : -1;
+    anim.start();
+  }
+
+  var ctl = Lab.$('#ctl');
+  var bS = Lab.slider(ctl, { label: 'Width of base', min: 0.2, max: 1.2, step: 0.05, value: 0.6, unit: 'm', fmt: function (v) { return v.toFixed(2); }, onInput: function (v) { st.b = v; reset(); } });
+  var hS = Lab.slider(ctl, { label: 'Height', min: 0.4, max: 1.8, step: 0.05, value: 1.2, unit: 'm', fmt: function (v) { return v.toFixed(2); }, onInput: function (v) { st.h = v; reset(); } });
+  var gS = Lab.slider(ctl, { label: 'Height of C.G. (fraction of height)', min: 0.2, max: 0.8, step: 0.05, value: 0.5, fmt: function (v) { return v < 0.45 ? v.toFixed(2) + ' (heavy at the bottom)' : v > 0.55 ? v.toFixed(2) + ' (heavy at the top)' : v.toFixed(2) + ' (middle)'; }, onInput: function (v) { st.g = v; reset(); } });
+  function reset() { st.ang = 0; st.fallen = false; tiltS.set(0, true); update(); }
+  Lab.seg(Lab.$('#preset'), { label: 'Examples', value: '', options: [['bus', 'Double-decker bus'], ['car', 'Racing car'], ['lamp', 'Table lamp']], onChange: function (v) {
+    var p = { bus: [0.5, 1.8, 0.65], car: [1.2, 0.4, 0.3], lamp: [0.3, 1.4, 0.25] }[v];
+    bS.set(p[0], true); hS.set(p[1], true); gS.set(p[2], true); st.b = p[0]; st.h = p[1]; st.g = p[2]; reset();
+  } });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Tilt the box a little and press <b>Let go</b>. It falls back upright.', ok: function (s) { return s.recovered >= 1; } },
+    { t: 'Tilt it further and make it topple.', s: 'Watch the weight line cross the pivot.', ok: function (s) { return s.toppled >= 1; } },
+    { t: 'Make the critical angle bigger than 60° by changing only the C.G. height and the base width.', s: 'Lower C.G. + wider base = more stable.', ok: function (s) { return crit() > 60; } },
+    { t: 'Try the double-decker bus. Why are passengers not allowed to stand on the top deck?', s: 'More weight on top raises the C.G. and lowers the critical angle.', ok: function (s) { return Math.abs(s.h - 1.8) < 0.01 && Math.abs(s.b - 0.5) < 0.01; } },
+  ], { title: 'Make it topple, make it stable' });
+
+  function update() {
+    var cr = crit();
+    Lab.readout(Lab.$('#live'), [['Tilt', Math.round(st.ang) + '°'], ['Critical (toppling) angle', cr.toFixed(0) + '°', true], ['Stability', cr > 50 ? 'very stable' : cr > 30 ? 'fairly stable' : 'unstable, topples easily']]);
+    Lab.math(Lab.$('#maths'), 'Show the maths (extension)', [
+      ['Topples when the C.G. is directly above the pivot', 'tan θ = (half the base) ÷ (height of C.G.)'],
+      ['Substitute', 'tan θ = ' + (st.b / 2).toFixed(2) + ' ÷ ' + cgH().toFixed(2) + ' = ' + (st.b / 2 / cgH()).toFixed(2)],
+      ['Critical angle', 'θ = tan⁻¹(' + (st.b / 2 / cgH()).toFixed(2) + ') = <b>' + cr.toFixed(0) + '°</b>'],
+    ]);
+    view.redraw(); T.update(st);
+  }
+  update();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'Which change makes an object MORE stable?', o: ['Raising its centre of gravity', 'Making its base narrower', 'Lowering its centre of gravity', 'Adding weight to the top'], a: 2, why: ' A low C.G. must be tilted further before the weight line leaves the base.' },
+    { q: 'An object topples when the vertical line through its centre of gravity…', o: ['passes through the pivot', 'falls outside its base', 'is inside its base', 'is horizontal'], a: 1, why: ' The weight then has a moment that turns the object over.' },
+    { q: 'Why do racing cars have a wide wheelbase and a low body?', o: ['To go faster in a straight line', 'To be stable when cornering', 'To reduce their weight', 'To raise their centre of gravity'], a: 1, why: ' A wide base and a low C.G. give a large toppling angle.' },
+  ]);
+})();
+</script>
+</body>
+</html>

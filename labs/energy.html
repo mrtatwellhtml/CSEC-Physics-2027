@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Energy Skate Ramp · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Watch gravitational potential energy turn into kinetic energy on a skate ramp, add friction, and calculate work, power and efficiency. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="energy">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>Energy is never made or destroyed. It only changes from one form to another. This is the <b>law of conservation of energy</b>.</p>
+    <p>At the top of the ramp the skater has <b>gravitational potential energy</b> (GPE = mgh). Going down, it turns into <b>kinetic energy</b> (KE = ½mv²). With friction, some energy becomes <b>thermal energy</b> (heat), which is wasted, so the skater can't climb back as high.</p>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <div class="stage">
+      <canvas id="cv" aria-label="A skater on a U-shaped ramp with energy bar charts"></canvas>
+      <div class="row" style="margin-top:8px" id="btns"></div>
+    </div>
+    <div class="stack">
+      <section class="card"><h2>Set up</h2><div id="ctl"></div></section>
+      <section class="card"><h2>Live readings</h2><div id="live"></div></section>
+    </div>
+  </div>
+  <section id="maths" style="margin-top:16px"></section>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Work, power and efficiency: a motor lifting a load</h2>
+    <p class="note" style="margin-top:0">A motor lifts a load at a steady speed. <b>Useful work done = force × distance = mgh</b>. <b>Power = work ÷ time</b>. <b>Efficiency = useful energy out ÷ energy in × 100%</b>.</p>
+    <div class="lab-grid"><div id="pctl"></div><div id="pmath"></div></div>
+  </section>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c, g = 10, HW = 5;   // ramp: h = HMAX × (x/HW)², x from −HW to HW (metres)
+  var HMAX = 6;
+  var st = { m: 50, h0: 4, mu: 0, s: 0, v: 0, thermal: 0, running: false, maxV: 0, runs: {}, other: 0,
+    pm: 20, ph: 10, pt: 8, pin: 500 };
+  // arc-length table for the ramp
+  var N = 600, xs = [], ss = [];
+  (function () { var s = 0; for (var i = 0; i <= N; i++) { var x = -HW + 2 * HW * i / N; if (i) { var x0 = xs[i - 1]; s += Math.hypot(x - x0, hh(x) - hh(x0)); } xs.push(x); ss.push(s); } })();
+  function hh(x) { return HMAX * (x / HW) * (x / HW); }
+  function xOfS(s) { var lo = 0, hi = N; while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (ss[mid] < s) lo = mid; else hi = mid; } var f = (s - ss[lo]) / (ss[hi] - ss[lo] || 1); return xs[lo] + (xs[hi] - xs[lo]) * f; }
+  function sOfH(h) { var x = -HW * Math.sqrt(h / HMAX); var i = Math.round((x + HW) / (2 * HW) * N); return ss[i]; }
+  function startS() { return sOfH(st.h0); }
+  function E() { var x = xOfS(st.s), h = hh(x); return { h: h, gpe: st.m * g * h, ke: 0.5 * st.m * st.v * st.v, th: st.thermal, tot: st.m * g * st.h0 }; }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var rw = W * 0.64, ox = 16, base = H - 30, sx = rw / (2 * HW), sy = (H - 70) / HMAX;
+    function P(x, h) { return [ox + (x + HW) * sx, base - h * sy]; }
+    for (var hm = 0; hm <= HMAX; hm++) { var y = base - hm * sy; Lab.line(ctx, ox, y, ox + rw, y, c('grid'), 1); Lab.text(ctx, hm + ' m', ox + rw + 4, y, { size: 10, kind: 'mono', color: c('muted') }); }
+    ctx.strokeStyle = c('ink'); ctx.lineWidth = 4; ctx.beginPath();
+    for (var i = 0; i <= 120; i++) { var x = -HW + 2 * HW * i / 120, p = P(x, hh(x)); if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); } ctx.stroke();
+    // start height marker
+    var sp = P(-HW * Math.sqrt(st.h0 / HMAX), st.h0);
+    Lab.line(ctx, sp[0], sp[1], ox + rw, sp[1], c('pop'), 1.5, [6, 5]);
+    Lab.text(ctx, 'start height', ox + rw - 4, sp[1] - 10, { size: 11, color: c('pop'), align: 'right' });
+    var xk = xOfS(st.s), pk = P(xk, hh(xk));
+    Lab.dot(ctx, pk[0], pk[1] - 12, 11, c('accent'), c('ink'));
+    // bars
+    var e = E(), bx = ox + rw + 46, bw = (W - bx - 10) / 4 - 6, maxE = st.m * g * HMAX;
+    [['GPE', e.gpe, c('t2')], ['KE', e.ke, c('ok')], ['heat', e.th, c('no')], ['total', e.gpe + e.ke + e.th, c('t0')]].forEach(function (b, k) {
+      var x = bx + k * (bw + 6), hgt = b[1] / maxE * (H - 80);
+      ctx.fillStyle = b[2]; ctx.fillRect(x, base - hgt, bw, hgt);
+      Lab.text(ctx, b[0], x + bw / 2, base + 12, { size: 11, weight: 700, align: 'center' });
+      Lab.text(ctx, Math.round(b[1]) + ' J', x + bw / 2, base - hgt - 9, { size: 10, kind: 'mono', align: 'center' });
+    });
+    Lab.text(ctx, 'Energy (J)', bx, 14, { size: 12, weight: 700 });
+  }, { ratio: 0.55, min: 300, max: 420 });
+
+  var anim = Lab.loop(function (dt) {
+    var steps = 20, h = dt / steps;
+    for (var i = 0; i < steps; i++) {
+      var x = xOfS(st.s), dhdx = 2 * HMAX * x / (HW * HW), sec = Math.sqrt(1 + dhdx * dhdx), sinT = dhdx / sec, cosT = 1 / sec;
+      var a = -g * sinT;
+      if (st.mu > 0 && Math.abs(st.v) > 1e-4) a -= Math.sign(st.v) * st.mu * g * cosT;
+      var v2 = st.v + a * h;
+      if (st.mu > 0 && st.v !== 0 && Math.sign(v2) !== Math.sign(st.v) && Math.abs(sinT) < st.mu) v2 = 0;
+      st.thermal += st.mu * st.m * g * cosT * Math.abs(st.v) * h;
+      st.v = v2; st.s += st.v * h;
+      st.s = Lab.clamp(st.s, 0, ss[N]);
+    }
+    // keep total energy exact (removes numerical drift)
+    var e = E(), keFix = e.tot - e.gpe - e.th;
+    if (keFix >= 0) st.v = Math.sign(st.v || 1) * Math.sqrt(2 * keFix / st.m); else { st.v = 0; }
+    st.maxV = Math.max(st.maxV, Math.abs(st.v));
+    if (xOfS(st.s) > 0) st.other = Math.max(st.other, hh(xOfS(st.s)));
+    if (st.mu > 0 && Math.abs(st.v) < 0.02 && Math.abs(xOfS(st.s)) < 0.3) { anim.stop(); goB.textContent = 'Release'; }
+    view.redraw(); readings();
+  });
+  function reset() { anim.stop(); goB.textContent = 'Release'; st.s = startS(); st.v = 0; st.thermal = 0; st.maxV = 0; st.other = 0; view.redraw(); readings(); }
+  var bb = Lab.$('#btns');
+  var goB = Lab.button(bb, 'Release', function () {
+    if (anim.running) { anim.stop(); goB.textContent = 'Release'; } else { st.runs[st.h0 + '/' + st.mu] = true; anim.start(); goB.textContent = 'Pause'; }
+  });
+  Lab.button(bb, 'Reset', reset, true);
+  var ctl = Lab.$('#ctl');
+  Lab.slider(ctl, { label: 'Mass of skater m', min: 20, max: 80, step: 10, value: 50, unit: 'kg', onInput: function (v) { st.m = v; reset(); } });
+  Lab.slider(ctl, { label: 'Start height h', min: 1, max: 6, step: 0.5, value: 4, unit: 'm', onInput: function (v) { st.h0 = v; reset(); } });
+  Lab.slider(ctl, { label: 'Friction', min: 0, max: 0.15, step: 0.05, value: 0, fmt: function (v) { return v === 0 ? 'none' : v < 0.06 ? 'a little' : v < 0.11 ? 'some' : 'lots'; }, onInput: function (v) { st.mu = v; reset(); } });
+
+  function readings() {
+    var e = E();
+    Lab.readout(Lab.$('#live'), [['Height now', e.h.toFixed(2) + ' m'], ['Speed now', Math.abs(st.v).toFixed(2) + ' m/s', true], ['Fastest so far', st.maxV.toFixed(2) + ' m/s'],
+      ['GPE + KE + heat', Math.round(e.gpe + e.ke + e.th) + ' J (always ' + Math.round(e.tot) + ' J)']]);
+    T.update(st);
+  }
+  function maths() {
+    var tot = st.m * g * st.h0, vb = Math.sqrt(2 * g * st.h0);
+    Lab.math(Lab.$('#maths'), 'Show the maths (no friction)', [
+      ['GPE at the top', 'GPE = mgh = ' + st.m + ' × 10 × ' + st.h0 + ' = <b>' + tot + ' J</b>'],
+      ['At the bottom, all GPE has become KE', '½mv² = ' + tot + ' J'],
+      ['Rearrange for v', 'v = √(2 × KE ÷ m) = √(2 × ' + tot + ' ÷ ' + st.m + ') = <b>' + vb.toFixed(2) + ' m/s</b>'],
+      ['Notice', 'm cancels out: v = √(2gh), so a heavy and a light skater reach the same speed'],
+    ]);
+  }
+
+  // power panel
+  var pc = Lab.$('#pctl');
+  Lab.slider(pc, { label: 'Mass lifted', min: 5, max: 50, step: 5, value: 20, unit: 'kg', onInput: function (v) { st.pm = v; power(); } });
+  Lab.slider(pc, { label: 'Height lifted', min: 2, max: 20, step: 1, value: 10, unit: 'm', onInput: function (v) { st.ph = v; power(); } });
+  Lab.slider(pc, { label: 'Time taken', min: 2, max: 30, step: 1, value: 8, unit: 's', onInput: function (v) { st.pt = v; power(); } });
+  Lab.slider(pc, { label: 'Electrical power input to the motor', min: 100, max: 2000, step: 50, value: 500, unit: 'W', onInput: function (v) { st.pin = v; power(); } });
+  function power() {
+    var W = st.pm * g * st.ph, P = W / st.pt, Ein = st.pin * st.pt, eff = W / Ein * 100;
+    Lab.math(Lab.$('#pmath'), 'Show the maths', [
+      ['Useful work done (GPE gained)', 'W = mgh = ' + st.pm + ' × 10 × ' + st.ph + ' = <b>' + W + ' J</b>'],
+      ['Useful output power', 'P = W ÷ t = ' + W + ' ÷ ' + st.pt + ' = <b>' + Lab.sf(P, 3) + ' W</b>'],
+      ['Energy put in', 'E = P × t = ' + st.pin + ' × ' + st.pt + ' = ' + Ein + ' J'],
+      ['Efficiency', eff > 100 ? '<b>' + Lab.sf(eff, 3) + '%: impossible!</b> A motor cannot give out more energy than it takes in. Increase the input power or the time.' : 'useful ÷ input × 100 = ' + W + ' ÷ ' + Ein + ' × 100 = <b>' + Lab.sf(eff, 3) + '%</b>. The rest is wasted as heat and sound.'],
+    ]);
+    st.eff = eff; T.update(st);
+  }
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'With no friction, release the skater from 4 m. Does she reach the same height on the other side?', s: 'Yes: no energy is wasted, so GPE at the top is the same on both sides.', ok: function (s) { return s.runs['4/0'] && s.other > 3.9; } },
+    { t: 'Check the fastest speed against v = √(2gh) in the maths box.', ok: function (s) { return s.maxV > 0 && s.mu === 0 && Math.abs(s.maxV - Math.sqrt(20 * s.h0)) < 0.15; } },
+    { t: 'Add friction and release. Watch the heat bar grow while the total stays the same.', ok: function (s) { return s.mu > 0 && s.thermal > 100; } },
+    { t: 'In the motor panel, set an efficiency between 40% and 60%.', ok: function (s) { return s.eff >= 40 && s.eff <= 60; } },
+  ], { title: 'Follow the energy' });
+
+  reset(); maths(); power();
+  ctl.addEventListener('input', maths);
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A 2 kg ball is lifted 5 m. How much GPE does it gain? (g = 10 N/kg)', n: 100, unit: 'J', why: ' GPE = mgh = 2 × 10 × 5 = 100 J.' },
+    { q: 'What is the KE of a 4 kg trolley moving at 3 m/s?', n: 18, unit: 'J', why: ' KE = ½mv² = ½ × 4 × 3² = 18 J. Square the speed first!', hint: ' Square the 3 first: ½ × 4 × 9.' },
+    { q: 'A motor uses 2000 J to lift a load, and the load gains 1500 J of GPE. What is the efficiency?', n: 75, unit: '%', why: ' 1500 ÷ 2000 × 100 = 75%.' },
+    { q: 'A pendulum swings lower and lower. Where does the energy go?', o: ['It is destroyed', 'It becomes thermal energy (heat) in the air and the pivot', 'It becomes GPE', 'It turns into mass'], a: 1, why: ' Air resistance and friction at the pivot transfer energy to heat. Energy is conserved.' },
+  ]);
+})();
+</script>
+</body>
+</html>

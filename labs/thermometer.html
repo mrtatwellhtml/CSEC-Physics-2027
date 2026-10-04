@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thermometer and Temperature Scales · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Calibrate a liquid-in-glass thermometer using the ice and steam points, find an unknown temperature, and convert between Celsius and kelvin. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="thermometer">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>A thermometer needs two <b>fixed points</b>: temperatures that are always the same. The <b>ice point</b> (pure melting ice) is 0 °C. The <b>steam point</b> (steam above boiling water at normal pressure) is 100 °C.</p>
+    <p>Mark the liquid thread at both points, then divide the gap into 100 equal parts. For any other temperature, see what <b>fraction of the way</b> from the ice point to the steam point the thread has reached.</p>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <div class="stage">
+      <canvas id="cv" aria-label="An unmarked thermometer in a beaker, beside a centimetre ruler"></canvas>
+      <div class="row" style="margin-top:8px" id="baths"></div>
+    </div>
+    <div class="stack">
+      <section class="card"><h2>Your readings</h2><div id="live"></div>
+        <form class="qnum" id="ans" style="margin-top:10px"><label for="ans-in" style="width:100%;font-weight:700;font-size:15px">Temperature of the mystery liquid θ =</label>
+          <input id="ans-in" inputmode="decimal" autocomplete="off" placeholder="θ"><span>°C</span><button class="btn" type="submit">Check</button></form>
+        <div id="fb" aria-live="polite"></div>
+      </section>
+      <section id="maths"></section>
+    </div>
+  </div>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Celsius and kelvin</h2>
+    <p class="note" style="margin-top:0"><b>T (K) = θ (°C) + 273</b>. 0 K (−273 °C) is <b>absolute zero</b>, the lowest possible temperature, where particles have the least possible kinetic energy. A change of 1 °C is the same size as a change of 1 K.</p>
+    <div class="lab-grid"><div id="kctl"></div><canvas id="kv" aria-label="Celsius and kelvin scales side by side"></canvas></div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Types of thermometer</h2>
+    <div class="tbl-wrap"><table class="data"><thead><tr><th>Thermometer</th><th>How it works</th><th>Good for</th></tr></thead><tbody>
+      <tr><td style="font-family:inherit">Liquid-in-glass (mercury or alcohol)</td><td style="font-family:inherit">liquid expands up a narrow tube</td><td style="font-family:inherit">lab work. Alcohol works at very low temperatures, mercury up to 357 °C</td></tr>
+      <tr><td style="font-family:inherit">Clinical</td><td style="font-family:inherit">has a <b>constriction</b> (narrow kink) so the reading stays after removing it; short range 35–42 °C</td><td style="font-family:inherit">body temperature, very sensitive</td></tr>
+      <tr><td style="font-family:inherit">Thermocouple</td><td style="font-family:inherit">two different metals make a voltage that depends on temperature</td><td style="font-family:inherit">very high temperatures, fast-changing temperatures, small objects</td></tr>
+      <tr><td style="font-family:inherit">Infrared / digital</td><td style="font-family:inherit">detects infrared radiation</td><td style="font-family:inherit">no contact needed (e.g. forehead scanners)</td></tr>
+    </tbody></table></div>
+    <p class="note"><b>Sensitivity</b>: a big change in reading for a small change in temperature (thin bore, thin glass bulb). <b>Range</b>: the lowest to highest temperature it can measure.</p>
+  </section>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var L0 = Math.round((1.5 + Math.random() * 1.5) * 10) / 10, L100 = Math.round((18 + Math.random() * 5) * 10) / 10;
+  var MYST = 20 + Math.round(Math.random() * 14) * 5;
+  var st = { bath: 'room', ice: null, steam: null, myst: null, solved: false, kelvin: 25, extremes: {} };
+  var BATH = { room: [25, 'Room temperature'], ice: [0, 'Melting ice'], steam: [100, 'Steam'], myst: [MYST, 'Mystery liquid'] };
+  function len(theta) { return Math.round((L0 + (L100 - L0) * theta / 100) * 10) / 10; }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var top = 20, bot = H - 30, cmMax = 25, ppc = (bot - top - 30) / cmMax, tx = W * 0.45, base = bot - 20;
+    // beaker
+    var b = BATH[st.bath], col = st.bath === 'ice' ? '#BFE3F2' : st.bath === 'steam' ? '#E9EEF3' : st.bath === 'myst' ? '#B98DE0' : c('t6');
+    ctx.fillStyle = col; ctx.globalAlpha = 0.5; ctx.fillRect(tx - 70, base - 90, 140, 100); ctx.globalAlpha = 1;
+    ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(tx - 70, base - 110); ctx.lineTo(tx - 70, base + 10); ctx.lineTo(tx + 70, base + 10); ctx.lineTo(tx + 70, base - 110); ctx.stroke();
+    if (st.bath === 'ice') for (var i = 0; i < 9; i++) { ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#8fb7c9'; ctx.lineWidth = 1; ctx.fillRect(tx - 60 + (i % 3) * 40 + (i * 7 % 13), base - 80 + Math.floor(i / 3) * 26, 18, 14); ctx.strokeRect(tx - 60 + (i % 3) * 40 + (i * 7 % 13), base - 80 + Math.floor(i / 3) * 26, 18, 14); }
+    if (st.bath === 'steam') for (var k = 0; k < 6; k++) { ctx.strokeStyle = c('muted'); ctx.beginPath(); var sx = tx - 50 + k * 20; ctx.moveTo(sx, base - 95); ctx.bezierCurveTo(sx + 8, base - 110, sx - 8, base - 120, sx, base - 135); ctx.stroke(); }
+    Lab.text(ctx, b[1], tx, base + 26, { align: 'center', weight: 700 });
+    // thermometer: bulb at base - 20, thread length measured from a zero line
+    var zeroY = base - 20, l = len(b[0]);
+    ctx.fillStyle = c('surface'); ctx.strokeStyle = c('ink'); ctx.lineWidth = 1.5;
+    Lab.roundRect(ctx, tx - 7, zeroY - cmMax * ppc, 14, cmMax * ppc + 10, 7); ctx.fill(); ctx.stroke();
+    Lab.dot(ctx, tx, zeroY + 8, 11, c('no'), c('ink'));
+    ctx.fillStyle = c('no'); ctx.fillRect(tx - 2.5, zeroY - l * ppc, 5, l * ppc + 4);
+    // ruler
+    var rx = tx + 26;
+    ctx.fillStyle = c('hint-bg'); ctx.fillRect(rx, zeroY - cmMax * ppc, 34, cmMax * ppc); ctx.strokeStyle = c('t7'); ctx.strokeRect(rx, zeroY - cmMax * ppc, 34, cmMax * ppc);
+    for (var mm = 0; mm <= cmMax * 10; mm++) { var y = zeroY - mm / 10 * ppc; if (mm % 5 && ppc < 12) continue; Lab.line(ctx, rx, y, rx + (mm % 10 === 0 ? 12 : mm % 5 === 0 ? 8 : 4), y, c('ink'), 1); if (mm % 50 === 0) Lab.text(ctx, String(mm / 10), rx + 15, y, { size: 10, kind: 'mono' }); }
+    Lab.line(ctx, tx + 3, zeroY - l * ppc, rx + 34, zeroY - l * ppc, c('no'), 1.5, [4, 3]);
+    Lab.text(ctx, 'l = ' + l.toFixed(1) + ' cm', rx + 40, zeroY - l * ppc, { weight: 700, color: c('no') });
+    // marks made so far
+    if (st.ice != null) { Lab.line(ctx, tx - 14, zeroY - st.ice * ppc, tx - 7, zeroY - st.ice * ppc, c('t2'), 2); Lab.text(ctx, '0 °C mark', tx - 18, zeroY - st.ice * ppc, { size: 11, color: c('t2'), align: 'right' }); }
+    if (st.steam != null) { Lab.line(ctx, tx - 14, zeroY - st.steam * ppc, tx - 7, zeroY - st.steam * ppc, c('pop'), 2); Lab.text(ctx, '100 °C mark', tx - 18, zeroY - st.steam * ppc, { size: 11, color: c('pop'), align: 'right' }); }
+  }, { ratio: 0.9, min: 380, max: 500 });
+
+  Lab.seg(Lab.$('#baths'), { label: 'Put the thermometer in', value: 'room', options: Object.keys(BATH).map(function (k) { return [k, BATH[k][1]]; }), onChange: function (v) {
+    st.bath = v; var l = len(BATH[v][0]);
+    if (v === 'ice') st.ice = l; if (v === 'steam') st.steam = l; if (v === 'myst') st.myst = l;
+    update();
+  } });
+
+  Lab.$('#ans').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (st.ice == null || st.steam == null || st.myst == null) { Lab.$('#fb').innerHTML = '<p class="qfb no"><strong>First put the thermometer in melting ice, steam and the mystery liquid.</strong></p>'; return; }
+    var exact = (st.myst - st.ice) / (st.steam - st.ice) * 100, r = WBC.checkNumber(Lab.$('#ans-in').value, { value: exact, abs: 1 });
+    if (r.ok) st.solved = true;
+    Lab.$('#fb').innerHTML = r.ok ? '<p class="qfb ok"><strong>✓ Correct! θ ≈ ' + exact.toFixed(0) + ' °C</strong>The real temperature of the mystery liquid was ' + MYST + ' °C.</p>' : '<p class="qfb no"><strong>✗ Not quite.</strong>Use the formula in the maths box.</p>';
+    update();
+  });
+
+  var kv = Lab.canvas(Lab.$('#kv'), function (ctx, W, H) {
+    var top = 20, bot = H - 20, lo = -273, hi = 127, Y = function (cdeg) { return bot - (cdeg - lo) / (hi - lo) * (bot - top); };
+    var x1 = W * 0.3, x2 = W * 0.7;
+    [x1, x2].forEach(function (x) { Lab.line(ctx, x, top, x, bot, c('ink'), 2); });
+    Lab.text(ctx, '°C', x1, top - 8, { weight: 700, align: 'center' }); Lab.text(ctx, 'K', x2, top - 8, { weight: 700, align: 'center' });
+    [[-273, 'absolute zero'], [0, 'ice point'], [100, 'steam point']].forEach(function (p) {
+      var y = Y(p[0]); Lab.line(ctx, x1 - 8, y, x2 + 8, y, c('grid-strong'), 1, [4, 4]);
+      Lab.text(ctx, String(p[0]), x1 - 12, y, { align: 'right', kind: 'mono', size: 12 }); Lab.text(ctx, String(p[0] + 273), x2 + 12, y, { kind: 'mono', size: 12 });
+      Lab.text(ctx, p[1], (x1 + x2) / 2, y - 8, { align: 'center', size: 11, color: c('muted') });
+    });
+    var y = Y(st.kelvin);
+    Lab.line(ctx, x1, y, x2, y, c('no'), 3);
+    Lab.text(ctx, st.kelvin + ' °C = ' + (st.kelvin + 273) + ' K', (x1 + x2) / 2, y + 12, { align: 'center', weight: 700, color: c('no') });
+  }, { ratio: 0.8, min: 260, max: 340 });
+  Lab.slider(Lab.$('#kctl'), { label: 'Temperature', min: -273, max: 127, step: 1, value: 25, unit: '°C', fmt: function (v) { return v + ' °C = ' + (v + 273) + ' K'; }, onInput: function (v) { st.kelvin = v; if (v === -273) st.extremes.zero = true; kv.redraw(); T.update(st); } }).el.querySelector('output').style.whiteSpace = 'normal';
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Put the thermometer in melting ice and note the thread length (the ice point).', ok: function (s) { return s.ice != null; } },
+    { t: 'Put it in steam and note the thread length (the steam point).', ok: function (s) { return s.steam != null; } },
+    { t: 'Measure the mystery liquid and calculate its temperature.', s: 'θ = (l − l₀) ÷ (l₁₀₀ − l₀) × 100', ok: function (s) { return s.solved; } },
+    { t: 'Slide the Celsius–kelvin scale down to absolute zero.', ok: function (s) { return s.extremes.zero; } },
+  ], { title: 'Calibrate a thermometer' });
+
+  function update() {
+    Lab.readout(Lab.$('#live'), [['Ice point length l₀', st.ice != null ? st.ice.toFixed(1) + ' cm' : '—'], ['Steam point length l₁₀₀', st.steam != null ? st.steam.toFixed(1) + ' cm' : '—'], ['Mystery length l', st.myst != null ? st.myst.toFixed(1) + ' cm' : '—', true]]);
+    var have = st.ice != null && st.steam != null && st.myst != null;
+    Lab.math(Lab.$('#maths'), 'Show the maths', [
+      ['Formula', 'θ = (l − l₀) ÷ (l₁₀₀ − l₀) × 100'],
+      ['Length for 100 °C of change', 'l₁₀₀ − l₀ = ' + (st.steam != null && st.ice != null ? st.steam.toFixed(1) + ' − ' + st.ice.toFixed(1) + ' = ' + (st.steam - st.ice).toFixed(1) + ' cm' : '?')],
+      ['How far the mystery thread went', 'l − l₀ = ' + (have ? st.myst.toFixed(1) + ' − ' + st.ice.toFixed(1) + ' = ' + (st.myst - st.ice).toFixed(1) + ' cm' : '?')],
+      ['Then', have && st.solved ? 'θ = ' + (st.myst - st.ice).toFixed(1) + ' ÷ ' + (st.steam - st.ice).toFixed(1) + ' × 100 = <b>' + ((st.myst - st.ice) / (st.steam - st.ice) * 100).toFixed(1) + ' °C</b>' : 'work it out and type your answer'],
+    ]);
+    view.redraw(); T.update(st);
+  }
+  update();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A thread is 3.0 cm at the ice point and 23.0 cm at the steam point. It is 12.0 cm in warm water. What is the temperature?', n: 45, unit: '°C', why: ' (12.0 − 3.0) ÷ (23.0 − 3.0) × 100 = 9 ÷ 20 × 100 = 45 °C.' },
+    { q: 'Convert 27 °C to kelvin.', n: 300, unit: 'K', why: ' 27 + 273 = 300 K.' },
+    { q: 'Convert 77 K to °C.', n: -196, unit: '°C', why: ' 77 − 273 = −196 °C (liquid nitrogen).' },
+    { q: 'Why does a clinical thermometer have a constriction?', o: ['To make it stronger', 'So the mercury does not flow back before the doctor reads it', 'To increase its range', 'To make it cheaper'], a: 1, why: ' The thread breaks at the constriction, so the maximum reading stays.' },
+  ]);
+})();
+</script>
+</body>
+</html>

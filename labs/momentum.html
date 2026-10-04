@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collisions and Momentum · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Crash two trolleys, compare momentum and kinetic energy before and after, explosions and impulse. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="momentum">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p><b>Momentum = mass × velocity</b> (p = mv, unit kg m/s). A heavy lorry and a fast bullet both have lots of momentum. Momentum has a direction: right is +, left is −.</p>
+    <p>When objects collide or push apart, the <b>total momentum before = total momentum after</b> (as long as no outside force acts). Kinetic energy is only kept in an <b>elastic</b> collision.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="type"></div>
+  <div class="stage" style="margin-top:12px">
+    <canvas id="cv" aria-label="Two trolleys on a track moving towards each other"></canvas>
+    <div class="row" style="margin-top:8px" id="btns"></div>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <section class="card"><h2>Trolleys</h2><div class="split" id="ctl"><div id="ca"></div><div id="cb"></div></div></section>
+    <section class="card"><h2>Before and after</h2><div id="tbl"></div></section>
+  </div>
+  <section id="maths" style="margin-top:16px"></section>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Impulse: why crumple zones and airbags save lives</h2>
+    <p class="note" style="margin-top:0">A 1000 kg car going at 15 m/s stops in a crash. The change in momentum is the same however it stops. Making the stopping <b>time</b> longer makes the <b>force</b> smaller: <b>F = Δp ÷ Δt</b>.</p>
+    <div class="lab-grid"><div id="ictl"></div><div id="imath"></div></div>
+  </section>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var st = { type: 'stick', mA: 2, uA: 3, mB: 1, uB: 0, xA: 0, xB: 0, vA: 0, vB: 0, phase: 'ready', after: null, seen: {}, dt: 0.1 };
+  function solve() {
+    var mA = st.mA, mB = st.mB, uA = st.uA, uB = st.uB;
+    if (st.type === 'stick') { var v = (mA * uA + mB * uB) / (mA + mB); return { vA: v, vB: v }; }
+    if (st.type === 'elastic') return { vA: ((mA - mB) * uA + 2 * mB * uB) / (mA + mB), vB: ((mB - mA) * uB + 2 * mA * uA) / (mA + mB) };
+    // explosion: start together at rest, A pushed left at speed uA
+    return { vA: -Math.abs(uA), vB: mA * Math.abs(uA) / mB };
+  }
+  function reset() {
+    anim.stop(); goB.textContent = 'Run';
+    st.phase = 'ready'; st.after = null;
+    if (st.type === 'explode') { st.xA = -0.32; st.xB = 0.32; st.vA = 0; st.vB = 0; }
+    else { st.xA = -4; st.xB = 1; st.vA = st.uA; st.vB = st.uB; }
+    update();
+  }
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var ppm = W / 12, cx = W / 2, y = H * 0.62;
+    ctx.fillStyle = c('t0'); ctx.globalAlpha = 0.2; ctx.fillRect(0, y, W, 10); ctx.globalAlpha = 1;
+    function trolley(x, m, v, col, name) {
+      var w = 40 + m * 10, h = 30 + m * 3, px = cx + x * ppm;
+      var left = name === 'A' ? px - w : px;
+      ctx.fillStyle = col; Lab.roundRect(ctx, left, y - h - 8, w, h, 6); ctx.fill();
+      Lab.dot(ctx, left + 10, y - 4, 5, c('ink')); Lab.dot(ctx, left + w - 10, y - 4, 5, c('ink'));
+      Lab.text(ctx, name + ': ' + m + ' kg', left + w / 2, y - h / 2 - 8, { color: '#fff', weight: 700, size: 12, align: 'center' });
+      if (Math.abs(v) > 0.01) Lab.arrow(ctx, left + w / 2, y - h - 20, left + w / 2 + v * 18, y - h - 20, { color: col, width: 3, label: Lab.sf(v, 3) + ' m/s', labelOff: -12 });
+    }
+    trolley(st.xA, st.mA, st.vA, c('t2'), 'A');
+    trolley(st.xB, st.mB, st.vB, c('pop'), 'B');
+    if (st.type === 'explode' && st.phase === 'ready') Lab.text(ctx, '💥 compressed spring between them', cx, y + 28, { align: 'center', size: 12, color: c('muted') });
+    var pTot = st.mA * st.vA + st.mB * st.vB;
+    Lab.text(ctx, 'Total momentum now: ' + Lab.sf(pTot, 3) + ' kg m/s', 10, 18, { kind: 'mono', size: 13, weight: 500 });
+  }, { ratio: 0.32, min: 190, max: 260 });
+
+  var anim = Lab.loop(function (dt) {
+    st.xA += st.vA * dt; st.xB += st.vB * dt;
+    if (st.phase === 'before' && st.type !== 'explode' && st.xA >= st.xB) {
+      var s = solve(); st.vA = s.vA; st.vB = s.vB; st.phase = 'after'; st.after = s; st.seen[st.type] = true; update();
+    }
+    if (st.phase === 'before' && st.type === 'explode') { var e = solve(); st.vA = e.vA; st.vB = e.vB; st.phase = 'after'; st.after = e; st.seen.explode = true; update(); }
+    if (Math.abs(st.xA) > 7 || Math.abs(st.xB) > 7) { anim.stop(); goB.textContent = 'Run'; }
+    view.redraw();
+  });
+
+  Lab.seg(Lab.$('#type'), { label: 'Type', value: 'stick', options: [['stick', 'Stick together (inelastic)'], ['elastic', 'Bounce apart (elastic)'], ['explode', 'Explosion (push apart)']], onChange: function (v) { st.type = v; build(); reset(); } });
+  var bb = Lab.$('#btns');
+  var goB = Lab.button(bb, 'Run', function () {
+    if (anim.running) { anim.stop(); goB.textContent = 'Run'; return; }
+    if (st.phase !== 'ready') reset();
+    st.phase = 'before'; anim.start(); goB.textContent = 'Pause';
+  });
+  Lab.button(bb, 'Reset', reset, true);
+
+  function build() {
+    var a = Lab.$('#ca'), b = Lab.$('#cb'); a.innerHTML = '<h3>Trolley A</h3>'; b.innerHTML = '<h3>Trolley B</h3>';
+    Lab.slider(a, { label: 'Mass', min: 1, max: 5, step: 1, value: st.mA, unit: 'kg', onInput: function (v) { st.mA = v; reset(); } });
+    Lab.slider(a, { label: st.type === 'explode' ? 'Speed pushed apart' : 'Velocity', min: st.type === 'explode' ? 1 : 0, max: 5, step: 0.5, value: Math.abs(st.uA) || 3, unit: 'm/s', onInput: function (v) { st.uA = v; reset(); } });
+    Lab.slider(b, { label: 'Mass', min: 1, max: 5, step: 1, value: st.mB, unit: 'kg', onInput: function (v) { st.mB = v; reset(); } });
+    if (st.type !== 'explode') Lab.slider(b, { label: 'Velocity (− means moving left)', min: -4, max: 2, step: 0.5, value: st.uB, unit: 'm/s', onInput: function (v) { st.uB = v; reset(); } });
+    else b.insertAdjacentHTML('beforeend', '<p class="note">Both trolleys start at rest, so the total momentum before is 0.</p>');
+  }
+
+  function update() {
+    var ex = st.type === 'explode', uA = ex ? 0 : st.uA, uB = ex ? 0 : st.uB, s = solve();
+    var pb = st.mA * uA + st.mB * uB, pa = st.mA * s.vA + st.mB * s.vB;
+    var kb = 0.5 * st.mA * uA * uA + 0.5 * st.mB * uB * uB, ka = 0.5 * st.mA * s.vA * s.vA + 0.5 * st.mB * s.vB * s.vB;
+    var shown = st.phase === 'after';
+    function cell(v) { return shown ? v : '?'; }
+    Lab.$('#tbl').innerHTML = '<div class="tbl-wrap"><table class="data"><thead><tr><th></th><th>Before</th><th>After</th></tr></thead><tbody>' +
+      '<tr><td style="font-family:inherit">velocity of A</td><td>' + Lab.sf(uA, 3) + '</td><td>' + cell(Lab.sf(s.vA, 3)) + '</td></tr>' +
+      '<tr><td style="font-family:inherit">velocity of B</td><td>' + Lab.sf(uB, 3) + '</td><td>' + cell(Lab.sf(s.vB, 3)) + '</td></tr>' +
+      '<tr class="hl"><td style="font-family:inherit"><b>Total momentum</b> / kg m s⁻¹</td><td>' + Lab.sf(pb, 3) + '</td><td>' + cell(Lab.sf(pa, 3)) + '</td></tr>' +
+      '<tr><td style="font-family:inherit">Total KE / J</td><td>' + Lab.sf(kb, 3) + '</td><td>' + cell(Lab.sf(ka, 3)) + '</td></tr></tbody></table></div>' +
+      (shown ? '<p class="note">Momentum ' + (Math.abs(pa - pb) < 1e-6 ? 'is <b>conserved</b> ✓.' : 'changed?!') + ' Kinetic energy ' + (Math.abs(ka - kb) < 1e-6 ? 'is also conserved, so the collision is <b>elastic</b>.' : ka < kb ? 'is <b>lost</b> (to heat and sound), so the collision is <b>inelastic</b>.' : '<b>increased</b>. It came from the energy stored in the spring.') + '</p>' : '<p class="note">Predict the "after" values, then press Run.</p>');
+    var steps;
+    if (st.type === 'stick') steps = [['Momentum before', 'p = m_A u_A + m_B u_B = ' + st.mA + '×' + uA + ' + ' + st.mB + '×(' + uB + ') = <b>' + Lab.sf(pb, 3) + ' kg m/s</b>'],
+      ['Stuck together, so one velocity v', '(m_A + m_B) v = momentum before'], ['Solve', 'v = ' + Lab.sf(pb, 3) + ' ÷ ' + (st.mA + st.mB) + ' = <b>' + Lab.sf(s.vA, 3) + ' m/s</b>']];
+    else if (st.type === 'elastic') steps = [['Momentum before', Lab.sf(pb, 3) + ' kg m/s'], ['Momentum after', st.mA + '×' + Lab.sf(s.vA, 3) + ' + ' + st.mB + '×' + Lab.sf(s.vB, 3) + ' = <b>' + Lab.sf(pa, 3) + ' kg m/s</b>'], ['Elastic', 'KE before = KE after = ' + Lab.sf(kb, 3) + ' J']];
+    else steps = [['Momentum before', '0 (both at rest)'], ['After: momenta are equal and opposite', st.mA + ' × ' + Lab.sf(s.vA, 3) + ' + ' + st.mB + ' × v_B = 0'], ['Solve', 'v_B = ' + st.mA + ' × ' + Math.abs(st.uA) + ' ÷ ' + st.mB + ' = <b>' + Lab.sf(s.vB, 3) + ' m/s</b> to the right']];
+    Lab.math(Lab.$('#maths'), 'Show the maths: conservation of momentum', steps);
+    view.redraw(); T.update(st);
+  }
+
+  // impulse
+  Lab.slider(Lab.$('#ictl'), { label: 'Stopping time Δt', min: 0.02, max: 1.5, step: 0.02, value: 0.1, unit: 's', fmt: function (v) { return v.toFixed(2); }, help: 'Hitting a wall ≈ 0.05 s. Crumple zone + airbag ≈ 1 s.', onInput: function (v) { st.dt = v; imp(); } });
+  function imp() {
+    var dp = 1000 * 15, F = dp / st.dt;
+    Lab.math(Lab.$('#imath'), 'Show the maths', [['Change in momentum', 'Δp = mv − mu = 1000 × 0 − 1000 × 15 = −15 000 kg m/s (size 15 000)'], ['Average force', 'F = Δp ÷ Δt = 15 000 ÷ ' + st.dt.toFixed(2) + ' = <b>' + Lab.sci(F, 3) + ' N</b>'], ['Impulse', 'F × Δt = Δp = 15 000 N s (the same every time)']]);
+    T.update(st);
+  }
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Run a "stick together" collision. Is the total momentum the same before and after?', ok: function (s) { return s.seen.stick; } },
+    { t: 'Run an elastic collision with two 1 kg trolleys, B at rest. What happens to A?', s: 'Equal masses: A stops and B moves off with A\'s velocity.', ok: function (s) { return s.seen.elastic && s.mA === 1 && s.mB === 1 && s.uB === 0; } },
+    { t: 'Run an explosion. Total momentum before = 0, so after = 0 too.', s: 'Like a gun recoiling when it fires.', ok: function (s) { return s.seen.explode; } },
+    { t: 'Head-on: give B a negative velocity so the total momentum is zero, then make them stick.', s: 'For example 2 kg at +3 m/s and 3 kg at −2 m/s.', ok: function (s) { return s.seen.stick && s.type === 'stick' && Math.abs(s.mA * s.uA + s.mB * s.uB) < 1e-9 && s.phase === 'after'; } },
+    { t: 'Increase the stopping time to 1 s and see how much smaller the force becomes.', ok: function (s) { return s.dt >= 1; } },
+  ], { title: 'Conserve momentum' });
+
+  build(); reset(); imp();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'What is the momentum of a 0.5 kg ball moving at 8 m/s?', n: 4, unit: 'kg m/s', why: ' p = mv = 0.5 × 8 = 4 kg m/s.' },
+    { q: 'A 3 kg trolley at 4 m/s hits a stationary 1 kg trolley and they stick. What is their common velocity?', n: 3, unit: 'm/s', why: ' Momentum before = 12 kg m/s. v = 12 ÷ (3 + 1) = 3 m/s.', hint: ' Total momentum before ÷ total mass.' },
+    { q: 'In an <b>inelastic</b> collision…', o: ['momentum and KE are both conserved', 'momentum is conserved but some KE is lost', 'KE is conserved but momentum is lost', 'neither is conserved'], a: 1, why: ' Momentum is always conserved. Some KE becomes heat and sound.' },
+    { q: 'Airbags reduce injuries because they…', o: ['reduce the change in momentum', 'increase the time taken to stop, so the force is smaller', 'increase the speed of the car', 'make the passenger heavier'], a: 1, why: ' F = Δp ÷ Δt, so a longer Δt means a smaller force.' },
+  ]);
+})();
+</script>
+</body>
+</html>

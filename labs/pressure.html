@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pressure Lab · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Pressure under a block (P = F/A), pressure at depth in a liquid (P = ρgh) with a manometer, and a hydraulic jack. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="pressure">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p><b>Pressure</b> is how concentrated a force is: <b>P = F ÷ A</b> (force ÷ area), measured in pascals (1 Pa = 1 N/m²). The same force on a <b>small</b> area gives a <b>big</b> pressure. That's why a drawing pin goes in easily and snowshoes stop you sinking.</p>
+    <p>In a liquid, the deeper you go the more liquid is above you, so the pressure is bigger: <b>P = ρgh</b>.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="mode"></div>
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage"><canvas id="cv" aria-label="Pressure demonstration"></canvas><p class="cap" id="cap"></p></div>
+    <div class="stack">
+      <section class="card"><h2>Controls</h2><div id="ctl"></div></section>
+      <section id="maths"></section>
+    </div>
+  </div>
+
+  <div class="watch" style="margin-top:16px"><strong class="lbl">Common mistakes</strong>
+    <p>Change areas into <b>m²</b> before you divide (1 cm² = 0.0001 m²). In P = ρgh, h is the <b>depth below the surface</b>, not the height from the bottom. Liquid pressure does not depend on the shape or width of the container.</p>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c, g = 10;
+  var LIQ = { water: [1000, 'Water'], sea: [1030, 'Sea water'], oil: [800, 'Oil'], mercury: [13600, 'Mercury'] };
+  var st = { mode: 'solid', W: 80, face: 'big', depth: 2, liq: 'water', F1: 100, A1: 10, A2: 200, seenFace: {}, seenLiq: {}, deepSeen: false, jackBig: false };
+  var FACES = { big: [0.4, 0.2, 'large face (0.4 m × 0.2 m)'], mid: [0.4, 0.1, 'side face (0.4 m × 0.1 m)'], small: [0.2, 0.1, 'end face (0.2 m × 0.1 m)'] };
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    if (st.mode === 'solid') drawSolid(ctx, W, H); else if (st.mode === 'liquid') drawLiquid(ctx, W, H); else drawJack(ctx, W, H);
+  }, { ratio: 0.7, min: 320, max: 440 });
+
+  function pSolid() { var f = FACES[st.face]; return st.W / (f[0] * f[1]); }
+  function drawSolid(ctx, W, H) {
+    var f = FACES[st.face], s = Math.min(W, H) * 0.9, sand = H * 0.62;
+    ctx.fillStyle = '#d9b26a'; ctx.globalAlpha = 0.5; ctx.fillRect(0, sand, W, H - sand); ctx.globalAlpha = 1;
+    var bw = f[0] * s, bh = (st.face === 'big' ? 0.1 : st.face === 'mid' ? 0.2 : 0.4) * s, sink = Math.min(60, pSolid() / 40);
+    var x = W / 2 - bw / 2, y = sand - bh + sink;
+    ctx.fillStyle = c('t6'); ctx.fillRect(x, y, bw, bh); ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; ctx.strokeRect(x, y, bw, bh);
+    Lab.arrow(ctx, W / 2, y - 60, W / 2, y - 4, { color: c('t2'), width: 4, label: 'weight ' + st.W + ' N', labelOff: -54 });
+    Lab.text(ctx, 'sinks ' + Math.round(sink) + ' mm into the sand', W / 2, H - 20, { align: 'center', weight: 700, color: c('no') });
+    Lab.text(ctx, 'standing on its ' + f[2], W / 2, 18, { align: 'center', weight: 700 });
+  }
+  function pLiquid() { return LIQ[st.liq][0] * g * st.depth; }
+  function drawLiquid(ctx, W, H) {
+    var tx = 24, tw = W * 0.5, top = 40, bot = H - 26, maxD = 5, ppm = (bot - top) / maxD, rho = LIQ[st.liq][0];
+    var col = st.liq === 'mercury' ? '#9AA3AD' : st.liq === 'oil' ? '#E3B341' : c('t6');
+    ctx.fillStyle = col; ctx.globalAlpha = 0.35; ctx.fillRect(tx, top, tw, bot - top); ctx.globalAlpha = 1;
+    ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(tx, top - 10); ctx.lineTo(tx, bot); ctx.lineTo(tx + tw, bot); ctx.lineTo(tx + tw, top - 10); ctx.stroke();
+    for (var d = 0; d <= maxD; d++) { var yy = top + d * ppm; Lab.line(ctx, tx, yy, tx + 10, yy, c('ink'), 1); Lab.text(ctx, d + ' m', tx + 14, yy, { size: 10, kind: 'mono' }); }
+    // probe at depth with arrows in all directions
+    var py = top + st.depth * ppm, px = tx + tw * 0.62, L = 10 + st.depth * 6;
+    [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]].forEach(function (u) { Lab.arrow(ctx, px + u[0] * (L + 8), py + u[1] * (L + 8), px + u[0] * 8, py + u[1] * 8, { color: c('no'), width: 2, head: 7 }); });
+    Lab.dot(ctx, px, py, 7, c('surface'), c('ink'));
+    // tube to manometer
+    var mx = tx + tw + 40, mw = 26, mtop = top + 20, mbot = bot - 10, mppm = 0.9;   // U-tube
+    Lab.line(ctx, px, py, px, py - 14, c('ink'), 2); Lab.line(ctx, px, py - 14 - 0, px, top - 22, c('ink'), 2); Lab.line(ctx, px, top - 22, mx, top - 22, c('ink'), 2); Lab.line(ctx, mx, top - 22, mx, mtop, c('ink'), 2);
+    var dh = Math.min((mbot - mtop) * 0.8, pLiquid() / (1000 * g) * 20 * mppm);   // manometer water, drawn scaled (1 m water → 18 px)
+    var mid = (mtop + mbot) / 2 + 20;
+    ctx.fillStyle = c('t6'); ctx.globalAlpha = 0.5;
+    ctx.fillRect(mx - 6, mid + dh / 2, 12, mbot - mid - dh / 2); ctx.fillRect(mx + mw - 6, mid - dh / 2, 12, mbot - mid + dh / 2); ctx.fillRect(mx - 6, mbot - 6, mw + 12, 12);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = c('ink'); ctx.lineWidth = 1.5; ctx.strokeRect(mx - 6, mtop, 12, mbot - mtop); ctx.strokeRect(mx + mw - 6, mtop, 12, mbot - mtop);
+    Lab.line(ctx, mx + mw + 10, mid + dh / 2, mx + mw + 10, mid - dh / 2, c('pop'), 2);
+    Lab.text(ctx, 'Δh', mx + mw + 14, mid, { size: 12, weight: 700, color: c('pop') });
+    Lab.text(ctx, 'U-tube manometer', mx + mw / 2, bot + 12, { size: 11, align: 'center', color: c('muted') });
+    Lab.text(ctx, LIQ[st.liq][1] + ' (ρ = ' + rho + ' kg/m³)', tx + 4, 16, { weight: 700 });
+  }
+  function drawJack(ctx, W, H) {
+    var base = H - 40, top = H * 0.4, sx = W * 0.2, lx = W * 0.62;
+    var sw = 14 + Math.sqrt(st.A1) * 5, lw = 14 + Math.sqrt(st.A2) * 5;
+    ctx.fillStyle = c('t6'); ctx.globalAlpha = 0.35;
+    ctx.fillRect(sx - sw / 2, top, sw, base - top); ctx.fillRect(lx - lw / 2, top, lw, base - top); ctx.fillRect(sx - sw / 2, base - 30, lx - sx + lw / 2 + sw / 2, 30);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = c('t0'); ctx.fillRect(sx - sw / 2, top - 10, sw, 10); ctx.fillRect(lx - lw / 2, top - 10, lw, 10);
+    var F2 = st.F1 * st.A2 / st.A1;
+    Lab.arrow(ctx, sx, top - 80, sx, top - 12, { color: c('ok'), width: 4, label: 'F₁ = ' + st.F1 + ' N', labelOff: -50 });
+    Lab.arrow(ctx, lx, top - 12, lx, top - 12 - Math.min(140, 30 + F2 / 40), { color: c('pop'), width: 5, label: 'F₂ = ' + Lab.sf(F2, 3) + ' N', labelOff: 70 });
+    Lab.text(ctx, 'A₁ = ' + st.A1 + ' cm²', sx, base + 14, { align: 'center', size: 12, kind: 'mono' });
+    Lab.text(ctx, 'A₂ = ' + st.A2 + ' cm²', lx, base + 14, { align: 'center', size: 12, kind: 'mono' });
+    Lab.text(ctx, 'Same pressure everywhere in the oil', W / 2, 18, { align: 'center', weight: 700 });
+  }
+
+  function build() {
+    var ctl = Lab.$('#ctl'); ctl.innerHTML = '';
+    if (st.mode === 'solid') {
+      Lab.slider(ctl, { label: 'Weight of block', min: 20, max: 200, step: 10, value: st.W, unit: 'N', onInput: function (v) { st.W = v; update(); } });
+      var r = Lab.el('div', { class: 'row', style: 'margin-top:10px' }); ctl.appendChild(r);
+      Lab.seg(r, { label: 'Face down', value: st.face, options: [['big', 'Large face'], ['mid', 'Side face'], ['small', 'End face']], onChange: function (v) { st.face = v; st.seenFace[v] = true; update(); } });
+    } else if (st.mode === 'liquid') {
+      Lab.slider(ctl, { label: 'Depth h below the surface', min: 0, max: 5, step: 0.25, value: st.depth, unit: 'm', fmt: function (v) { return v.toFixed(2); }, onInput: function (v) { st.depth = v; if (v >= 5) st.deepSeen = true; update(); } });
+      var r2 = Lab.el('div', { class: 'row', style: 'margin-top:10px' }); ctl.appendChild(r2);
+      Lab.seg(r2, { label: 'Liquid', value: st.liq, options: Object.keys(LIQ).map(function (k) { return [k, LIQ[k][1]]; }), onChange: function (v) { st.liq = v; st.seenLiq[v] = true; update(); } });
+    } else {
+      Lab.slider(ctl, { label: 'Effort F₁ on small piston', min: 10, max: 200, step: 10, value: st.F1, unit: 'N', onInput: function (v) { st.F1 = v; update(); } });
+      Lab.slider(ctl, { label: 'Small piston area A₁', min: 2, max: 40, step: 2, value: st.A1, unit: 'cm²', onInput: function (v) { st.A1 = v; update(); } });
+      Lab.slider(ctl, { label: 'Large piston area A₂', min: 50, max: 400, step: 10, value: st.A2, unit: 'cm²', onInput: function (v) { st.A2 = v; update(); } });
+    }
+  }
+  Lab.seg(Lab.$('#mode'), { label: 'Experiment', value: 'solid', options: [['solid', 'Pressure under a block'], ['liquid', 'Pressure in a liquid'], ['jack', 'Hydraulic jack']], onChange: function (v) { st.mode = v; build(); update(); } });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Stand the block on each of its three faces. Which face gives the biggest pressure?', s: 'The smallest area gives the biggest pressure.', ok: function (s) { return s.seenFace.mid && s.seenFace.small; } },
+    { t: 'In the liquid, go down to 5 m. How does the pressure change with depth?', s: 'Pressure ∝ depth: double the depth, double the pressure.', ok: function (s) { return s.deepSeen; } },
+    { t: 'Try mercury and oil at the same depth.', s: 'Denser liquid → bigger pressure.', ok: function (s) { return s.seenLiq.mercury && s.seenLiq.oil; } },
+    { t: 'Use the hydraulic jack to lift a 10 000 N car with less than 200 N effort.', s: 'Make A₂ ÷ A₁ big.', ok: function (s) { return s.mode === 'jack' && s.F1 < 200 && s.F1 * s.A2 / s.A1 >= 10000; } },
+  ], { title: 'Explore pressure' });
+
+  function update() {
+    var steps;
+    if (st.mode === 'solid') {
+      var f = FACES[st.face], A = f[0] * f[1];
+      steps = [['Area of the face', 'A = ' + f[0] + ' × ' + f[1] + ' = <b>' + Lab.sf(A, 2) + ' m²</b>'], ['Pressure', 'P = F ÷ A = ' + st.W + ' ÷ ' + Lab.sf(A, 2) + ' = <b>' + Lab.sf(pSolid(), 3) + ' Pa</b>']];
+      Lab.$('#cap').textContent = 'The weight is the same on every face. Only the area changes.';
+    } else if (st.mode === 'liquid') {
+      var rho = LIQ[st.liq][0], P = pLiquid();
+      steps = [['Formula', 'P = ρ g h'], ['Substitute', 'P = ' + rho + ' × 10 × ' + st.depth.toFixed(2)], ['Liquid pressure', 'P = <b>' + Lab.sci(P, 3) + ' Pa</b> = ' + Lab.sf(P / 1000, 3) + ' kPa'],
+        ['Total pressure on a diver', 'P + atmospheric (≈ 1.0 × 10⁵ Pa) = ' + Lab.sci(P + 1e5, 3) + ' Pa']];
+      Lab.$('#cap').textContent = 'The arrows show that at one depth, the pressure acts equally in all directions. The manometer\'s height difference Δh shows the pressure.';
+    } else {
+      var p = st.F1 / (st.A1 / 1e4), F2 = st.F1 * st.A2 / st.A1;
+      steps = [['Pressure made by the small piston', 'P = F₁ ÷ A₁ = ' + st.F1 + ' ÷ ' + (st.A1 / 1e4).toFixed(4) + ' m² = <b>' + Lab.sci(p, 3) + ' Pa</b>'],
+        ['Pressure is passed on equally through the liquid', 'same P at the large piston'],
+        ['Force on the large piston', 'F₂ = P × A₂ = ' + Lab.sci(p, 3) + ' × ' + (st.A2 / 1e4).toFixed(4) + ' = <b>' + Lab.sf(F2, 3) + ' N</b>'],
+        ['Shortcut', 'F₂ = F₁ × A₂ ÷ A₁ = ' + st.F1 + ' × ' + st.A2 + ' ÷ ' + st.A1]];
+      Lab.$('#cap').textContent = 'A small force on a small piston makes a big force on a big piston. The trade-off: the small piston must move much further.';
+    }
+    Lab.math(Lab.$('#maths'), 'Show the maths', steps);
+    view.redraw(); T.update(st);
+  }
+  build(); update();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A 600 N person stands on 0.04 m² of floor. What pressure do they exert?', n: 15000, unit: 'Pa', why: ' P = F ÷ A = 600 ÷ 0.04 = 15 000 Pa.' },
+    { q: 'What is the water pressure 12 m below the surface of a pool? (ρ = 1000 kg/m³, g = 10 N/kg)', n: 120000, unit: 'Pa', why: ' P = ρgh = 1000 × 10 × 12 = 120 000 Pa (1.2 × 10⁵ Pa).' },
+    { q: 'Why is a dam built thicker at the bottom?', o: ['The water is colder at the bottom', 'Water pressure increases with depth', 'The bottom must hold up the top', 'Fish live at the bottom'], a: 1, why: ' P = ρgh, so the pressure is greatest at the bottom.' },
+    { q: 'A hydraulic jack has pistons of 5 cm² and 100 cm². A 50 N effort gives what load force?', n: 1000, unit: 'N', why: ' F₂ = 50 × 100 ÷ 5 = 1000 N.' },
+  ]);
+})();
+</script>
+</body>
+</html>

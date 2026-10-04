@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Newton's Laws Track · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Push a cart with a force, add friction and see F = ma. Weight on other planets and a skydiver reaching terminal velocity. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="newton">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p><b>1st law:</b> if the forces on an object are balanced (resultant force = 0), it stays still, or keeps moving at the same speed in a straight line.</p>
+    <p><b>2nd law:</b> an <b>unbalanced</b> (resultant) force makes it accelerate: <b>F = ma</b>. Bigger force → bigger acceleration. Bigger mass → smaller acceleration.</p>
+    <p><b>3rd law:</b> if A pushes B, then B pushes A back with an equal force in the opposite direction.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="mode"></div>
+
+  <div id="m-cart">
+    <div class="lab-grid" style="margin-top:12px">
+      <div class="stage">
+        <canvas id="cv" aria-label="A cart on a track with arrows for the applied force and friction"></canvas>
+        <div class="row" style="margin-top:8px" id="cbtn"></div>
+      </div>
+      <div class="stack">
+        <section class="card"><h2>Set up the cart</h2><div id="cctl"></div></section>
+        <section id="cmaths"></section>
+      </div>
+    </div>
+  </div>
+
+  <div id="m-weight" hidden>
+    <div class="lab-grid" style="margin-top:12px">
+      <div class="stage"><canvas id="wv" aria-label="A mass hanging from a newton-meter on different planets"></canvas></div>
+      <div class="stack">
+        <section class="card"><h2>Mass and weight</h2><div id="wctl"></div><div class="row" id="planet" style="margin-top:10px"></div></section>
+        <section id="wmaths"></section>
+      </div>
+    </div>
+  </div>
+
+  <div id="m-sky" hidden>
+    <div class="lab-grid" style="margin-top:12px">
+      <div class="stage">
+        <canvas id="sv" aria-label="A skydiver falling with arrows for weight and air resistance, and a velocity–time graph"></canvas>
+        <div class="row" style="margin-top:8px" id="sbtn"></div>
+      </div>
+      <div class="stack">
+        <section class="card"><h2>Skydiver</h2><div id="slive"></div></section>
+        <section id="smaths"></section>
+      </div>
+    </div>
+  </div>
+
+  <div class="watch" style="margin-top:16px"><strong class="lbl">Common mistakes</strong>
+    <p>In F = ma, F is the <b>resultant</b> force (applied force − friction), not just the push. <b>Mass</b> (kg) is not the same as <b>weight</b> (N): weight W = mg is a force. And 3rd-law pairs act on <b>different</b> objects, so they never cancel each other out.</p>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var st = { mode: 'cart', F: 20, m: 5, f: 0, x: 0, v: 0, t: 0, ran: {}, balancedMoving: false,
+    wm: 2, planet: 'Earth', planets: {}, sky: { y: 0, v: 0, t: 0, open: false, hist: [] }, terminal: false, chuteSlow: false };
+  var G = { Earth: 10, Moon: 1.6, Mars: 3.7, Jupiter: 25 };
+  function Fnet() { return st.v <= 0.001 && st.F <= st.f ? 0 : st.F - st.f; }
+  function acc() { return Fnet() / st.m; }
+
+  // ---------- cart ----------
+  var cart = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var ground = H * 0.62, ppm = W / 40, cam = Math.max(0, st.x - 10);
+    ctx.fillStyle = c('t0'); ctx.globalAlpha = 0.2; ctx.fillRect(0, ground, W, 14); ctx.globalAlpha = 1;
+    for (var m = Math.floor(cam / 5) * 5; m < cam + 42; m += 5) { var gx = (m - cam) * ppm; Lab.line(ctx, gx, ground, gx, ground + 14, c('grid-strong'), 1); Lab.text(ctx, m + ' m', gx + 3, ground + 26, { size: 11, kind: 'mono', color: c('muted') }); }
+    var cx = (st.x - cam) * ppm + 60, w = 40 + st.m * 4, h = 26 + st.m * 1.5;
+    ctx.fillStyle = c('accent-soft'); ctx.strokeStyle = c('accent'); ctx.lineWidth = 2;
+    Lab.roundRect(ctx, cx - w / 2, ground - h - 10, w, h, 6); ctx.fill(); ctx.stroke();
+    Lab.text(ctx, st.m + ' kg', cx, ground - h / 2 - 10, { weight: 700, align: 'center' });
+    Lab.dot(ctx, cx - w / 3, ground - 6, 6, c('ink')); Lab.dot(ctx, cx + w / 3, ground - 6, 6, c('ink'));
+    var sc = 2.2;
+    if (st.F > 0) Lab.arrow(ctx, cx - w / 2 - 6 - st.F * sc, ground - h / 2 - 10, cx - w / 2 - 6, ground - h / 2 - 10, { color: c('ok'), width: 4, label: 'push ' + st.F + ' N', labelOff: -16 });
+    var fr = st.v > 0.001 ? st.f : Math.min(st.f, st.F);
+    if (fr > 0) Lab.arrow(ctx, cx, ground + 2, cx - fr * sc, ground + 2, { color: c('no'), width: 4, label: 'friction ' + fr + ' N', labelOff: 18 });
+    var net = Fnet();
+    Lab.text(ctx, net === 0 ? (st.v > 0.01 ? 'Balanced forces: constant velocity (1st law)' : 'Balanced forces: stays still (1st law)') : 'Resultant force ' + net + ' N → accelerates at ' + Lab.sf(acc(), 3) + ' m/s² (2nd law)', W / 2, 20, { weight: 700, align: 'center', color: net === 0 ? c('ok') : c('accent') });
+    Lab.text(ctx, 't = ' + st.t.toFixed(1) + ' s   v = ' + st.v.toFixed(2) + ' m/s', 10, H - 12, { kind: 'mono', size: 12 });
+  }, { ratio: 0.42, min: 230, max: 300 });
+
+  var cartLoop = Lab.loop(function (dt) {
+    var a = acc();
+    st.v = Math.max(0, st.v + a * dt); st.x += st.v * dt; st.t += dt;
+    if (Fnet() === 0 && st.v > 0.5) st.balancedMoving = true;
+    if (st.t > 12) { cartLoop.stop(); goB.textContent = 'Run'; }
+    cart.redraw(); updCart(true);
+  });
+  var cb = Lab.$('#cbtn');
+  var goB = Lab.button(cb, 'Run', function () { if (cartLoop.running) { cartLoop.stop(); goB.textContent = 'Run'; } else { st.ran[st.F + '/' + st.m + '/' + st.f] = true; cartLoop.start(); goB.textContent = 'Pause'; } });
+  Lab.button(cb, 'Reset', function () { cartLoop.stop(); goB.textContent = 'Run'; st.x = 0; st.v = 0; st.t = 0; updCart(); }, true);
+  var cctl = Lab.$('#cctl');
+  Lab.slider(cctl, { label: 'Pushing force F', min: 0, max: 50, step: 5, value: 20, unit: 'N', onInput: function (v) { st.F = v; updCart(); } });
+  Lab.slider(cctl, { label: 'Mass of cart m', min: 1, max: 10, step: 1, value: 5, unit: 'kg', onInput: function (v) { st.m = v; updCart(); } });
+  Lab.slider(cctl, { label: 'Friction', min: 0, max: 30, step: 5, value: 0, unit: 'N', onInput: function (v) { st.f = v; updCart(); } });
+  function updCart(fromLoop) {
+    var net = Fnet();
+    Lab.math(Lab.$('#cmaths'), 'Show the maths', [
+      ['Resultant force', 'F = push − friction = ' + st.F + ' − ' + (st.v > 0.001 ? st.f : Math.min(st.f, st.F)) + ' = <b>' + net + ' N</b>'],
+      ['Newton\'s 2nd law', 'a = F ÷ m = ' + net + ' ÷ ' + st.m + ' = <b>' + Lab.sf(acc(), 3) + ' m/s²</b>'],
+      ['Speed after ' + st.t.toFixed(1) + ' s', 'v = u + at → v = <b>' + st.v.toFixed(2) + ' m/s</b>'],
+    ]);
+    if (!fromLoop) cart.redraw();
+    T.update(st);
+  }
+
+  // ---------- weight ----------
+  var wv = Lab.canvas(Lab.$('#wv'), function (ctx, W, H) {
+    var g = G[st.planet], Wt = st.wm * g, x = W / 2, top = 30;
+    ctx.fillStyle = c('t0'); ctx.fillRect(x - 70, top - 10, 140, 8);
+    ctx.fillStyle = c('surface'); ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; Lab.roundRect(ctx, x - 20, top, 40, 150, 6); ctx.fill(); ctx.stroke();
+    var maxN = 250, frac = Math.min(1, Wt / maxN);
+    for (var n = 0; n <= maxN; n += 25) { var yy = top + 10 + n / maxN * 120; Lab.line(ctx, x - 20, yy, x - 8, yy, c('ink'), 1); if (n % 50 === 0) Lab.text(ctx, String(n), x + 24, yy, { size: 10, kind: 'mono' }); }
+    var py = top + 10 + frac * 120;
+    Lab.line(ctx, x - 20, py, x + 4, py, c('no'), 3);
+    Lab.line(ctx, x, top + 150, x, top + 150 + 20 + frac * 60, c('ink'), 2);
+    var by = top + 170 + frac * 60;
+    ctx.fillStyle = c('pop'); Lab.roundRect(ctx, x - 28, by, 56, 40, 6); ctx.fill();
+    Lab.text(ctx, st.wm + ' kg', x, by + 20, { color: '#fff', weight: 700, align: 'center' });
+    Lab.arrow(ctx, x + 40, by + 20, x + 40, by + 20 + Math.min(90, 20 + Wt * 0.4), { color: c('t2'), width: 3.5, label: 'W = ' + Lab.sf(Wt, 3) + ' N', labelOff: -46 });
+    Lab.text(ctx, 'On ' + st.planet + ': g = ' + g + ' N/kg', W / 2, H - 14, { weight: 700, align: 'center' });
+    Lab.text(ctx, 'newton-meter (N)', x + 24, top - 18, { size: 11, color: c('muted') });
+  }, { ratio: 0.85, min: 340, max: 420 });
+  var wctl = Lab.$('#wctl');
+  Lab.slider(wctl, { label: 'Mass m', min: 1, max: 10, step: 1, value: 2, unit: 'kg', onInput: function (v) { st.wm = v; updW(); } });
+  Lab.seg(Lab.$('#planet'), { label: 'Planet', value: 'Earth', options: Object.keys(G).map(function (k) { return [k, k]; }), onChange: function (v) { st.planet = v; st.planets[v] = true; updW(); } });
+  function updW() {
+    var g = G[st.planet];
+    Lab.math(Lab.$('#wmaths'), 'Show the maths', [
+      ['Mass (the amount of matter, in kg)', 'm = ' + st.wm + ' kg (the same on every planet)'],
+      ['Weight (a force, in N)', 'W = mg = ' + st.wm + ' × ' + g + ' = <b>' + Lab.sf(st.wm * g, 3) + ' N</b>'],
+    ]);
+    wv.redraw(); T.update(st);
+  }
+
+  // ---------- skydiver ----------
+  var K = 0.25, KOPEN = 6, MS = 80;   // drag ∝ v², mass 80 kg, g = 10
+  var sv = Lab.canvas(Lab.$('#sv'), function (ctx, W, H) {
+    var s = st.sky, cx = W * 0.22, cy = H * 0.42, Wt = MS * 10, R = (s.open ? KOPEN : K) * s.v * s.v;
+    // person
+    if (s.open) { ctx.fillStyle = c('t4'); ctx.beginPath(); ctx.arc(cx, cy - 70, 46, Math.PI, 0); ctx.fill(); Lab.line(ctx, cx - 46, cy - 70, cx, cy - 14, c('ink'), 1); Lab.line(ctx, cx + 46, cy - 70, cx, cy - 14, c('ink'), 1); }
+    Lab.dot(ctx, cx, cy - 10, 8, c('pop')); ctx.fillStyle = c('pop'); ctx.fillRect(cx - 5, cy - 2, 10, 26);
+    var sc = 0.07;
+    Lab.arrow(ctx, cx + 30, cy + 10, cx + 30, cy + 10 + Wt * sc, { color: c('t2'), width: 4, label: 'weight ' + Wt + ' N', labelOff: -60 });
+    if (R > 1) Lab.arrow(ctx, cx + 30, cy - 10, cx + 30, cy - 10 - Math.min(R, 2400) * sc, { color: c('no'), width: 4, label: 'air resistance ' + Math.round(R) + ' N', labelOff: -82 });
+    // v-t graph
+    var a = Lab.axes(ctx, { x: W * 0.45 + 30, y: 24, w: W * 0.55 - 46, h: H - 66 }, { xmin: 0, xmax: 40, ymin: 0, ymax: 70, xstep: 10, ystep: 10, xlabel: 't / s', ylabel: 'v / m s⁻¹' });
+    ctx.strokeStyle = c('ok'); ctx.lineWidth = 2.5; ctx.beginPath();
+    s.hist.forEach(function (p, i) { if (i) ctx.lineTo(a.X(p[0]), a.Y(p[1])); else ctx.moveTo(a.X(p[0]), a.Y(p[1])); }); ctx.stroke();
+  }, { ratio: 0.6, min: 300, max: 420 });
+  var skyLoop = Lab.loop(function (dt) {
+    var s = st.sky, steps = 4;
+    for (var i = 0; i < steps; i++) {
+      var h = dt * 2 / steps, k = s.open ? KOPEN : K, a = (MS * 10 - k * s.v * s.v) / MS;
+      s.v = Math.max(0, s.v + a * h); s.t += h;
+    }
+    if (s.hist.length === 0 || s.t - s.hist[s.hist.length - 1][0] > 0.2) s.hist.push([s.t, s.v]);
+    if (!s.open && Math.abs((MS * 10 - K * s.v * s.v)) < 20) st.terminal = true;
+    if (s.open && s.v < 15) st.chuteSlow = true;
+    if (s.t >= 40) { skyLoop.stop(); jumpB.textContent = 'Jump'; }
+    sv.redraw(); updSky();
+  });
+  var sb = Lab.$('#sbtn');
+  var jumpB = Lab.button(sb, 'Jump', function () {
+    if (skyLoop.running) { skyLoop.stop(); jumpB.textContent = 'Continue'; return; }
+    if (st.sky.t >= 40) st.sky = { y: 0, v: 0, t: 0, open: false, hist: [] };
+    skyLoop.start(); jumpB.textContent = 'Pause';
+  });
+  Lab.button(sb, 'Open parachute', function () { st.sky.open = true; }, true);
+  Lab.button(sb, 'Reset', function () { skyLoop.stop(); jumpB.textContent = 'Jump'; st.sky = { y: 0, v: 0, t: 0, open: false, hist: [] }; sv.redraw(); updSky(); }, true);
+  function updSky() {
+    var s = st.sky, k = s.open ? KOPEN : K, R = k * s.v * s.v, net = MS * 10 - R;
+    Lab.readout(Lab.$('#slive'), [['Time', s.t.toFixed(1) + ' s'], ['Velocity', s.v.toFixed(1) + ' m/s', true], ['Weight', '800 N'], ['Air resistance', Math.round(R) + ' N'], ['Resultant force', Math.round(net) + ' N ' + (net > 5 ? '(down)' : net < -5 ? '(up)' : '≈ 0')]]);
+    Lab.math(Lab.$('#smaths'), 'What is happening?', [
+      ['At the start', 'only weight acts, so a = 800 ÷ 80 = 10 m/s²'],
+      ['As she speeds up', 'air resistance grows, so the resultant force and the acceleration get smaller'],
+      ['Terminal velocity', 'air resistance = weight → resultant = 0 → constant velocity' + (st.terminal ? ' (reached at about ' + Math.round(Math.sqrt(800 / K)) + ' m/s)' : '')],
+      ['Parachute opens', 'air resistance > weight → she slows down to a new, lower terminal velocity (' + Math.round(Math.sqrt(800 / KOPEN)) + ' m/s)'],
+    ]);
+    T.update(st);
+  }
+
+  Lab.seg(Lab.$('#mode'), { label: 'Experiment', value: 'cart', options: [['cart', 'F = ma cart'], ['weight', 'Mass and weight'], ['sky', 'Skydiver']], onChange: function (v) {
+    st.mode = v; ['cart', 'weight', 'sky'].forEach(function (k) { Lab.$('#m-' + k).hidden = k !== v; });
+    if (v === 'cart') cart.redraw(); if (v === 'weight') { st.planets[st.planet] = true; updW(); } if (v === 'sky') { sv.redraw(); updSky(); }
+  } });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Run the cart with a 20 N push on a 5 kg cart and no friction. Check that a = 4 m/s².', ok: function (s) { return s.ran['20/5/0']; } },
+    { t: 'Keep the push at 20 N but double the mass to 10 kg. What happens to the acceleration?', s: 'It halves to 2 m/s². Acceleration ∝ 1/mass.', ok: function (s) { return s.ran['20/10/0']; } },
+    { t: 'Get the cart moving, then make friction equal to the push. It keeps going at a steady speed.', s: 'Balanced forces do not stop an object. They stop it accelerating (1st law).', ok: function (s) { return s.balancedMoving; } },
+    { t: 'In Mass and weight, visit the Moon and Jupiter. Does the mass change?', ok: function (s) { return s.planets.Moon && s.planets.Jupiter; } },
+    { t: 'Make the skydiver reach terminal velocity, then open the parachute.', ok: function (s) { return s.terminal && s.chuteSlow; } },
+  ], { title: 'Test Newton\'s laws' });
+
+  updCart(); updW(); updSky();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A 1200 kg car has a driving force of 3000 N and friction of 600 N. What is its acceleration?', n: 2, unit: 'm/s²', why: ' Resultant = 3000 − 600 = 2400 N, a = 2400 ÷ 1200 = 2 m/s².', hint: ' First find the resultant force (subtract the friction).' },
+    { q: 'What is the weight of a 60 kg astronaut on the Moon (g = 1.6 N/kg)?', n: 96, unit: 'N', why: ' W = mg = 60 × 1.6 = 96 N. Her mass is still 60 kg.' },
+    { q: 'A skydiver is falling at terminal velocity. Which statement is true?', o: ['Weight is bigger than air resistance', 'Air resistance is bigger than weight', 'Weight equals air resistance', 'There are no forces on her'], a: 2, why: ' The forces are balanced, so the resultant is zero and the velocity is constant.' },
+    { q: 'A book rests on a table. Its weight pulls it down. What is the Newton\'s 3rd law partner of this force?', o: ['The table pushing up on the book', 'The book pulling the Earth up', 'Friction on the book', 'The table\'s weight'], a: 1, why: ' The Earth pulls the book, so the book pulls the Earth (same type of force, on a different object). The table\'s push is a different pair.' },
+  ]);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Particles and States of Matter · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Kinetic theory: watch particles in solids, liquids and gases as you heat them, plus Brownian motion. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="particles">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>Everything is made of tiny <b>particles</b> that are always moving. This is the <b>kinetic theory of matter</b>. When you heat something, its particles move faster: <b>temperature</b> is a measure of their average kinetic energy.</p>
+    <p>In a <b>solid</b> they vibrate in fixed places. In a <b>liquid</b> they are still close but slide past each other. In a <b>gas</b> they are far apart and move fast in all directions.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="mode"></div>
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage">
+      <canvas id="cv" aria-label="Particles moving in a box"></canvas>
+      <div class="row" style="margin-top:8px" id="btns"></div>
+    </div>
+    <div class="stack">
+      <section class="card"><h2>Controls</h2><div id="ctl"></div></section>
+      <section class="card" id="props"></section>
+    </div>
+  </div>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Compare the three states</h2>
+    <div class="tbl-wrap"><table class="data" style="font-family:inherit"><thead><tr><th></th><th>Solid</th><th>Liquid</th><th>Gas</th></tr></thead><tbody>
+      <tr><th>Arrangement</th><td style="font-family:inherit">regular pattern, packed close</td><td style="font-family:inherit">close together, random</td><td style="font-family:inherit">far apart, random</td></tr>
+      <tr><th>Motion</th><td style="font-family:inherit">vibrate about fixed positions</td><td style="font-family:inherit">move around, slide past each other</td><td style="font-family:inherit">move fast, in all directions</td></tr>
+      <tr><th>Forces between particles</th><td style="font-family:inherit">very strong</td><td style="font-family:inherit">strong</td><td style="font-family:inherit">very weak</td></tr>
+      <tr><th>Shape</th><td style="font-family:inherit">fixed</td><td style="font-family:inherit">takes shape of container</td><td style="font-family:inherit">fills the container</td></tr>
+      <tr><th>Volume</th><td style="font-family:inherit">fixed</td><td style="font-family:inherit">fixed</td><td style="font-family:inherit">fills the container</td></tr>
+      <tr><th>Can it be squashed?</th><td style="font-family:inherit">no</td><td style="font-family:inherit">hardly</td><td style="font-family:inherit">yes, easily</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var st = { mode: 'states', T: 20, seen: {}, brown: { show: false, traced: 0 }, expanded: false };
+  var P = [], N = 64, R = 7;
+  var W = 600, H = 400, BOX = { l: 175, r: 425, t: 4, b: 396 };
+  function stateOf(T) { return T < 0 ? 'solid' : T < 100 ? 'liquid' : 'gas'; }
+  function speed(T) { return 22 * Math.sqrt((T + 273) / 293); }
+
+  function init() {
+    P = [];
+    var cols = 8, sp = 2 * R + 2, x0 = W / 2 - cols * sp / 2, y0 = H - 8 * sp - 6;
+    for (var i = 0; i < N; i++) {
+      var hx = x0 + (i % cols) * sp + sp / 2, hy = y0 + Math.floor(i / cols) * sp + sp / 2, a = Math.random() * 6.28;
+      P.push({ x: hx, y: hy, hx: hx, hy: hy, vx: Math.cos(a) * 20, vy: Math.sin(a) * 20 });
+    }
+  }
+  function initBrown() {
+    P = [];
+    for (var i = 0; i < 160; i++) { var a = Math.random() * 6.28; P.push({ x: Math.random() * W, y: Math.random() * H, vx: Math.cos(a) * 160, vy: Math.sin(a) * 160 }); }
+    st.big = { x: W / 2, y: H / 2, vx: 0, vy: 0, r: 22, m: 60 }; st.trail = [];
+  }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, w, h) {
+    W = w; H = h;
+    var half = st.mode === 'states' ? Math.min(125, w * 0.4) : w / 2 - 4;
+    BOX = { l: w / 2 - half, r: w / 2 + half, t: 4, b: h - 4 };
+    ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; ctx.strokeRect(BOX.l, BOX.t, BOX.r - BOX.l, BOX.b - BOX.t);
+    if (st.mode === 'states') {
+      var s = stateOf(st.T), col = s === 'solid' ? c('t2') : s === 'liquid' ? c('t6') : c('pop');
+      P.forEach(function (p) { Lab.dot(ctx, p.x, p.y, R, col, c('surface')); });
+      Lab.text(ctx, s.toUpperCase() + ' at ' + st.T + ' °C', BOX.l + 10, 22, { weight: 700, size: 16, color: col });
+    } else {
+      ctx.strokeStyle = c('pop'); ctx.lineWidth = 1.5; ctx.beginPath();
+      st.trail.forEach(function (q, i) { if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); }); ctx.stroke();
+      if (st.brown.show) P.forEach(function (p) { Lab.dot(ctx, p.x, p.y, 2.5, c('t2')); });
+      var b = st.big; Lab.dot(ctx, b.x, b.y, b.r, c('t0'), c('ink'));
+      Lab.text(ctx, 'smoke particle (seen in a microscope)', 14, 22, { weight: 700 });
+      if (!st.brown.show) Lab.text(ctx, 'The air molecules are far too small to see…', 14, h - 18, { color: c('muted'), size: 13 });
+    }
+  }, { ratio: 0.66, min: 300, max: 440 });
+
+  var anim = Lab.loop(function (dt) {
+    if (st.mode === 'states') stepStates(dt); else stepBrown(dt);
+    view.redraw();
+  });
+
+  function stepStates(dt) {
+    var s = stateOf(st.T), v = speed(st.T), i, j;
+    if (s === 'solid') {
+      var amp = 0.6 + (st.T + 60) / 60 * 2.2, grow = 1 + (st.T + 60) * 0.0006;    // vibration + slight expansion
+      var cx = W / 2, cy = H;
+      P.forEach(function (p) {
+        p.x = cx + (p.hx - cx) * grow + (Math.random() - 0.5) * amp * 2; p.y = cy + (p.hy - cy) * grow + (Math.random() - 0.5) * amp * 2;
+        p.vx = (Math.random() - 0.5) * 40; p.vy = (Math.random() - 0.5) * 40;
+      });
+      return;
+    }
+    var gas = s === 'gas', sub = 3, h = dt / sub;
+    for (var k = 0; k < sub; k++) {
+      for (i = 0; i < N; i++) {
+        var p = P[i];
+        if (!gas) p.vy += 260 * h;  // liquids settle
+        for (j = i + 1; j < N; j++) {
+          var q = P[j], dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy) || 0.01, nx = dx / d, ny = dy / d;
+          if (d < 2 * R) { var push = (2 * R - d) * 30; p.vx -= nx * push * h * 10; p.vy -= ny * push * h * 10; q.vx += nx * push * h * 10; q.vy += ny * push * h * 10; }
+          else if (!gas && d < 3.2 * R) { var pull = 40; p.vx += nx * pull * h; p.vy += ny * pull * h; q.vx -= nx * pull * h; q.vy -= ny * pull * h; }
+        }
+      }
+      P.forEach(function (p) {
+        p.x += p.vx * h; p.y += p.vy * h;
+        if (p.x < BOX.l + R + 2) { p.x = BOX.l + R + 2; p.vx = Math.abs(p.vx); } if (p.x > BOX.r - R - 2) { p.x = BOX.r - R - 2; p.vx = -Math.abs(p.vx); }
+        if (p.y < BOX.t + R + 2) { p.y = BOX.t + R + 2; p.vy = Math.abs(p.vy); } if (p.y > BOX.b - R - 2) { p.y = BOX.b - R - 2; p.vy = -Math.abs(p.vy); }
+      });
+    }
+    // thermostat: rescale average speed towards the target for this temperature
+    var target = gas ? v * 6 : v * 2.2, avg = P.reduce(function (s2, p) { return s2 + Math.hypot(p.vx, p.vy); }, 0) / N || 1;
+    var f = 1 + (target / avg - 1) * 0.1;
+    P.forEach(function (p) { p.vx *= f; p.vy *= f; });
+  }
+  function stepBrown(dt) {
+    var b = st.big;
+    P.forEach(function (p) {
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.x < 6 || p.x > W - 6) p.vx *= -1; if (p.y < 6 || p.y > H - 6) p.vy *= -1;
+      var dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy);
+      if (d < b.r + 2.5) {
+        var nx = dx / d, ny = dy / d, rel = (p.vx - b.vx) * nx + (p.vy - b.vy) * ny;
+        if (rel < 0) { var J = 2 * rel / (1 + b.m); p.vx -= J * b.m * nx; p.vy -= J * b.m * ny; b.vx += J * nx; b.vy += J * ny; }
+      }
+    });
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    if (b.x < b.r + 6 || b.x > W - b.r - 6) b.vx *= -1; if (b.y < b.r + 6 || b.y > H - b.r - 6) b.vy *= -1;
+    b.x = Lab.clamp(b.x, b.r + 6, W - b.r - 6); b.y = Lab.clamp(b.y, b.r + 6, H - b.r - 6);
+    st.trail.push([b.x, b.y]); if (st.trail.length > 600) st.trail.shift();
+    st.brown.traced += dt;
+  }
+
+  var ctl = Lab.$('#ctl');
+  var tS;
+  function build() {
+    ctl.innerHTML = '';
+    if (st.mode === 'states') {
+      tS = Lab.slider(ctl, { label: 'Temperature (water-like substance)', min: -60, max: 160, step: 5, value: st.T, unit: '°C', help: 'Melts at 0 °C, boils at 100 °C.', onInput: function (v) { var old = stateOf(st.T); st.T = v; st.seen[stateOf(v)] = true; if (old === 'solid' && stateOf(v) !== 'solid') init(); if (v <= -50) st.cold = true; if (v >= -5 && v < 0) st.expanded = true; update(); } });
+    } else {
+      ctl.innerHTML = '<label class="check"><input type="checkbox" id="showair"> Show the air molecules (invisible in real life)</label>';
+      Lab.$('#showair').addEventListener('change', function (e) { st.brown.show = e.target.checked; update(); });
+    }
+  }
+  Lab.seg(Lab.$('#mode'), { label: 'Experiment', value: 'states', options: [['states', 'States of matter'], ['brown', 'Brownian motion']], onChange: function (v) { st.mode = v; if (v === 'brown') initBrown(); else init(); build(); update(); } });
+  var bb = Lab.$('#btns');
+  var playB = Lab.button(bb, 'Pause', function () { if (anim.running) { anim.stop(); playB.textContent = 'Play'; } else { anim.start(); playB.textContent = 'Pause'; } }, true);
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Cool the substance below 0 °C to see a solid. Then heat it and watch it melt and boil.', ok: function (s) { return s.seen.solid && s.seen.liquid && s.seen.gas; } },
+    { t: 'Compare the solid at −50 °C and just below 0 °C. The vibrations get bigger, and the solid expands a little.', ok: function (s) { return s.cold && s.expanded; } },
+    { t: 'Watch Brownian motion for 10 seconds. The smoke particle jiggles randomly.', ok: function (s) { return s.brown.traced > 10; } },
+    { t: 'Turn on the air molecules. What causes the jiggling?', s: 'Fast, invisible air molecules hit the smoke particle unevenly from all sides.', ok: function (s) { return s.brown.show; } },
+  ], { title: 'Explore the kinetic theory' });
+
+  function update() {
+    var s = stateOf(st.T);
+    Lab.$('#props').innerHTML = st.mode === 'states'
+      ? '<h2>What the particles are doing</h2><p style="margin:0">' + (s === 'solid' ? 'Vibrating about <b>fixed positions</b> in a regular pattern. Heating makes them vibrate more, so they take up a little more room: the solid <b>expands</b>.' : s === 'liquid' ? 'Close together but <b>free to move</b> past each other. That is why a liquid can flow and take the shape of its container.' : '<b>Far apart</b>, moving fast in straight lines until they hit each other or the walls. Collisions with the walls cause gas <b>pressure</b>.') + '</p>' +
+        '<p class="note">Average particle speed (relative): ' + Lab.sf(speed(st.T), 2) + '. It increases with temperature in kelvin.</p>'
+      : '<h2>Brownian motion</h2><p style="margin:0">Smoke particles in air (or pollen grains in water) move in a <b>random, jerky zig-zag</b>. It is evidence that air and water are made of tiny, fast-moving particles that we cannot see.</p>';
+    T.update(st);
+  }
+  init(); build(); update();
+  if (Lab.reducedMotion) playB.textContent = 'Play'; else anim.start();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'What happens to the particles of a gas when it is heated?', o: ['They get bigger', 'They move faster', 'They stop moving', 'They get heavier'], a: 1, why: ' Temperature measures the average kinetic energy of the particles. The particles themselves do not get bigger.' },
+    { q: 'Brownian motion of smoke particles is evidence that…', o: ['smoke is a liquid', 'air is made of moving particles', 'smoke particles are alive', 'air has no mass'], a: 1, why: ' Invisible air molecules bombard the smoke particles unevenly.' },
+    { q: 'Why can a gas be compressed easily but a liquid cannot?', o: ['Gas particles are smaller', 'Gas particles are far apart with lots of space between them', 'Liquids are hotter', 'Gas particles do not move'], a: 1, why: ' In a liquid the particles are already touching.' },
+  ]);
+})();
+</script>
+</body>
+</html>

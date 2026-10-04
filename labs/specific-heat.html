@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Specific Heat Capacity · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Heat a block with an electric heater, plot temperature against time and calculate the specific heat capacity. Method of mixtures. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="specific-heat">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>Some materials heat up quickly and some slowly. The <b>specific heat capacity c</b> is the energy needed to raise the temperature of <b>1 kg</b> of a material by <b>1 °C</b>. Water has a very big c (4200 J/kg °C), so it takes lots of energy to warm up. That's why the sea stays cool on a hot day.</p>
+    <p><b>E = m c Δθ</b> (energy = mass × specific heat capacity × temperature change).</p>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <div class="stage">
+      <canvas id="cv" aria-label="A metal block with an immersion heater and thermometer, and a temperature–time graph"></canvas>
+      <div class="row" style="margin-top:8px" id="btns"></div>
+    </div>
+    <div class="stack">
+      <section class="card"><h2>Set up</h2><div id="ctl"></div><div class="row" id="mat" style="margin-top:10px"></div><label class="check" style="margin-top:6px"><input type="checkbox" id="lag" checked> Wrap the block in insulation (lagging)</label></section>
+      <section class="card"><h2>Readings</h2><div id="live"></div></section>
+    </div>
+  </div>
+  <section id="maths" style="margin-top:16px"></section>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Method of mixtures</h2>
+    <p class="note" style="margin-top:0">Drop a hot metal into cool water. Heat lost by the metal = heat gained by the water: <b>m₁c₁(θ₁ − θ) = m₂c₂(θ − θ₂)</b>.</p>
+    <div class="lab-grid"><div id="mixctl"></div><div id="mixmath"></div></div>
+  </section>
+
+  <div class="watch" style="margin-top:16px"><strong class="lbl">Common mistake</strong>
+    <p>Δθ is the <b>change</b> in temperature (final − initial), not the final temperature. And the mass must be in <b>kg</b>: 500 g = 0.5 kg.</p>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var MAT = { alu: [900, 'Aluminium', '#C7CDD4'], copper: [390, 'Copper', '#D18B5A'], iron: [450, 'Iron', '#8A8F96'], water: [4200, 'Water', '#7FC4E0'] };
+  var st = { mat: 'alu', m: 1, P: 50, t: 0, theta: 25, E: 0, hist: [[0, 25]], lag: true, done: {}, unlagged: false, mx: { m1: 0.2, c1: 900, t1: 100, m2: 0.3, t2: 20 } };
+  var ROOM = 25, K_LOSS = 0.9;  // W per °C above room temperature when not lagged
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var bx = 30, bw = Math.min(160, W * 0.3), by = H * 0.35, bh = H * 0.5, mat = MAT[st.mat];
+    if (st.lag) { ctx.fillStyle = '#E8D9A8'; ctx.fillRect(bx - 12, by - 6, bw + 24, bh + 18); }
+    ctx.fillStyle = mat[2]; ctx.fillRect(bx, by, bw, bh); ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; ctx.strokeRect(bx, by, bw, bh);
+    // heater + thermometer
+    ctx.fillStyle = st.timer ? c('no') : c('t0'); ctx.fillRect(bx + bw * 0.3 - 6, by - 50, 12, bh * 0.8 + 50);
+    Lab.text(ctx, 'heater', bx + bw * 0.3, by - 58, { size: 11, align: 'center' });
+    ctx.fillStyle = c('surface'); ctx.fillRect(bx + bw * 0.7 - 4, by - 70, 8, bh * 0.7 + 70); ctx.strokeRect(bx + bw * 0.7 - 4, by - 70, 8, bh * 0.7 + 70);
+    var fill = Lab.clamp((st.theta - 0) / 100, 0, 1) * (bh * 0.7 + 60);
+    ctx.fillStyle = c('no'); ctx.fillRect(bx + bw * 0.7 - 2, by + bh * 0.7 - fill, 4, fill);
+    Lab.text(ctx, st.theta.toFixed(1) + ' °C', bx + bw * 0.7 + 10, by - 60, { weight: 700, kind: 'mono', size: 13 });
+    Lab.text(ctx, mat[1] + ', ' + st.m + ' kg' + (st.lag ? ' (lagged)' : ''), bx + bw / 2, by + bh + 26, { align: 'center', weight: 700, size: 13 });
+    // joulemeter
+    ctx.fillStyle = '#0b1a10'; Lab.roundRect(ctx, bx, 16, bw, 26, 5); ctx.fill();
+    Lab.text(ctx, Math.round(st.E) + ' J', bx + bw / 2, 29, { color: '#4ef08a', kind: 'mono', align: 'center' });
+    Lab.text(ctx, 'joulemeter', bx + bw + 6, 29, { size: 11, color: c('muted') });
+    // graph
+    var gx = bx + bw + 60, a = Lab.axes(ctx, { x: gx, y: 30, w: W - gx - 16, h: H - 80 }, { xmin: 0, xmax: 600, ymin: 20, ymax: 80, xstep: 100, ystep: 10, xlabel: 't / s', ylabel: 'θ / °C' });
+    ctx.strokeStyle = c('no'); ctx.lineWidth = 2.5; ctx.beginPath();
+    st.hist.forEach(function (p, i) { var X = a.X(Math.min(600, p[0])), Y = a.Y(Lab.clamp(p[1], 20, 80)); if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); }); ctx.stroke();
+  }, { ratio: 0.6, min: 320, max: 420 });
+
+  var SPEED = 20;  // simulated seconds per real second
+  var anim = Lab.loop(function (dt) {
+    var h = dt * SPEED, mat = MAT[st.mat], loss = st.lag ? 0.05 * (st.theta - ROOM) : K_LOSS * (st.theta - ROOM);
+    st.E += st.P * h;
+    st.theta += (st.P - loss) * h / (st.m * mat[0]);
+    st.t += h;
+    if (st.hist.length === 0 || st.t - st.hist[st.hist.length - 1][0] >= 5) st.hist.push([st.t, st.theta]);
+    if (st.t >= 600 || st.theta >= 80) stop();
+    view.redraw(); readings();
+  });
+  function stop() { anim.stop(); st.timer = false; goB.textContent = 'Switch heater on'; if (st.t > 60) { st.done[st.mat] = true; if (!st.lag) st.unlagged = true; } readings(); maths(); view.redraw(); }
+  function reset() { anim.stop(); st.timer = false; goB.textContent = 'Switch heater on'; st.t = 0; st.theta = ROOM; st.E = 0; st.hist = [[0, ROOM]]; readings(); maths(); view.redraw(); }
+  var bb = Lab.$('#btns');
+  var goB = Lab.button(bb, 'Switch heater on', function () { if (anim.running) stop(); else { st.timer = true; anim.start(); goB.textContent = 'Switch off and stop the clock'; } });
+  Lab.button(bb, 'Reset', reset, true);
+  var ctl = Lab.$('#ctl');
+  Lab.slider(ctl, { label: 'Mass m', min: 0.5, max: 2, step: 0.5, value: 1, unit: 'kg', onInput: function (v) { st.m = v; reset(); } });
+  Lab.slider(ctl, { label: 'Heater power P', min: 25, max: 150, step: 25, value: 50, unit: 'W', onInput: function (v) { st.P = v; reset(); } });
+  Lab.seg(Lab.$('#mat'), { label: 'Material', value: 'alu', options: Object.keys(MAT).map(function (k) { return [k, MAT[k][1]]; }), onChange: function (v) { st.mat = v; reset(); } });
+  Lab.$('#lag').addEventListener('change', function (e) { st.lag = e.target.checked; reset(); });
+
+  function readings() {
+    Lab.readout(Lab.$('#live'), [['Time t', Math.round(st.t) + ' s'], ['Energy supplied E = Pt', Math.round(st.E) + ' J'], ['Temperature rise Δθ', (st.theta - ROOM).toFixed(1) + ' °C', true]]);
+    T.update(st);
+  }
+  function maths() {
+    var d = st.theta - ROOM;
+    if (st.t < 1) { Lab.math(Lab.$('#maths'), 'Show the maths', [['Run the experiment', 'Switch the heater on, wait, then switch it off. The maths uses your readings.']]); return; }
+    var cm = st.E / (st.m * d), real = MAT[st.mat][0];
+    Lab.math(Lab.$('#maths'), 'Show the maths', [
+      ['Energy supplied', 'E = P × t = ' + st.P + ' × ' + Math.round(st.t) + ' = <b>' + Math.round(st.E) + ' J</b>'],
+      ['Temperature change', 'Δθ = ' + st.theta.toFixed(1) + ' − ' + ROOM + ' = <b>' + d.toFixed(1) + ' °C</b>'],
+      ['Rearrange E = mcΔθ', 'c = E ÷ (m × Δθ)'],
+      ['Substitute', 'c = ' + Math.round(st.E) + ' ÷ (' + st.m + ' × ' + d.toFixed(1) + ') = <b>' + Math.round(cm) + ' J/kg °C</b>'],
+      ['Compare', 'True value: ' + real + ' J/kg °C. ' + (cm > real * 1.03 ? 'Your value is <b>too high</b> because heat was lost to the surroundings, so less energy went into the block than the joulemeter shows. Lagging reduces this error.' : 'Very close: the lagging stopped most of the heat loss.')],
+    ]);
+  }
+
+  // method of mixtures
+  var mc = Lab.$('#mixctl');
+  Lab.slider(mc, { label: 'Mass of hot metal m₁', min: 0.1, max: 1, step: 0.1, value: 0.2, unit: 'kg', fmt: function (v) { return v.toFixed(1); }, onInput: function (v) { st.mx.m1 = v; mix(); } });
+  Lab.slider(mc, { label: 'Metal\'s c₁ (aluminium = 900)', min: 390, max: 900, step: 10, value: 900, unit: 'J/kg °C', onInput: function (v) { st.mx.c1 = v; mix(); } });
+  Lab.slider(mc, { label: 'Metal temperature θ₁', min: 50, max: 100, step: 5, value: 100, unit: '°C', onInput: function (v) { st.mx.t1 = v; mix(); } });
+  Lab.slider(mc, { label: 'Mass of water m₂', min: 0.1, max: 1, step: 0.1, value: 0.3, unit: 'kg', fmt: function (v) { return v.toFixed(1); }, onInput: function (v) { st.mx.m2 = v; mix(); } });
+  function mix() {
+    var x = st.mx, cw = 4200, f = (x.m1 * x.c1 * x.t1 + x.m2 * cw * x.t2) / (x.m1 * x.c1 + x.m2 * cw);
+    Lab.math(Lab.$('#mixmath'), 'Show the maths', [
+      ['Heat lost by metal = heat gained by water', x.m1.toFixed(1) + ' × ' + x.c1 + ' × (' + x.t1 + ' − θ) = ' + x.m2.toFixed(1) + ' × 4200 × (θ − ' + x.t2 + ')'],
+      ['Final temperature', 'θ = <b>' + f.toFixed(1) + ' °C</b>'],
+      ['Check', 'metal loses ' + Math.round(x.m1 * x.c1 * (x.t1 - f)) + ' J, water gains ' + Math.round(x.m2 * cw * (f - x.t2)) + ' J ✓'],
+    ]);
+  }
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Heat the 1 kg aluminium block (lagged) for at least 2 minutes and calculate c.', ok: function (s) { return s.done.alu; } },
+    { t: 'Repeat with copper. Does it heat up faster or slower than aluminium?', s: 'Faster: copper has a smaller c, so it needs less energy per °C.', ok: function (s) { return s.done.copper; } },
+    { t: 'Heat water. Notice how slowly its temperature rises.', ok: function (s) { return s.done.water; } },
+    { t: 'Remove the lagging and repeat. Is your value of c too high or too low?', s: 'Too high: heat escapes, so Δθ is smaller than it should be.', ok: function (s) { return s.unlagged; } },
+  ], { title: 'Measure specific heat capacity' });
+
+  reset(); mix();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'How much energy is needed to heat 2 kg of water from 20 °C to 70 °C? (c = 4200 J/kg °C)', n: 420000, unit: 'J', why: ' E = mcΔθ = 2 × 4200 × 50 = 420 000 J.', hint: ' Δθ = 70 − 20 = 50 °C.' },
+    { q: 'A 50 W heater runs for 300 s and warms a 1 kg block by 15 °C. What is c?', n: 1000, unit: 'J/kg °C', why: ' E = 50 × 300 = 15 000 J; c = 15 000 ÷ (1 × 15) = 1000 J/kg °C.' },
+    { q: 'Why is water used in car radiators?', o: ['It is a good conductor of electricity', 'It has a high specific heat capacity, so it absorbs lots of heat for a small temperature rise', 'It boils easily', 'It is dense'], a: 1, why: ' Its large c means it carries away lots of energy.' },
+  ]);
+})();
+</script>
+</body>
+</html>

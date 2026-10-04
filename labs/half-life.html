@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Half-Life Simulator · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Watch random radioactive decay, plot the decay curve, read off the half-life and use it in calculations. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="half-life">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>Radioactive decay is <b>random</b>: you can't predict when one particular nucleus will decay. But with millions of nuclei, a fixed fraction decays in each second.</p>
+    <p>The <b>half-life</b> is the time for <b>half</b> of the radioactive nuclei to decay, or for the count rate to fall to half. After 1 half-life ½ is left, after 2 half-lives ¼, after 3 half-lives ⅛, and so on.</p>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <div class="stage">
+      <canvas id="grid" aria-label="A grid of nuclei; decayed ones change colour"></canvas>
+      <div class="row" style="margin-top:8px" id="btns"></div>
+    </div>
+    <div class="stack">
+      <section class="card"><h2>Settings</h2><div id="ctl"></div></section>
+      <section class="card"><h2>Now</h2><div id="live"></div></section>
+    </div>
+  </div>
+  <div class="stage" style="margin-top:16px"><canvas id="graph" aria-label="Graph of undecayed nuclei against time"></canvas><p class="cap" id="gcap"></p></div>
+  <section id="maths" style="margin-top:16px"></section>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Calculator: what is left after a time?</h2>
+    <div class="lab-grid"><div id="cctl"></div><div id="cmath"></div></div>
+  </section>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c, N0 = 400;
+  var st = { hl: 10, t: 0, alive: [], hist: [], readHL: false, runs: 0, guide: false, cN: 800, cHL: 5, cT: 15 };
+  function reset() { st.t = 0; st.alive = []; for (var i = 0; i < N0; i++) st.alive.push(true); st.hist = [[0, N0]]; st.flash = {}; anim.stop(); goB.textContent = 'Start'; update(); }
+  function count() { return st.alive.filter(Boolean).length; }
+
+  var grid = Lab.canvas(Lab.$('#grid'), function (ctx, W, H) {
+    var cols = 25, rows = 16, cw = W / cols, ch = H / rows, r = Math.min(cw, ch) * 0.34;
+    st.alive.forEach(function (a, i) {
+      var x = (i % cols + 0.5) * cw, y = (Math.floor(i / cols) + 0.5) * ch;
+      Lab.dot(ctx, x, y, r, a ? c('pop') : c('grid-strong'));
+      if (st.flash[i] && st.t - st.flash[i] < 0.6) { ctx.strokeStyle = c('ok'); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r + 4, 0, 7); ctx.stroke(); }
+    });
+  }, { ratio: 0.64, min: 240, max: 380 });
+
+  var graph = Lab.canvas(Lab.$('#graph'), function (ctx, W, H) {
+    var a = Lab.axes(ctx, { x: 56, y: 24, w: W - 76, h: H - 66 }, { xmin: 0, xmax: st.hl * 5, ymin: 0, ymax: N0, ystep: 50, xlabel: 'time / s', ylabel: 'undecayed nuclei' });
+    if (st.guide) {
+      [1, 2, 3].forEach(function (k) {
+        var y = N0 / Math.pow(2, k), x = st.hl * k;
+        Lab.line(ctx, a.X(0), a.Y(y), a.X(x), a.Y(y), c('t4'), 1.5, [5, 4]); Lab.line(ctx, a.X(x), a.Y(y), a.X(x), a.Y(0), c('t4'), 1.5, [5, 4]);
+        Lab.text(ctx, N0 / Math.pow(2, k) + '', a.X(0) + 4, a.Y(y) - 8, { size: 11, color: c('t4'), weight: 700 });
+        Lab.text(ctx, k + ' half-life' + (k > 1 ? 's' : ''), a.X(x), a.Y(0) - 10, { size: 11, color: c('t4'), weight: 700, align: 'center' });
+      });
+    }
+    ctx.strokeStyle = c('pop'); ctx.lineWidth = 2.5; ctx.beginPath();
+    st.hist.forEach(function (p, i) { if (i) ctx.lineTo(a.X(p[0]), a.Y(p[1])); else ctx.moveTo(a.X(p[0]), a.Y(p[1])); }); ctx.stroke();
+  }, { ratio: 0.5, min: 260, max: 360 });
+
+  var anim = Lab.loop(function (dt) {
+    var h = dt * st.hl / 4, p = 1 - Math.pow(0.5, h / st.hl);   // whole run (5 half-lives) in about 20 s
+    st.t += h;
+    st.alive.forEach(function (a, i) { if (a && Math.random() < p) { st.alive[i] = false; st.flash[i] = st.t; } });
+    if (st.t - st.hist[st.hist.length - 1][0] >= st.hl / 10) st.hist.push([st.t, count()]);
+    if (st.t >= st.hl * 5) { anim.stop(); goB.textContent = 'Start'; st.runs++; st.done = true; }
+    grid.redraw(); graph.redraw(); live();
+  });
+
+  var bb = Lab.$('#btns');
+  var goB = Lab.button(bb, 'Start', function () { if (st.t >= st.hl * 5) reset(); if (anim.running) { anim.stop(); goB.textContent = 'Continue'; } else { anim.start(); goB.textContent = 'Pause'; } });
+  Lab.button(bb, 'Reset', function () { reset(); }, true);
+  var gB = Lab.button(bb, 'Show half-life lines', function () { st.guide = !st.guide; gB.textContent = st.guide ? 'Hide half-life lines' : 'Show half-life lines'; st.readHL = true; graph.redraw(); T.update(st); }, true);
+  Lab.slider(Lab.$('#ctl'), { label: 'Half-life of this isotope', min: 2, max: 30, step: 2, value: st.hl, unit: 's', onInput: function (v) { st.hl = v; st.changedHL = true; reset(); } });
+
+  function live() {
+    var n = count();
+    Lab.readout(Lab.$('#live'), [['Time', st.t.toFixed(1) + ' s'], ['Undecayed nuclei', n, true], ['Fraction left', Lab.sf(n / N0, 2)], ['Half-lives passed', Lab.sf(st.t / st.hl, 2)]]);
+    Lab.$('#gcap').innerHTML = 'Start at ' + N0 + '. Read across from <b>' + N0 / 2 + '</b> to the curve, then down: that time is the half-life. Then from ' + N0 / 2 + ' to ' + N0 / 4 + ' takes <b>another</b> half-life, and so on.';
+    T.update(st);
+  }
+  function update() {
+    Lab.math(Lab.$('#maths'), 'Show the maths', [
+      ['After 1 half-life (' + st.hl + ' s)', N0 + ' ÷ 2 = <b>' + N0 / 2 + '</b> left'],
+      ['After 2 half-lives (' + 2 * st.hl + ' s)', N0 / 2 + ' ÷ 2 = <b>' + N0 / 4 + '</b> left'],
+      ['After 3 half-lives (' + 3 * st.hl + ' s)', N0 / 4 + ' ÷ 2 = <b>' + N0 / 8 + '</b> left'],
+      ['Random!', 'your simulation will not land exactly on these numbers, just close. Run it again and you get a slightly different curve'],
+    ]);
+    grid.redraw(); graph.redraw(); live();
+  }
+
+  // calculator
+  var cc = Lab.$('#cctl');
+  Lab.slider(cc, { label: 'Starting amount (count rate or mass)', min: 100, max: 1600, step: 100, value: st.cN, onInput: function (v) { st.cN = v; calc(); } });
+  Lab.slider(cc, { label: 'Half-life', min: 1, max: 20, step: 1, value: st.cHL, unit: 'days', onInput: function (v) { st.cHL = v; calc(); } });
+  Lab.slider(cc, { label: 'Time passed', min: 0, max: 60, step: 1, value: st.cT, unit: 'days', onInput: function (v) { st.cT = v; calc(); } });
+  function calc() {
+    var n = st.cT / st.cHL, left = st.cN / Math.pow(2, n), steps = [['Number of half-lives', st.cT + ' ÷ ' + st.cHL + ' = <b>' + Lab.sf(n, 3) + '</b>']];
+    if (Math.abs(n - Math.round(n)) < 1e-9 && n <= 6) { var chain = [st.cN], v = st.cN; for (var k = 0; k < n; k++) { v /= 2; chain.push(Lab.sf(v, 4)); } steps.push(['Halve it ' + n + ' times', chain.join(' → ')]); }
+    steps.push(['Amount left', st.cN + ' × (½)^' + Lab.sf(n, 3) + ' = <b>' + Lab.sf(left, 3) + '</b>']);
+    Lab.math(Lab.$('#cmath'), 'Show the maths', steps);
+  }
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Run the simulation until the end (5 half-lives).', ok: function (s) { return s.runs >= 1; } },
+    { t: 'Show the half-life lines. Does each halving take the same time?', s: 'Yes: that is what makes the half-life constant.', ok: function (s) { return s.readHL && s.runs >= 1; } },
+    { t: 'Run it again. Is the curve exactly the same?', s: 'No: decay is random, but the overall shape is the same.', ok: function (s) { return s.runs >= 2; } },
+    { t: 'Change the half-life and run again.', ok: function (s) { return s.changedHL && s.runs >= 1; } },
+  ], { title: 'Measure a half-life' });
+
+  reset(); calc();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A sample has a count rate of 800 counts/min and a half-life of 6 hours. What is the count rate after 18 hours?', n: 100, unit: 'counts/min', why: ' 18 ÷ 6 = 3 half-lives: 800 → 400 → 200 → 100.' },
+    { q: 'What fraction of a radioactive sample is left after 4 half-lives?', o: ['1/4', '1/8', '1/16', '1/32'], a: 2, why: ' (½)⁴ = 1/16.' },
+    { q: 'A count rate falls from 640 to 80 in 30 minutes. What is the half-life?', n: 10, unit: 'minutes', why: ' 640 → 320 → 160 → 80 is 3 half-lives, so 30 ÷ 3 = 10 minutes.' },
+    { q: 'Radioactive decay is described as random because…', o: ['the half-life keeps changing', 'you cannot predict when a particular nucleus will decay', 'it depends on the temperature', 'the nuclei choose when to decay'], a: 1, why: ' Only the probability of decay is fixed.' },
+  ]);
+})();
+</script>
+</body>
+</html>

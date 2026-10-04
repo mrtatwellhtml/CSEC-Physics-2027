@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simple Pendulum Experiment · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Time a simple pendulum with a stopwatch, change its length, plot T² against l and find g. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="pendulum">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>A pendulum swings back and forth. One <b>oscillation</b> is one complete swing: out, back and returning to where it started. The <b>period T</b> is the time for one oscillation.</p>
+    <p>One swing is too quick to time accurately, so we time <b>20 oscillations</b> and divide by 20. A longer string gives a longer period. If you plot <b>T² against l</b> you get a straight line, and its gradient tells you the strength of gravity, g.</p>
+  </div>
+
+  <div class="lab-grid" style="margin-top:16px">
+    <div class="stage">
+      <canvas id="cv" aria-label="A pendulum bob swinging on a string from a clamp, with an oscillation counter"></canvas>
+      <div id="ctl"></div>
+      <div class="row" id="run-btns" style="margin-top:8px"></div>
+    </div>
+    <div class="stack">
+      <section class="card">
+        <h2>Stopwatch</h2>
+        <p class="note" style="margin:0 0 6px">Press <b>Start</b> as the bob passes the centre line, count 20 oscillations, then press <b>Stop</b>.</p>
+        <div style="font:500 44px var(--f-mono);text-align:center;font-variant-numeric:tabular-nums" id="watch" role="timer" aria-live="off">0.00 s</div>
+        <div class="row" style="justify-content:center" id="watch-btns"></div>
+        <div id="live" style="margin-top:10px"></div>
+      </section>
+      <section id="maths"></section>
+    </div>
+  </div>
+
+  <div class="split" style="margin-top:16px">
+    <section class="card">
+      <h2>Results table</h2>
+      <div class="tbl-wrap"><table class="data" id="table"><thead><tr><th scope="col">l / m</th><th scope="col">t for 20 / s</th><th scope="col">T / s</th><th scope="col">T² / s²</th></tr></thead><tbody></tbody></table></div>
+      <div class="row" style="margin-top:10px" id="table-btns"></div>
+      <p class="note" id="fitnote"></p>
+    </section>
+    <section class="stage">
+      <canvas id="graph" aria-label="Graph of T squared against length l"></canvas>
+      <p class="cap">T² against l should be a straight line through the origin. The gradient = 4π² ÷ g.</p>
+    </section>
+  </div>
+
+  <div class="watch" style="margin-top:16px"><strong class="lbl">Watch out: sources of error</strong>
+    <p><b>Reaction time</b> (about 0.2 s) when you start and stop the watch. Timing 20 oscillations shares this error over 20 swings, so it becomes small. Also count from <b>zero</b> as you start, use a <b>small angle</b> (under 10°), and measure l to the <b>centre</b> of the bob.</p>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c, G = 9.81;
+  var st = { l: 0.60, t: 0, phase: 0, swinging: true, watchOn: false, watch: 0, watchStartPhase: 0, rows: [], fit: false, manual: 0, auto: 0 };
+  function period(l) { return 2 * Math.PI * Math.sqrt(l / G); }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var px = W / 2, py = 30, scale = (H - 90) / 1.2;
+    ctx.fillStyle = c('t0'); ctx.fillRect(px - 60, py - 12, 120, 10);
+    var amp = 0.16, ang = amp * Math.cos(st.phase);
+    var len = st.l * scale, bx = px + len * Math.sin(ang), by = py + len * Math.cos(ang);
+    // centre (fiducial) line
+    Lab.line(ctx, px, py, px, py + len + 30, c('grid-strong'), 1.5, [6, 5]);
+    Lab.text(ctx, 'centre line', px + 6, py + len + 26, { size: 11, color: c('muted') });
+    // amplitude arc
+    ctx.strokeStyle = c('grid-strong'); ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.arc(px, py, len, Math.PI / 2 - amp, Math.PI / 2 + amp); ctx.stroke(); ctx.setLineDash([]);
+    Lab.line(ctx, px, py, bx, by, c('ink'), 1.5);
+    Lab.dot(ctx, bx, by, 13, c('pop'), c('ink'));
+    // length marker
+    Lab.arrow(ctx, px - 70, py, px - 70, py + len, { color: c('accent'), width: 1.5, head: 7 });
+    Lab.arrow(ctx, px - 70, py + len, px - 70, py, { color: c('accent'), width: 1.5, head: 7 });
+    Lab.text(ctx, 'l = ' + st.l.toFixed(2) + ' m', px - 78, py + len / 2, { size: 13, weight: 700, color: c('accent'), align: 'right' });
+    Lab.text(ctx, 'measure to the centre of the bob', px - 78, py + len / 2 + 18, { size: 11, color: c('muted'), align: 'right' });
+    var osc = st.watchOn || st.watch ? (st.phase - st.watchStartPhase) / (2 * Math.PI) : 0;
+    Lab.text(ctx, 'Oscillations since Start: ' + Math.max(0, Math.floor(osc + 1e-6)), 12, H - 14, { size: 13, weight: 700, color: c('ink') });
+  }, { ratio: 0.85, min: 340, max: 470 });
+
+  var graph = Lab.canvas(Lab.$('#graph'), function (ctx, W, H) {
+    var maxT2 = Math.max(5, Math.max.apply(null, st.rows.map(function (r) { return r.T * r.T; }).concat([0])) * 1.1);
+    var a = Lab.axes(ctx, { x: 46, y: 22, w: W - 64, h: H - 64 }, { xmin: 0, xmax: 1.3, ymin: 0, ymax: maxT2, xlabel: 'l / m', ylabel: 'T² / s²' });
+    var g = fitGrad();
+    if (st.fit && g) Lab.line(ctx, a.X(0), a.Y(0), a.X(1.3), a.Y(g * 1.3), c('accent'), 2.5);
+    st.rows.forEach(function (r) {
+      var X = a.X(r.l), Y = a.Y(r.T * r.T);
+      ctx.strokeStyle = c('ink'); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(X - 5, Y - 5); ctx.lineTo(X + 5, Y + 5); ctx.moveTo(X + 5, Y - 5); ctx.lineTo(X - 5, Y + 5); ctx.stroke();
+    });
+  }, { ratio: 0.72, min: 260, max: 380 });
+
+  function fitGrad() {
+    if (st.rows.length < 2) return 0;
+    var sxy = 0, sxx = 0;
+    st.rows.forEach(function (r) { sxy += r.l * r.T * r.T; sxx += r.l * r.l; });
+    return sxy / sxx;
+  }
+
+  var ctl = Lab.$('#ctl');
+  var lenS = Lab.slider(ctl, { label: 'Length of string l', min: 0.2, max: 1.2, step: 0.05, value: 0.6, unit: 'm', fmt: function (v) { return v.toFixed(2); },
+    onInput: function (v) { st.l = v; resetWatch(); update(); } });
+
+  var rb = Lab.$('#run-btns');
+  var playB = Lab.button(rb, 'Pause', function () { if (anim.running) { anim.stop(); playB.textContent = 'Play'; } else { anim.start(); playB.textContent = 'Pause'; } }, true);
+  Lab.button(rb, 'Auto-time 20 oscillations (no reaction time)', function () {
+    var t20 = Math.round(20 * period(st.l) * 100) / 100;
+    addRow(st.l, t20); st.auto++; update();
+  }, true);
+
+  var wb = Lab.$('#watch-btns');
+  var startB = Lab.button(wb, 'Start', function () {
+    if (st.watchOn) return;
+    st.watchOn = true; st.watch = 0; st.watchStartPhase = st.phase; update();
+  });
+  var stopB = Lab.button(wb, 'Stop', function () { if (!st.watchOn) return; st.watchOn = false; update(); }, true);
+  var recB = Lab.button(wb, 'Record (20 oscillations)', function () {
+    if (!st.watch) return;
+    addRow(st.l, Math.round(st.watch * 100) / 100); st.manual++; resetWatch(); update();
+  });
+  function resetWatch() { st.watchOn = false; st.watch = 0; }
+  function addRow(l, t20) {
+    st.rows = st.rows.filter(function (r) { return Math.abs(r.l - l) > 1e-6; });
+    st.rows.push({ l: l, t20: t20, T: t20 / 20 });
+    st.rows.sort(function (a, b) { return a.l - b.l; });
+  }
+
+  var tb = Lab.$('#table-btns');
+  Lab.button(tb, 'Draw best-fit line', function () { st.fit = true; update(); });
+  Lab.button(tb, 'Clear table', function () { st.rows = []; st.fit = false; update(); }, true);
+
+  var anim = Lab.loop(function (dt) {
+    st.phase += dt * 2 * Math.PI / period(st.l);
+    if (st.watchOn) st.watch += dt;
+    Lab.$('#watch').textContent = st.watch.toFixed(2) + ' s';
+    view.redraw();
+  });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Use the stopwatch yourself: Start, count 20 oscillations, Stop, then Record.', s: 'Start as the bob crosses the centre line and count "zero".', ok: function (s) { return s.manual >= 1; } },
+    { t: 'Record results for at least 5 different lengths.', s: 'Use Auto-time if you want readings without reaction-time error.', ok: function (s) { return s.rows.length >= 5; } },
+    { t: 'Draw the best-fit line on the T² against l graph.', ok: function (s) { return s.fit && s.rows.length >= 2; } },
+    { t: 'Make the pendulum 4 times longer (0.30 m → 1.20 m). Does the period double?', s: 'T ∝ √l, so 4 × the length gives 2 × the period.', ok: function (s) { return s.rows.some(function (r) { return Math.abs(r.l - 0.3) < 0.01; }) && s.rows.some(function (r) { return Math.abs(r.l - 1.2) < 0.01; }); } },
+  ], { title: 'Investigate the period of a pendulum' });
+
+  function update() {
+    var Tp = period(st.l);
+    startB.disabled = st.watchOn; stopB.disabled = !st.watchOn; recB.disabled = st.watchOn || !st.watch;
+    Lab.readout(Lab.$('#live'), [['Length l', st.l.toFixed(2) + ' m'], ['Your time ÷ 20', st.watch ? (st.watch / 20).toFixed(3) + ' s' : '—'], ['True period T', Tp.toFixed(3) + ' s', true]]);
+    var g = fitGrad();
+    var steps = [
+      ['Period from your timing', 'T = t ÷ 20 = ' + (st.watch ? st.watch.toFixed(2) : 't') + ' ÷ 20 = <b>' + (st.watch ? (st.watch / 20).toFixed(3) + ' s' : '?') + '</b>'],
+      ['Formula (given in the exam)', 'T = 2π √(l ÷ g)'],
+      ['Square both sides', 'T² = (4π² ÷ g) × l → a straight line through the origin'],
+    ];
+    if (st.fit && g) steps.push(['From your graph', 'gradient = ' + g.toFixed(2) + ' s²/m, so g = 4π² ÷ gradient = 39.5 ÷ ' + g.toFixed(2) + ' = <b>' + (4 * Math.PI * Math.PI / g).toFixed(1) + ' m/s²</b>']);
+    Lab.math(Lab.$('#maths'), 'Show the maths', steps);
+    Lab.$('#table tbody').innerHTML = st.rows.length ? st.rows.map(function (r) {
+      return '<tr><td>' + r.l.toFixed(2) + '</td><td>' + r.t20.toFixed(2) + '</td><td>' + r.T.toFixed(3) + '</td><td>' + (r.T * r.T).toFixed(3) + '</td></tr>';
+    }).join('') : '<tr><td colspan="4" style="font-family:inherit;color:var(--muted)">No readings yet</td></tr>';
+    Lab.$('#fitnote').innerHTML = st.fit && g ? 'Your value: <b>g = ' + (4 * Math.PI * Math.PI / g).toFixed(1) + ' m/s²</b>. The accepted value is about 9.8 m/s² (CSEC often uses 10 m/s²).' : '';
+    view.redraw(); graph.redraw();
+    T.update(st);
+  }
+  update();
+  if (Lab.reducedMotion) { anim.stop(); playB.textContent = 'Play'; } else anim.start();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A student times 20 oscillations and gets 28.4 s. What is the period T?', n: 1.42, unit: 's', why: ' T = 28.4 ÷ 20 = 1.42 s.', hint: ' Divide the total time by the number of oscillations.' },
+    { q: 'Why do we time 20 oscillations instead of 1?', o: ['It makes the pendulum swing faster', 'It reduces the effect of reaction time on each period', 'It makes the amplitude bigger', 'It removes the need for a stopwatch'], a: 1, why: ' The reaction-time error (about 0.2 s) is shared over 20 periods, so the error in T is about 0.01 s.' },
+    { q: 'Which change makes the period of a pendulum longer?', o: ['A heavier bob', 'A longer string', 'A smaller angle of swing', 'Timing more oscillations'], a: 1, why: ' T depends on length (and g) only. Mass and small amplitudes do not change it.' },
+    { q: 'In the pendulum experiment, which is the <b>independent</b> variable?', o: ['The period T', 'The length l', 'The mass of the bob', 'The time for 20 oscillations'], a: 1, why: ' You choose and change the length (independent). The period is what you measure (dependent). The mass and the angle are kept the same (controlled).' },
+  ]);
+})();
+</script>
+</body>
+</html>

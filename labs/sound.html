@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sound and Echoes · CSEC Physics 2027 Labs</title>
+<meta name="description" content="See pitch and loudness on an oscilloscope, time echoes to find the speed of sound, sonar depth and the bell-jar experiment. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="sound">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>Sound is made by <b>vibrations</b>. It travels as a <b>longitudinal wave</b>, so it needs particles to pass the vibration along. It can't travel through a vacuum.</p>
+    <p><b>Pitch</b> depends on <b>frequency</b> (more vibrations per second = higher note). <b>Loudness</b> depends on <b>amplitude</b>. An <b>echo</b> is a reflected sound. It travels to the wall <b>and back</b>, so distance = speed × time ÷ 2.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="mode"></div>
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage">
+      <canvas id="cv" aria-label="Sound experiment"></canvas>
+      <div class="row" style="margin-top:8px" id="btns"></div>
+    </div>
+    <div class="stack">
+      <section class="card"><h2>Controls</h2><div id="ctl"></div></section>
+      <section id="maths"></section>
+    </div>
+  </div>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Speed of sound in different materials</h2>
+    <div class="tbl-wrap"><table class="data"><thead><tr><th>Medium</th><th>Approximate speed</th><th>Why</th></tr></thead><tbody>
+      <tr><td style="font-family:inherit">Air (gas)</td><td>330–340 m/s</td><td style="font-family:inherit">particles far apart</td></tr>
+      <tr><td style="font-family:inherit">Water (liquid)</td><td>1500 m/s</td><td style="font-family:inherit">particles closer together</td></tr>
+      <tr><td style="font-family:inherit">Steel (solid)</td><td>5000 m/s</td><td style="font-family:inherit">particles closest and strongly bonded</td></tr>
+    </tbody></table></div>
+    <p class="note">Human hearing: about <b>20 Hz to 20 000 Hz</b>. Above 20 kHz is <b>ultrasound</b>, used for scans of unborn babies, cleaning jewellery, and sonar to find the depth of the sea or shoals of fish.</p>
+  </section>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var MED = { air: [340, 'Air'], water: [1500, 'Water'], steel: [5000, 'Steel'] };
+  var st = { mode: 'cro', f: 440, A: 0.5, d: 85, med: 'air', pulse: -1, tMeas: 0, echoes: {}, sonar: { depth: 300 + Math.round(Math.random() * 16) * 50, t: -1 }, air: 1, played: false, seen: {} };
+  var actx = null, osc = null, gain = null;
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    if (st.mode === 'cro') {
+      // oscilloscope screen
+      ctx.fillStyle = '#0b1a10'; Lab.roundRect(ctx, 10, 10, W - 20, H - 20, 12); ctx.fill();
+      for (var gx = 0; gx <= 10; gx++) Lab.line(ctx, 10 + gx * (W - 20) / 10, 10, 10 + gx * (W - 20) / 10, H - 10, 'rgba(78,240,138,.15)', 1);
+      for (var gy = 0; gy <= 8; gy++) Lab.line(ctx, 10, 10 + gy * (H - 20) / 8, W - 10, 10 + gy * (H - 20) / 8, 'rgba(78,240,138,.15)', 1);
+      ctx.strokeStyle = '#4ef08a'; ctx.lineWidth = 2.5; ctx.beginPath();
+      var cycles = st.f / 100;   // time base: 10 ms across the screen
+      for (var i = 0; i <= 600; i++) { var x = 10 + i / 600 * (W - 20), y = H / 2 - Math.sin(2 * Math.PI * cycles * i / 600 + st.ph) * st.A * (H / 2 - 30); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+      ctx.stroke();
+      Lab.text(ctx, 'time base: 1 ms per square', 20, H - 22, { color: '#4ef08a', size: 11, kind: 'mono' });
+    } else if (st.mode === 'echo') {
+      var v = MED[st.med][0], px = 50, wx = W - 40, ppm = (wx - px) / Math.max(st.d, 10);
+      ctx.fillStyle = c('t0'); ctx.fillRect(wx, 20, 20, H - 60);
+      Lab.text(ctx, 'wall', wx + 10, H - 26, { align: 'center', size: 12 });
+      Lab.text(ctx, '👏', px, H / 2, { size: 28, align: 'center' });
+      Lab.arrow(ctx, px, H - 40, wx, H - 40, { color: c('muted'), width: 1.5, head: 7 }); Lab.arrow(ctx, wx, H - 40, px, H - 40, { color: c('muted'), width: 1.5, head: 7 });
+      Lab.text(ctx, 'd = ' + st.d + ' m', (px + wx) / 2, H - 52, { align: 'center', weight: 700 });
+      if (st.pulse >= 0) {
+        var dist = v * st.pulse, out = dist <= st.d, pos = out ? dist : 2 * st.d - dist;
+        if (dist <= 2 * st.d) {
+          ctx.strokeStyle = out ? c('accent') : c('pop'); ctx.lineWidth = 3;
+          for (var k = 0; k < 3; k++) { ctx.beginPath(); var r = 30 - k * 9, cx = px + pos * ppm; ctx.arc(cx, H / 2, r, out ? -0.6 : Math.PI - 0.6, out ? 0.6 : Math.PI + 0.6); ctx.stroke(); }
+        }
+        Lab.text(ctx, 'stopwatch: ' + Math.min(st.pulse, 2 * st.d / v).toFixed(3) + ' s', 20, 24, { kind: 'mono', weight: 500 });
+      }
+    } else if (st.mode === 'sonar') {
+      var sea = 60, bot = H - 30, ppm2 = (bot - sea) / 1200;
+      ctx.fillStyle = c('t6'); ctx.globalAlpha = 0.25; ctx.fillRect(0, sea, W, bot - sea); ctx.globalAlpha = 1;
+      ctx.fillStyle = '#C9A26B'; ctx.fillRect(0, sea + st.sonar.depth * ppm2, W, bot);
+      ctx.fillStyle = c('t0'); ctx.beginPath(); ctx.moveTo(W / 2 - 60, sea - 20); ctx.lineTo(W / 2 + 60, sea - 20); ctx.lineTo(W / 2 + 40, sea + 4); ctx.lineTo(W / 2 - 40, sea + 4); ctx.closePath(); ctx.fill();
+      if (st.sonar.t >= 0) {
+        var dd = 1500 * st.sonar.t, down = dd <= st.sonar.depth, y = sea + (down ? dd : 2 * st.sonar.depth - dd) * ppm2;
+        if (dd <= 2 * st.sonar.depth) { ctx.strokeStyle = down ? c('accent') : c('pop'); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(W / 2, y, 20, down ? 0.4 : Math.PI + 0.4, down ? Math.PI - 0.4 : 2 * Math.PI - 0.4); ctx.stroke(); }
+        Lab.text(ctx, 'echo time: ' + Math.min(st.sonar.t, 2 * st.sonar.depth / 1500).toFixed(2) + ' s', 16, 24, { kind: 'mono', weight: 500 });
+      }
+      Lab.text(ctx, 'sea bed (depth unknown)', W - 16, H - 10, { align: 'right', size: 12, color: c('muted') });
+    } else {
+      // bell jar
+      var cx2 = W / 2, by = H - 40;
+      ctx.strokeStyle = c('ink'); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(cx2 - 90, by); ctx.lineTo(cx2 - 90, 80); ctx.quadraticCurveTo(cx2, 10, cx2 + 90, 80); ctx.lineTo(cx2 + 90, by); ctx.stroke();
+      ctx.fillStyle = c('t0'); ctx.fillRect(cx2 - 120, by, 240, 12);
+      for (var p = 0; p < Math.round(st.air * 40); p++) Lab.dot(ctx, cx2 - 80 + (p * 37 % 160), 60 + (p * 53 % (by - 70)), 2.5, c('t2'));
+      var shake = st.bell ? Math.sin(Date.now() / 25) * 4 : 0;
+      ctx.fillStyle = c('t7'); ctx.beginPath(); ctx.arc(cx2 + shake, 130, 26, Math.PI, 0); ctx.lineTo(cx2 + 26 + shake, 150); ctx.lineTo(cx2 - 26 + shake, 150); ctx.closePath(); ctx.fill();
+      Lab.line(ctx, cx2, 104, cx2, 60, c('ink'), 2);
+      Lab.text(ctx, 'air pressure in jar: ' + Math.round(st.air * 100) + '%', 16, 24, { weight: 700 });
+      // sound level meter outside
+      var lvl = st.bell ? st.air : 0;
+      ctx.fillStyle = c('surface'); ctx.fillRect(W - 60, 40, 24, 120); ctx.strokeStyle = c('ink'); ctx.strokeRect(W - 60, 40, 24, 120);
+      ctx.fillStyle = c('ok'); ctx.fillRect(W - 58, 158 - lvl * 116, 20, lvl * 116);
+      Lab.text(ctx, 'sound heard', W - 48, 172, { align: 'center', size: 11 });
+      Lab.text(ctx, 'to vacuum pump →', cx2 + 125, by + 6, { size: 11, color: c('muted') });
+    }
+  }, { ratio: 0.55, min: 280, max: 380 });
+
+  st.ph = 0;
+  var anim = Lab.loop(function (dt) {
+    st.ph += dt * 2;
+    if (st.mode === 'echo' && st.pulse >= 0) { st.pulse += dt * (st.med === 'air' ? 0.25 : st.med === 'water' ? 0.06 : 0.02); if (st.pulse > 2 * st.d / MED[st.med][0] && !st.done) { st.done = true; st.echoes[st.med + st.d] = true; maths(); } }
+    if (st.mode === 'sonar' && st.sonar.t >= 0) { st.sonar.t += dt * 0.3; if (st.sonar.t > 2 * st.sonar.depth / 1500 && !st.sdone) { st.sdone = true; maths(); } }
+    view.redraw();
+  });
+  anim.start();
+
+  function stopTone() { if (osc) { try { osc.stop(); } catch (e) { } osc = null; } }
+  function build() {
+    var ctl = Lab.$('#ctl'), bb = Lab.$('#btns'); ctl.innerHTML = ''; bb.innerHTML = ''; stopTone();
+    if (st.mode === 'cro') {
+      Lab.slider(ctl, { label: 'Frequency (pitch)', min: 100, max: 1000, step: 20, value: st.f, unit: 'Hz', onInput: function (v) { st.f = v; if (osc) osc.frequency.value = v; st.seen.f = (st.seen.f || 0) + 1; maths(); } });
+      Lab.slider(ctl, { label: 'Amplitude (loudness)', min: 0.1, max: 0.9, step: 0.1, value: st.A, fmt: function (v) { return v < 0.35 ? 'quiet' : v < 0.65 ? 'medium' : 'loud'; }, onInput: function (v) { st.A = v; if (gain) gain.gain.value = v * 0.08; st.seen.A = (st.seen.A || 0) + 1; maths(); } });
+      var pb = Lab.button(bb, '🔊 Play the sound', function () {
+        if (osc) { stopTone(); pb.textContent = '🔊 Play the sound'; return; }
+        try {
+          actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+          osc = actx.createOscillator(); gain = actx.createGain(); osc.frequency.value = st.f; gain.gain.value = st.A * 0.08;
+          osc.connect(gain); gain.connect(actx.destination); osc.start(); st.played = true; pb.textContent = '⏹ Stop the sound'; T.update(st);
+        } catch (e) { pb.textContent = 'Sound not available'; }
+      }, true);
+    } else if (st.mode === 'echo') {
+      Lab.slider(ctl, { label: 'Distance to the wall d', min: 20, max: 200, step: 5, value: st.d, unit: 'm', onInput: function (v) { st.d = v; st.pulse = -1; maths(); } });
+      var r = Lab.el('div', { class: 'row', style: 'margin-top:8px' }); ctl.appendChild(r);
+      Lab.seg(r, { label: 'Medium', value: st.med, options: Object.keys(MED).map(function (k) { return [k, MED[k][1]]; }), onChange: function (v) { st.med = v; st.pulse = -1; maths(); } });
+      Lab.button(bb, '👏 Clap!', function () { st.pulse = 0; st.done = false; maths(); });
+    } else if (st.mode === 'sonar') {
+      ctl.innerHTML = '<p class="note" style="margin:0">A ship sends a pulse of ultrasound down to the sea bed. Sound travels at 1500 m/s in sea water. Time the echo and find the depth.</p>';
+      Lab.button(bb, 'Send ultrasound pulse', function () { st.sonar.t = 0; st.sdone = false; maths(); });
+    } else {
+      Lab.slider(ctl, { label: 'Pump air out of the jar', min: 0, max: 1, step: 0.1, value: st.air, fmt: function (v) { return Math.round(v * 100) + '% air left'; }, onInput: function (v) { st.air = v; if (v === 0 && st.bell) st.seen.vacuum = true; maths(); } });
+      var bellB = Lab.button(bb, 'Ring the bell', function () { st.bell = !st.bell; bellB.textContent = st.bell ? 'Stop the bell' : 'Ring the bell'; if (st.air === 0 && st.bell) st.seen.vacuum = true; maths(); });
+    }
+  }
+  function maths() {
+    var steps;
+    if (st.mode === 'cro') { var Tp = 1 / st.f; steps = [['Period', 'T = 1 ÷ f = 1 ÷ ' + st.f + ' = <b>' + Lab.sf(Tp * 1000, 3) + ' ms</b>'], ['Wavelength in air', 'λ = v ÷ f = 340 ÷ ' + st.f + ' = <b>' + Lab.sf(340 / st.f, 3) + ' m</b>'], ['Pitch', st.f < 300 ? 'low note' : st.f < 600 ? 'middle note' : 'high note']]; }
+    else if (st.mode === 'echo') {
+      var v = MED[st.med][0], t = 2 * st.d / v;
+      steps = st.done ? [['Total distance travelled', 'to the wall and back = 2 × ' + st.d + ' = ' + 2 * st.d + ' m'], ['Time measured', 't = <b>' + t.toFixed(3) + ' s</b>'], ['Speed of sound', 'v = 2d ÷ t = ' + 2 * st.d + ' ÷ ' + t.toFixed(3) + ' = <b>' + Math.round(v) + ' m/s</b>']]
+        : [['Press Clap!', 'watch the sound travel to the wall and back'], ['Then', 'v = 2d ÷ t']];
+    } else if (st.mode === 'sonar') {
+      var ts = 2 * st.sonar.depth / 1500;
+      steps = st.sdone ? [['Echo time', 't = <b>' + ts.toFixed(2) + ' s</b> (down AND back)'], ['Time to reach the sea bed', 't ÷ 2 = ' + (ts / 2).toFixed(2) + ' s'], ['Depth', 'd = v × t ÷ 2 = 1500 × ' + ts.toFixed(2) + ' ÷ 2 = <b>' + st.sonar.depth + ' m</b>']]
+        : [['Send a pulse', 'and time the echo'], ['Then', 'depth = v × t ÷ 2']];
+    } else steps = [['With air', 'the bell\'s vibrations pass to air particles, which carry the sound to your ear'], ['With no air (vacuum)', 'you can still <b>see</b> the bell vibrating, but there are no particles to carry the sound'], ['So', 'sound needs a medium; light does not']];
+    Lab.math(Lab.$('#maths'), 'Show the maths', steps);
+    view.redraw(); T.update(st);
+  }
+  Lab.seg(Lab.$('#mode'), { label: 'Experiment', value: 'cro', options: [['cro', 'Pitch and loudness'], ['echo', 'Echoes'], ['sonar', 'Sonar (ultrasound)'], ['jar', 'Bell jar']], onChange: function (v) { st.mode = v; st.seen[v] = true; build(); maths(); } });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Change the frequency and the amplitude. Which one changes the pitch?', s: 'Frequency → pitch. Amplitude → loudness.', ok: function (s) { return s.seen.f >= 2 && s.seen.A >= 2; } },
+    { t: 'Clap 85 m from a wall in air and calculate the speed of sound.', ok: function (s) { return s.echoes.air85; } },
+    { t: 'Repeat the echo in water or steel. Is sound faster or slower in solids?', ok: function (s) { return s.echoes['water' + s.d] || s.echoes['steel' + s.d]; } },
+    { t: 'Use sonar to find the depth of the sea, then check your answer in the quick check.', ok: function (s) { return s.sdone; } },
+    { t: 'Pump all the air out of the bell jar with the bell ringing.', s: 'The sound fades away: sound cannot travel through a vacuum.', ok: function (s) { return s.seen.vacuum; } },
+  ], { title: 'Investigate sound' });
+
+  build(); maths();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A girl stands 170 m from a cliff and hears her echo 1.0 s after she shouts. What is the speed of sound?', n: 340, unit: 'm/s', why: ' v = 2d ÷ t = 340 ÷ 1.0 = 340 m/s.', hint: ' The sound travels to the cliff AND back: 2 × 170 m.' },
+    { q: 'What is the depth of the sea in the sonar experiment (on your screen)?', n: st.sonar.depth, unit: 'm', tol: 0.02, why: ' depth = 1500 × t ÷ 2.', hint: ' Send a pulse, read the echo time, then depth = 1500 × t ÷ 2.' },
+    { q: 'A note has a higher pitch. Its…', o: ['amplitude is bigger', 'frequency is higher', 'speed is greater', 'wavelength is longer'], a: 1, why: ' Pitch depends on frequency.' },
+    { q: 'Why can astronauts on the Moon not hear each other directly?', o: ['It is too cold', 'There is no air, so there are no particles to carry sound', 'Their helmets block light', 'Sound travels too fast'], a: 1, why: ' Sound needs a medium.' },
+  ]);
+})();
+</script>
+</body>
+</html>

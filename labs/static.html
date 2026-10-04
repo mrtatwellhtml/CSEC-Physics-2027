@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Static Electricity · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Charging by friction, forces between charges, charging a sphere by induction and electric field patterns. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="static">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>Everything contains <b>positive</b> charges (protons, fixed in the nucleus) and <b>negative</b> charges (electrons, which can move). Only <b>electrons move</b>. An object that <b>gains</b> electrons becomes negative; one that <b>loses</b> electrons becomes positive.</p>
+    <p><b>Like charges repel. Unlike charges attract.</b> A charged object can even attract a neutral one by pushing or pulling the electrons inside it (induction).</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="mode"></div>
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage"><canvas id="cv" aria-label="Static electricity experiment"></canvas><div class="row" style="margin-top:8px" id="btns"></div></div>
+    <div class="stack">
+      <section class="card" id="explain"></section>
+      <section id="steps"></section>
+    </div>
+  </div>
+
+  <div class="watch" style="margin-top:16px"><strong class="lbl">Common mistake</strong>
+    <p>Saying "positive charges moved". In solids, <b>only electrons move</b>. A positive object has <b>lost electrons</b>; it has not gained protons.</p>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var st = { mode: 'rub', rod: 'poly', rubs: 0, done: {}, pair: '+-', ind: 0, field: 'dipole', charges: [] };
+  var PRESET = { single: [[0.5, 0.5, 1]], neg: [[0.5, 0.5, -1]], dipole: [[0.35, 0.5, 1], [0.65, 0.5, -1]], like: [[0.35, 0.5, 1], [0.65, 0.5, 1]] };
+  function sym(ctx, x, y, s, col) { Lab.text(ctx, s, x, y, { color: col || (s === '+' ? c('no') : c('t2')), size: 16, weight: 700, align: 'center' }); }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    if (st.mode === 'rub') drawRub(ctx, W, H); else if (st.mode === 'force') drawForce(ctx, W, H); else if (st.mode === 'ind') drawInd(ctx, W, H); else drawField(ctx, W, H);
+  }, { ratio: 0.62, min: 320, max: 420 });
+  var geo = {};
+
+  function drawRub(ctx, W, H) {
+    var n = Math.min(st.rubs, 6), poly = st.rod === 'poly';
+    var rx = W * 0.15, ry = H * 0.3, rw = W * 0.55, rh = 40;
+    ctx.fillStyle = poly ? '#3B3F46' : '#E8E2C8'; Lab.roundRect(ctx, rx, ry, rw, rh, 8); ctx.fill();
+    Lab.text(ctx, poly ? 'polythene rod' : 'acetate rod', rx + rw / 2, ry - 14, { align: 'center', weight: 700 });
+    var cx = rx + rw * 0.7 + Math.sin(st.anim || 0) * 30, cy = ry + rh + 50;
+    ctx.fillStyle = '#C9A26B'; Lab.roundRect(ctx, cx - 60, cy - 30, 120, 60, 12); ctx.fill();
+    Lab.text(ctx, 'cloth', cx, cy + 46, { align: 'center', weight: 700 });
+    // each rub moves electrons: polythene gains them, acetate loses them
+    var rodNeg = poly ? n : 0, rodPos = poly ? 0 : n, clothNeg = poly ? 0 : n, clothPos = poly ? n : 0;
+    for (var i = 0; i < 6; i++) { sym(ctx, rx + 24 + i * (rw - 48) / 5, ry + rh / 2 - 8, '+', c('no')); sym(ctx, rx + 24 + i * (rw - 48) / 5, ry + rh / 2 + 10, i < 6 - rodPos ? '−' : '', c('t2')); }
+    for (var k = 0; k < rodNeg; k++) sym(ctx, rx + 36 + k * (rw - 72) / 5, ry - 0, '−');
+    for (var j = 0; j < 6; j++) { sym(ctx, cx - 45 + j * 18, cy - 8, '+'); sym(ctx, cx - 45 + j * 18, cy + 12, j < 6 - clothPos ? '−' : ''); }
+    for (var m = 0; m < clothNeg; m++) sym(ctx, cx - 45 + m * 18, cy + 30, '−');
+    var net = poly ? -n : n;
+    Lab.text(ctx, 'rod: ' + (net === 0 ? 'neutral' : (net < 0 ? 'NEGATIVE (' + n + ' extra electrons)' : 'POSITIVE (' + n + ' electrons lost)')), 14, H - 36, { weight: 700, color: net < 0 ? c('t2') : net > 0 ? c('no') : c('ink') });
+    Lab.text(ctx, 'cloth: ' + (net === 0 ? 'neutral' : (net < 0 ? 'POSITIVE (lost ' + n + ' electrons)' : 'NEGATIVE (gained ' + n + ' electrons)')), 14, H - 14, { weight: 700, color: net < 0 ? c('no') : net > 0 ? c('t2') : c('ink') });
+  }
+  function drawForce(ctx, W, H) {
+    var s1 = st.pair[0], s2 = st.pair[1], top = 30, L = H * 0.55, ang = s2 === '0' ? 0.18 : s1 === s2 ? -0.28 : 0.2;
+    var p1 = [W * 0.38, top], p2 = [W * 0.62, top];
+    Lab.line(ctx, W * 0.2, top, W * 0.8, top, c('t0'), 6);
+    var b1 = [p1[0] + Math.sin(ang) * L, top + Math.cos(ang) * L], b2 = [p2[0] - Math.sin(ang) * L, top + Math.cos(ang) * L];
+    Lab.line(ctx, p1[0], p1[1], b1[0], b1[1], c('ink'), 1.5); Lab.line(ctx, p2[0], p2[1], b2[0], b2[1], c('ink'), 1.5);
+    [[b1, s1], [b2, s2]].forEach(function (b) {
+      var col = b[1] === '+' ? c('no') : b[1] === '-' ? c('t2') : c('t0');
+      Lab.dot(ctx, b[0][0], b[0][1], 26, col);
+      Lab.text(ctx, b[1] === '+' ? '+' : b[1] === '-' ? '−' : '0', b[0][0], b[0][1], { color: '#fff', size: 22, weight: 700, align: 'center' });
+    });
+    var dir = ang > 0 ? 1 : -1;
+    Lab.arrow(ctx, b1[0], b1[1] + 44, b1[0] + dir * 50, b1[1] + 44, { color: c('ok'), width: 3 });
+    Lab.arrow(ctx, b2[0], b2[1] + 44, b2[0] - dir * 50, b2[1] + 44, { color: c('ok'), width: 3 });
+    Lab.text(ctx, s2 === '0' ? 'ATTRACT: induction pulls the neutral ball' : s1 === s2 ? 'REPEL: like charges' : 'ATTRACT: unlike charges', W / 2, H - 16, { weight: 700, align: 'center', size: 16 });
+  }
+  function drawInd(ctx, W, H) {
+    var sx = W * 0.55, sy = H * 0.45, R = Math.min(W, H) * 0.2;
+    ctx.fillStyle = c('t0'); ctx.fillRect(sx - 5, sy + R, 10, H * 0.3); Lab.text(ctx, 'insulating stand', sx + 10, H - 20, { size: 11, color: c('muted') });
+    Lab.dot(ctx, sx, sy, R, c('surface-2'), c('ink'));
+    var rodNear = st.ind >= 1 && st.ind <= 3;
+    if (rodNear) { ctx.fillStyle = '#3B3F46'; Lab.roundRect(ctx, sx - R - 140, sy - 16, 120, 32, 6); ctx.fill(); for (var i = 0; i < 5; i++) sym(ctx, sx - R - 128 + i * 24, sy, '−', '#8fb3ff'); Lab.text(ctx, 'negative rod', sx - R - 80, sy - 30, { align: 'center', weight: 700, size: 12 }); }
+    var earth = st.ind === 2;
+    if (earth) { Lab.line(ctx, sx + R, sy, sx + R + 60, sy, c('ink'), 2); Lab.line(ctx, sx + R + 60, sy, sx + R + 60, sy + 40, c('ink'), 2); [24, 16, 8].forEach(function (w, k) { Lab.line(ctx, sx + R + 60 - w / 2, sy + 40 + k * 6, sx + R + 60 + w / 2, sy + 40 + k * 6, c('ink'), 2); }); Lab.text(ctx, 'earth', sx + R + 72, sy + 48, { size: 12 }); }
+    // charges on the sphere
+    var plus = [], minus = [];
+    for (var k = 0; k < 6; k++) { var a = (k / 6) * Math.PI * 2; plus.push([sx + Math.cos(a) * R * 0.55, sy + Math.sin(a) * R * 0.55]); }
+    var electronsLeft = st.ind >= 2 ? 3 : 6;   // earthing lets 3 electrons escape
+    for (var e = 0; e < electronsLeft; e++) {
+      var side = rodNear && st.ind === 1 ? 1 : 0, a2 = (e / electronsLeft) * Math.PI * 2;
+      if (st.ind === 1) minus.push([sx + R * 0.75, sy - R * 0.6 + e * R * 0.24]);
+      else if (st.ind === 2) minus.push([sx + R * 0.6 + (e % 2) * 6, sy - R * 0.3 + e * R * 0.3]);
+      else minus.push([sx + Math.cos(a2 + 0.5) * R * 0.75, sy + Math.sin(a2 + 0.5) * R * 0.75]);
+    }
+    if (st.ind === 3) minus = minus.map(function (p, i) { return [sx + R * 0.7, sy - R * 0.3 + i * R * 0.3]; });
+    if (st.ind === 2) plus = plus.map(function (p, i) { return [sx - R * 0.7 + (i % 2) * 14, sy - R * 0.5 + Math.floor(i / 2) * R * 0.5]; });
+    if (st.ind === 1) plus = plus.map(function (p, i) { return [sx - R * 0.75 + (i % 2) * 12, sy - R * 0.6 + Math.floor(i / 2) * R * 0.6]; });
+    plus.forEach(function (p) { sym(ctx, p[0], p[1], '+'); }); minus.forEach(function (p) { sym(ctx, p[0], p[1], '−'); });
+    if (earth) Lab.arrow(ctx, sx + R + 4, sy - 12, sx + R + 54, sy - 12, { color: c('t2'), width: 2, label: 'electrons to earth', labelOff: -12, labelSize: 11 });
+    var label = ['Step 0: the sphere is neutral (6+ and 6−)', 'Step 1: the − rod repels electrons to the far side', 'Step 2: earth the sphere; electrons escape to earth', 'Step 3: remove the earth (rod still near)', 'Step 4: remove the rod; the sphere is POSITIVE'][st.ind];
+    Lab.text(ctx, label, W / 2, 20, { weight: 700, align: 'center' });
+  }
+  function E(x, y) {
+    var ex = 0, ey = 0;
+    st.charges.forEach(function (q) { var dx = x - q.x, dy = y - q.y, r2 = dx * dx + dy * dy + 30, r = Math.sqrt(r2); ex += q.q * dx / (r2 * r); ey += q.q * dy / (r2 * r); });
+    return [ex, ey];
+  }
+  function drawField(ctx, W, H) {
+    st.charges.forEach(function (q) { q.x = q.fx * W; q.y = q.fy * H; });
+    var pos = st.charges.filter(function (q) { return q.q > 0; }), starts = pos.length ? pos : st.charges, sign = pos.length ? 1 : -1;
+    ctx.strokeStyle = c('accent'); ctx.lineWidth = 1.6;
+    starts.forEach(function (q) {
+      for (var k = 0; k < 16; k++) {
+        var a = k / 16 * Math.PI * 2, x = q.x + Math.cos(a) * 16, y = q.y + Math.sin(a) * 16, pts = [[x, y]];
+        for (var s = 0; s < 600; s++) {
+          var e = E(x, y), m = Math.hypot(e[0], e[1]) || 1; x += sign * e[0] / m * 3; y += sign * e[1] / m * 3; pts.push([x, y]);
+          if (x < 0 || y < 0 || x > W || y > H) break;
+          if (st.charges.some(function (o) { return o !== q && Math.hypot(o.x - x, o.y - y) < 14; })) break;
+        }
+        ctx.beginPath(); pts.forEach(function (p, i) { if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); }); ctx.stroke();
+        var mid = pts[Math.min(pts.length - 1, 30)], nxt = pts[Math.min(pts.length - 1, 32)];
+        if (mid && nxt) { var dx = (nxt[0] - mid[0]) * sign, dy = (nxt[1] - mid[1]) * sign; Lab.arrow(ctx, mid[0] - dx, mid[1] - dy, mid[0] + dx, mid[1] + dy, { color: c('accent'), width: 1.5, head: 8 }); }
+      }
+    });
+    st.charges.forEach(function (q) { Lab.dot(ctx, q.x, q.y, 14, q.q > 0 ? c('no') : c('t2')); Lab.text(ctx, q.q > 0 ? '+' : '−', q.x, q.y, { color: '#fff', size: 18, weight: 700, align: 'center' }); });
+    Lab.text(ctx, 'Field lines point from + to − (the way a + charge would be pushed). Drag the charges.', W / 2, H - 12, { size: 12, color: c('muted'), align: 'center' });
+  }
+  Lab.drag(view.cv, {
+    down: function (x, y) { if (st.mode !== 'field') return null; var q = st.charges.find(function (q) { return Math.hypot(q.x - x, q.y - y) < 20; }); return q || null; },
+    move: function (q, x, y) { q.fx = Lab.clamp(x / view.W, 0.05, 0.95); q.fy = Lab.clamp(y / view.H, 0.08, 0.9); st.dragged = true; view.redraw(); T.update(st); },
+  });
+
+  var EXPL = {
+    rub: '<h2>Charging by friction</h2><p style="margin:0">Rubbing moves <b>electrons</b> from one material to the other. <b>Polythene</b> pulls electrons off the cloth and becomes <b>negative</b>. <b>Acetate</b> loses electrons to the cloth and becomes <b>positive</b>. The cloth always gets an equal and opposite charge.</p>',
+    force: '<h2>Forces between charges</h2><p style="margin:0">Like charges <b>repel</b>; unlike charges <b>attract</b>. A charged object also attracts a <b>neutral</b> one: it pulls opposite charges in the neutral object closer, so the attraction beats the repulsion. Only repulsion proves an object is charged.</p>',
+    ind: '<h2>Charging by induction</h2><p style="margin:0">The sphere ends up with the <b>opposite</b> charge to the rod, and the rod never touches it or loses any charge. The order of steps matters: remove the earth <b>before</b> the rod.</p>',
+    field: '<h2>Electric fields</h2><p style="margin:0">An <b>electric field</b> is a region where a charge feels a force. Field lines start on + and end on −. They never cross, and the closer together they are, the stronger the field.</p>',
+  };
+  function build() {
+    var bb = Lab.$('#btns'); bb.innerHTML = ''; Lab.$('#steps').innerHTML = '';
+    if (st.mode === 'rub') {
+      Lab.seg(bb, { label: 'Rod', value: st.rod, options: [['poly', 'Polythene'], ['acet', 'Acetate']], onChange: function (v) { st.rod = v; st.rubs = 0; update(); } });
+      Lab.button(bb, 'Rub!', function () { st.rubs++; st.done[st.rod] = true; var t0 = performance.now(); (function wig(t) { st.anim = (t - t0) / 60; view.redraw(); if (t - t0 < 500) requestAnimationFrame(wig); else { st.anim = 0; view.redraw(); } })(t0); update(); });
+      Lab.button(bb, 'Reset', function () { st.rubs = 0; update(); }, true);
+    } else if (st.mode === 'force') {
+      Lab.seg(bb, { label: 'Charges', value: st.pair, options: [['++', '+ and +'], ['--', '− and −'], ['+-', '+ and −'], ['-0', '− and neutral']], onChange: function (v) { st.pair = v; st.done['f' + v] = true; update(); } });
+    } else if (st.mode === 'ind') {
+      Lab.button(bb, '← Back', function () { st.ind = Math.max(0, st.ind - 1); update(); }, true);
+      Lab.button(bb, 'Next step →', function () { st.ind = Math.min(4, st.ind + 1); if (st.ind === 4) st.done.ind = true; update(); });
+    } else {
+      Lab.seg(bb, { label: 'Pattern', value: st.field, options: [['single', 'Single +'], ['neg', 'Single −'], ['dipole', '+ and −'], ['like', '+ and +']], onChange: function (v) { st.field = v; setField(); st.done['e' + v] = true; update(); } });
+    }
+  }
+  function setField() { st.charges = PRESET[st.field].map(function (p) { return { fx: p[0], fy: p[1], q: p[2], x: 0, y: 0 }; }); }
+  Lab.seg(Lab.$('#mode'), { label: 'Experiment', value: 'rub', options: [['rub', 'Charging by rubbing'], ['force', 'Attract or repel?'], ['ind', 'Charging by induction'], ['field', 'Field lines']], onChange: function (v) { st.mode = v; build(); update(); } });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Rub a polythene rod and an acetate rod. Which becomes negative?', s: 'Polythene gains electrons → negative. Acetate loses electrons → positive.', ok: function (s) { return s.done.poly && s.done.acet; } },
+    { t: 'Try all four pairs of charges in "Attract or repel?".', ok: function (s) { return s.done['f++'] && s.done['f--'] && s.done['f-0']; } },
+    { t: 'Go through all the induction steps. What charge does the sphere end with?', s: 'Positive: the opposite of the rod.', ok: function (s) { return s.done.ind; } },
+    { t: 'Look at the field of + and +, then drag a charge around.', ok: function (s) { return s.done.elike && s.dragged; } },
+  ], { title: 'Explore static charge' });
+
+  function update() { Lab.$('#explain').innerHTML = EXPL[st.mode]; view.redraw(); T.update(st); }
+  setField(); build(); update();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'A polythene rod is rubbed with a cloth and becomes negatively charged. This is because…', o: ['protons moved from the cloth to the rod', 'electrons moved from the cloth to the rod', 'electrons moved from the rod to the cloth', 'the rod made new electrons'], a: 1, why: ' Only electrons move. The rod gained electrons.' },
+    { q: 'A charged balloon sticks to a neutral wall because…', o: ['the wall is charged', 'it induces an opposite charge on the wall surface, which attracts it', 'of gravity', 'the balloon is sticky'], a: 1, why: ' Induction: charges in the wall shift, so the near side has the opposite charge.' },
+    { q: 'Why are aircraft earthed before refuelling?', o: ['To cool the fuel', 'Friction charges the aircraft; earthing lets the charge flow away safely so no spark ignites the fuel', 'To make the fuel flow faster', 'To protect the pilot from lightning'], a: 1, why: ' A spark near fuel vapour could cause an explosion.' },
+  ]);
+})();
+</script>
+</body>
+</html>

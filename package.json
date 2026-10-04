@@ -9,7 +9,7 @@
     "convert": "node tools/convert.mjs",
     "serve": "node tools/serve.mjs",
     "test": "npm run test:unit && npm run test:e2e",
-    "test:unit": "node --test tests/unit/apps-script.test.mjs tests/unit/convert.test.mjs tests/unit/source.test.mjs tests/unit/tex.test.mjs",
+    "test:unit": "node --test tests/unit/apps-script.test.mjs tests/unit/convert.test.mjs tests/unit/source.test.mjs tests/unit/tex.test.mjs tests/unit/labs.test.mjs",
     "test:e2e": "playwright test",
     "tex:audit": "node tools/tex-audit.mjs"
   },

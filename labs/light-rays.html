@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ray Box: Reflection and Refraction · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Plane mirrors, refraction through a glass block, Snell's law, critical angle, total internal reflection and dispersion by a prism. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="light-rays">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>Angles are always measured from the <b>normal</b>, the dashed line at 90° to the surface. <b>Reflection</b>: angle of incidence = angle of reflection (i = r).</p>
+    <p><b>Refraction</b>: light changes speed when it goes into a new material, so it bends. Going into glass (slower) it bends <b>towards</b> the normal. Coming out (faster) it bends <b>away</b>. If it hits the inside of the glass at more than the <b>critical angle</b>, none gets out: <b>total internal reflection</b>.</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="mode"></div>
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage"><canvas id="cv" aria-label="Ray diagram"></canvas><p class="cap" id="cap"></p></div>
+    <div class="stack">
+      <section class="card"><h2>Controls</h2><div id="ctl"></div></section>
+      <section id="maths"></section>
+    </div>
+  </div>
+
+  <div class="watch" style="margin-top:16px"><strong class="lbl">Common mistakes</strong>
+    <p>Measuring angles from the <b>surface</b> instead of from the <b>normal</b>. In n = sin i ÷ sin r, i is the angle in <b>air</b> and r is the angle in the <b>glass</b>. Find sin of each angle first, then divide.</p>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c, D = Math.PI / 180;
+  var st = { mode: 'mirror', i: 40, n: 1.5, ic: 30, obj: 0.5, seen: {}, tir: false, nearCrit: false };
+  function deg(x) { return x / D; }
+  // vector helpers
+  function norm(v) { var l = Math.hypot(v[0], v[1]); return [v[0] / l, v[1] / l]; }
+  function dot(a, b) { return a[0] * b[0] + a[1] * b[1]; }
+  function refract(d, nrm, n1, n2) {   // nrm points back towards the incoming ray
+    var cosi = -dot(nrm, d), eta = n1 / n2, k = 1 - eta * eta * (1 - cosi * cosi);
+    if (k < 0) return { tir: true, d: [d[0] + 2 * cosi * nrm[0], d[1] + 2 * cosi * nrm[1]] };
+    return { tir: false, d: norm([eta * d[0] + (eta * cosi - Math.sqrt(k)) * nrm[0], eta * d[1] + (eta * cosi - Math.sqrt(k)) * nrm[1]]) };
+  }
+  function ray(ctx, p, q, col, w, alpha) { ctx.save(); ctx.globalAlpha = alpha == null ? 1 : alpha; Lab.arrow(ctx, p[0], p[1], (p[0] + q[0]) / 2 + (q[0] - p[0]) * 0.08, (p[1] + q[1]) / 2 + (q[1] - p[1]) * 0.08, { color: col, width: w || 2.5, head: 10 }); Lab.line(ctx, p[0], p[1], q[0], q[1], col, w || 2.5); ctx.restore(); }
+  function angleArc(ctx, o, a1, a2, r, col, label) {
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(o[0], o[1], r, Math.min(a1, a2), Math.max(a1, a2)); ctx.stroke();
+    var m = (a1 + a2) / 2; Lab.text(ctx, label, o[0] + Math.cos(m) * (r + 14), o[1] + Math.sin(m) * (r + 14), { color: col, weight: 700, size: 13, align: 'center' });
+  }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    if (st.mode === 'mirror') drawMirror(ctx, W, H); else if (st.mode === 'block') drawBlock(ctx, W, H); else if (st.mode === 'semi') drawSemi(ctx, W, H); else drawPrism(ctx, W, H);
+  }, { ratio: 0.72, min: 340, max: 480 });
+
+  function drawMirror(ctx, W, H) {
+    var my = H * 0.55, P = [W * 0.4, my], L = Math.min(W, H) * 0.42;
+    ctx.fillStyle = c('t0'); ctx.fillRect(20, my, W - 40, 6);
+    for (var h = 20; h < W - 20; h += 12) Lab.line(ctx, h, my + 6, h - 8, my + 16, c('t0'), 1);
+    Lab.line(ctx, P[0], my - L, P[0], my, c('muted'), 1.5, [6, 5]); Lab.text(ctx, 'normal', P[0] + 4, my - L - 6, { size: 11, color: c('muted') });
+    var a = st.i * D, S = [P[0] - L * Math.sin(a), my - L * Math.cos(a)], R = [P[0] + L * Math.sin(a), my - L * Math.cos(a)];
+    ray(ctx, S, P, c('no'), 3); ray(ctx, P, R, c('no'), 3);
+    angleArc(ctx, P, -Math.PI / 2 - a, -Math.PI / 2, 40, c('t2'), 'i'); angleArc(ctx, P, -Math.PI / 2, -Math.PI / 2 + a, 52, c('pop'), 'r');
+    ctx.fillStyle = c('t0'); ctx.save(); ctx.translate(S[0], S[1]); ctx.rotate(Math.atan2(P[1] - S[1], P[0] - S[0])); ctx.fillRect(-30, -9, 30, 18); ctx.restore();
+    Lab.text(ctx, 'ray box', S[0] - 10, S[1] - 18, { size: 11, align: 'center' });
+    // image of an object: two rays from object point O, reflected, extended back
+    var O = [W * 0.72, my - H * 0.3 * st.obj - 30], I = [O[0], my + (my - O[1])];
+    Lab.dot(ctx, O[0], O[1], 7, c('ok')); Lab.text(ctx, 'object', O[0] + 10, O[1], { color: c('ok'), weight: 700 });
+    [-60, 50].forEach(function (dx) {
+      var M = [O[0] + dx, my], dir = norm([M[0] - O[0], M[1] - O[1]]), out = [M[0] + dir[0] * 120, M[1] - dir[1] * 120];
+      Lab.line(ctx, O[0], O[1], M[0], M[1], c('ok'), 1.5); Lab.line(ctx, M[0], M[1], out[0], out[1], c('ok'), 1.5);
+      Lab.line(ctx, M[0], M[1], I[0], I[1], c('ok'), 1.2, [4, 4]);
+    });
+    Lab.dot(ctx, I[0], I[1], 7, c('surface'), c('ok')); Lab.text(ctx, 'virtual image', I[0] + 10, I[1], { color: c('ok'), weight: 700 });
+  }
+  function drawBlock(ctx, W, H) {
+    var top = H * 0.35, th = H * 0.32, bx = W * 0.1, bw = W * 0.8, P = [W * 0.32, top], L = H * 0.3;
+    ctx.fillStyle = c('t6'); ctx.globalAlpha = 0.18; ctx.fillRect(bx, top, bw, th); ctx.globalAlpha = 1; ctx.strokeStyle = c('t6'); ctx.lineWidth = 2; ctx.strokeRect(bx, top, bw, th);
+    Lab.text(ctx, 'glass block (n = ' + st.n.toFixed(2) + ')', bx + 8, top + th - 12, { size: 12, color: c('t6'), weight: 700 });
+    var a = st.i * D, d = norm([Math.sin(a), Math.cos(a)]), S = [P[0] - L * d[0], P[1] - L * d[1]];
+    var r1 = refract(d, [0, -1], 1, st.n), Q = [P[0] + r1.d[0] * th / r1.d[1], top + th], r2 = refract(r1.d, [0, -1], st.n, 1);
+    Lab.line(ctx, P[0], top - L * 0.9, P[0], top + th * 0.5, c('muted'), 1.5, [6, 5]);
+    Lab.line(ctx, Q[0], top + th * 0.5, Q[0], top + th + L * 0.7, c('muted'), 1.5, [6, 5]);
+    ray(ctx, S, P, c('no'), 3); Lab.line(ctx, P[0], P[1], Q[0], Q[1], c('no'), 3);
+    var E = [Q[0] + r2.d[0] * L * 0.8, Q[1] + r2.d[1] * L * 0.8]; ray(ctx, Q, E, c('no'), 3);
+    Lab.line(ctx, P[0], P[1], P[0] + d[0] * th * 1.6, P[1] + d[1] * th * 1.6, c('grid-strong'), 1, [3, 4]);
+    angleArc(ctx, P, -Math.PI / 2 - a, -Math.PI / 2, 40, c('t2'), 'i');
+    var rr = Math.asin(Math.sin(a) / st.n); angleArc(ctx, P, Math.PI / 2 - rr, Math.PI / 2, 40, c('pop'), 'r');
+    Lab.text(ctx, 'emerges parallel to the incident ray', E[0], E[1] + 16, { size: 11, color: c('muted'), align: 'center' });
+  }
+  function drawSemi(ctx, W, H) {
+    var C = [W / 2, H * 0.42], R = Math.min(W * 0.36, H * 0.48);
+    ctx.fillStyle = c('t6'); ctx.globalAlpha = 0.18; ctx.beginPath(); ctx.moveTo(C[0] - R, C[1]); ctx.arc(C[0], C[1], R, 0, Math.PI); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = c('t6'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(C[0] - R, C[1]); ctx.lineTo(C[0] + R, C[1]); ctx.arc(C[0], C[1], R, 0, Math.PI); ctx.stroke();
+    Lab.line(ctx, C[0], C[1] - R * 0.8, C[0], C[1] + R, c('muted'), 1.5, [6, 5]);
+    var a = st.ic * D, inDir = [Math.sin(a), -Math.cos(a)], S = [C[0] - inDir[0] * R * 1.3, C[1] - inDir[1] * R * 1.3];
+    // the ray goes through the curved face along a radius, so it does not bend there
+    ray(ctx, S, C, c('no'), 3);
+    var res = refract(inDir, [0, 1], st.n, 1), crit = Math.asin(1 / st.n);
+    var Rf = [C[0] + inDir[0] * R, C[1] - inDir[1] * R];   // reflected ray goes back down into the glass
+    var part = res.tir ? 1 : 0.15 + 0.85 * Math.pow(a / crit, 6);
+    ray(ctx, C, Rf, c('no'), 3, Math.min(1, part));
+    if (!res.tir) { var E = [C[0] + res.d[0] * R * 0.9, C[1] + res.d[1] * R * 0.9]; ray(ctx, C, E, c('no'), 3, Math.max(0.15, 1 - part)); angleArc(ctx, C, -Math.PI / 2, -Math.PI / 2 + Math.asin(Math.min(1, st.n * Math.sin(a))), 46, c('pop'), 'r'); }
+    angleArc(ctx, C, Math.PI / 2, Math.PI / 2 + a, 40, c('t2'), 'i');
+    Lab.text(ctx, res.tir ? 'TOTAL INTERNAL REFLECTION' : Math.abs(a - crit) < 1.2 * D ? 'At the critical angle: the ray runs along the surface' : 'Refraction (plus a weak reflection)', W / 2, 20, { weight: 700, align: 'center', color: res.tir ? c('no') : c('ink') });
+  }
+  function drawPrism(ctx, W, H) {
+    var s = Math.min(W, H) * 0.7, cx = W / 2, cy = H * 0.62, A = [cx, cy - s * 0.58], B = [cx - s / 2, cy + s * 0.29], Cc = [cx + s / 2, cy + s * 0.29];
+    ctx.fillStyle = c('t6'); ctx.globalAlpha = 0.15; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.lineTo(Cc[0], Cc[1]); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = c('t6'); ctx.lineWidth = 2; ctx.stroke();
+    var a = st.i * D, faceN = norm([A[1] - B[1], -(A[0] - B[0])]);   // outward normal of the left face (points up and left)
+    var P = [B[0] + (A[0] - B[0]) * 0.55, B[1] + (A[1] - B[1]) * 0.55];
+    // incoming direction at angle i to the normal of the left face
+    var inw = [-faceN[0], -faceN[1]], t = [-inw[1], inw[0]], d0 = norm([inw[0] * Math.cos(a) - t[0] * Math.sin(a), inw[1] * Math.cos(a) - t[1] * Math.sin(a)]);
+    var S = [P[0] - d0[0] * W * 0.35, P[1] - d0[1] * W * 0.35];
+    Lab.line(ctx, S[0], S[1], P[0], P[1], c('ink'), 3);
+    Lab.text(ctx, 'white light', S[0], S[1] - 10, { size: 12, weight: 700 });
+    var cols = [['#ff2a2a', 1.48], ['#ff9900', 1.50], ['#ffe600', 1.52], ['#22cc55', 1.54], ['#2a7bff', 1.57], ['#7a2aff', 1.60]];
+    cols.forEach(function (cl) {
+      var r1 = refract(d0, faceN, 1, cl[1]);
+      // find exit on the right face A→C
+      var e1 = A, e2 = Cc, dx = e2[0] - e1[0], dy = e2[1] - e1[1], den = r1.d[0] * dy - r1.d[1] * dx;
+      var tt = ((e1[0] - P[0]) * dy - (e1[1] - P[1]) * dx) / den, Q = [P[0] + r1.d[0] * tt, P[1] + r1.d[1] * tt];
+      Lab.line(ctx, P[0], P[1], Q[0], Q[1], cl[0], 1.5);
+      var nOut = norm([dy, -dx]), r2 = refract(r1.d, [-nOut[0], -nOut[1]], cl[1], 1);
+      if (!r2.tir) Lab.line(ctx, Q[0], Q[1], Q[0] + r2.d[0] * W * 0.4, Q[1] + r2.d[1] * W * 0.4, cl[0], 3);
+    });
+    Lab.text(ctx, 'spread of colours exaggerated so you can see it', W / 2, H - 12, { size: 11, color: c('muted'), align: 'center' });
+  }
+
+  function build() {
+    var ctl = Lab.$('#ctl'); ctl.innerHTML = '';
+    if (st.mode === 'mirror') {
+      Lab.slider(ctl, { label: 'Angle of incidence i', min: 0, max: 80, step: 5, value: st.i, unit: '°', onInput: function (v) { st.i = v; st.seen['m' + v] = true; update(); } });
+      Lab.slider(ctl, { label: 'Object distance from the mirror', min: 0.1, max: 1, step: 0.1, value: st.obj, fmt: function (v) { return v < 0.4 ? 'near' : v < 0.8 ? 'middle' : 'far'; }, onInput: function (v) { st.obj = v; st.movedObj = true; update(); } });
+    } else if (st.mode === 'block' || st.mode === 'prism') {
+      Lab.slider(ctl, { label: 'Angle of incidence i', min: st.mode === 'prism' ? 20 : 0, max: 80, step: 5, value: Math.max(st.mode === 'prism' ? 20 : 0, st.i), unit: '°', onInput: function (v) { st.i = v; update(); } });
+      if (st.mode === 'block') { var r = Lab.el('div', { class: 'row', style: 'margin-top:8px' }); ctl.appendChild(r); Lab.seg(r, { label: 'Material', value: String(st.n), options: [['1.33', 'Water 1.33'], ['1.5', 'Glass 1.50'], ['2.42', 'Diamond 2.42']], onChange: function (v) { st.n = +v; st.seen['n' + v] = true; update(); } }); }
+    } else {
+      Lab.slider(ctl, { label: 'Angle of incidence inside the glass i', min: 0, max: 70, step: 1, value: st.ic, unit: '°', onInput: function (v) { st.ic = v; update(); } });
+      var r2 = Lab.el('div', { class: 'row', style: 'margin-top:8px' }); ctl.appendChild(r2); Lab.seg(r2, { label: 'Material', value: String(st.n), options: [['1.33', 'Water'], ['1.5', 'Glass'], ['2.42', 'Diamond']], onChange: function (v) { st.n = +v; update(); } });
+    }
+  }
+  Lab.seg(Lab.$('#mode'), { label: 'Experiment', value: 'mirror', options: [['mirror', 'Plane mirror'], ['block', 'Glass block'], ['semi', 'Critical angle'], ['prism', 'Prism']], onChange: function (v) { st.mode = v; st.seen[v] = true; if (v === 'prism' && st.i < 20) st.i = 45; build(); update(); } });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Plane mirror: try three different angles. Is i always equal to r?', ok: function (s) { return Object.keys(s.seen).filter(function (k) { return /^m\d/.test(k); }).length >= 3; } },
+    { t: 'Move the object. The image is always the same distance behind the mirror as the object is in front.', ok: function (s) { return s.movedObj; } },
+    { t: 'Glass block: compare water, glass and diamond. Which bends light the most?', s: 'Diamond: the largest refractive index.', ok: function (s) { return s.seen['n1.33'] && s.seen['n2.42']; } },
+    { t: 'Critical angle: increase i until the ray just runs along the surface, then go past it to get total internal reflection.', s: 'For glass, c = sin⁻¹(1 ÷ 1.5) ≈ 42°.', ok: function (s) { return s.nearCrit && s.tir; } },
+    { t: 'Prism: see white light split into colours (dispersion).', s: 'Violet bends the most, red the least.', ok: function (s) { return s.seen.prism; } },
+  ], { title: 'Bend some light' });
+
+  function update() {
+    var steps, a = st.mode === 'semi' ? st.ic : st.i;
+    if (st.mode === 'mirror') { steps = [['Law of reflection', 'i = r'], ['Here', 'i = ' + st.i + '°, so r = <b>' + st.i + '°</b>'], ['Image in a plane mirror', 'virtual, upright, same size, laterally inverted, and as far behind the mirror as the object is in front']]; Lab.$('#cap').textContent = 'The image is where the reflected rays seem to come from (dashed lines). No light really goes there, so it is virtual.'; }
+    else if (st.mode === 'block') {
+      var r = deg(Math.asin(Math.sin(a * D) / st.n));
+      steps = [['Snell\'s law', 'n = sin i ÷ sin r'], ['Rearrange', 'sin r = sin i ÷ n = sin ' + a + '° ÷ ' + st.n + ' = ' + Lab.dp(Math.sin(a * D), 3) + ' ÷ ' + st.n + ' = ' + Lab.dp(Math.sin(a * D) / st.n, 3)], ['Angle of refraction', 'r = sin⁻¹(' + Lab.dp(Math.sin(a * D) / st.n, 3) + ') = <b>' + r.toFixed(1) + '°</b>'], ['Speed of light in the block', 'v = c ÷ n = 3 × 10⁸ ÷ ' + st.n + ' = ' + Lab.sci(3e8 / st.n, 3) + ' m/s']];
+      Lab.$('#cap').textContent = a === 0 ? 'At i = 0° the ray goes straight through without bending (but it still slows down).' : 'Into the glass: slower, bends towards the normal. Out of the glass: faster, bends away.';
+    } else if (st.mode === 'semi') {
+      var cdeg = deg(Math.asin(1 / st.n)), tir = a > cdeg;
+      if (tir) st.tir = true; if (Math.abs(a - cdeg) < 1.5) st.nearCrit = true;
+      steps = [['Critical angle', 'sin c = 1 ÷ n = 1 ÷ ' + st.n + ' → c = <b>' + cdeg.toFixed(1) + '°</b>'], ['Your angle', 'i = ' + a + '° ' + (tir ? '> c, so <b>total internal reflection</b>' : '< c, so the ray refracts out (bending away from the normal)')], ['Conditions for TIR', '1. light goes from a denser to a less dense material; 2. i is bigger than c']];
+      Lab.$('#cap').textContent = 'The ray enters the curved face along a radius, so it does not bend there. It only bends (or reflects) at the flat face. Uses of TIR: optical fibres, prism periscopes, the sparkle of diamonds.';
+    } else { steps = [['Dispersion', 'each colour has a slightly different refractive index in glass'], ['Violet', 'slows down the most → bends the most'], ['Red', 'bends the least'], ['Order', 'red, orange, yellow, green, blue, indigo, violet']]; Lab.$('#cap').textContent = 'A prism splits white light into the visible spectrum. That is how rainbows form in raindrops.'; }
+    Lab.math(Lab.$('#maths'), 'Show the maths', steps);
+    view.redraw(); T.update(st);
+  }
+  build(); update();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'Light hits glass at i = 50° and refracts at r = 30°. What is the refractive index? (sin 50° = 0.766, sin 30° = 0.5)', n: 1.53, unit: '', why: ' n = sin i ÷ sin r = 0.766 ÷ 0.5 = 1.53.' },
+    { q: 'What is the critical angle for water (n = 1.33)?', n: 48.8, tol: 0.02, unit: '°', why: ' sin c = 1 ÷ 1.33 = 0.752, so c = 48.8°.', hint: ' sin c = 1 ÷ n, then press sin⁻¹ on your calculator.' },
+    { q: 'Optical fibres carry light by…', o: ['refraction', 'total internal reflection', 'dispersion', 'diffraction'], a: 1, why: ' The light keeps hitting the inside surface at more than the critical angle.' },
+    { q: 'When light passes from air into glass it…', o: ['speeds up and bends away from the normal', 'slows down and bends towards the normal', 'slows down and bends away from the normal', 'does not change'], a: 1, why: ' Glass is optically denser, so light slows down and bends towards the normal.' },
+  ]);
+})();
+</script>
+</body>
+</html>

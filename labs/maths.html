@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maths Help · CSEC Physics 2027</title>
+<meta name="description" content="The maths you need for CSEC Physics, step by step: substitution, rearranging formulas, units, standard form, significant figures, graphs, gradients and more, with endless practice.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+<style>
+  .toc{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 0;padding:0;list-style:none}
+  .toc a{display:inline-flex;min-height:40px;align-items:center;padding:6px 12px;border-radius:999px;background:var(--surface);box-shadow:var(--shadow);text-decoration:none;font-weight:700;font-size:14px;color:var(--ink)}
+  .toc a em{font-style:normal;color:var(--ok);margin-left:6px}
+  .topic{margin-top:22px;scroll-margin-top:70px}
+  .topic>h2{font-size:26px;margin:0 0 10px}
+  .practice{border:2px dashed var(--line);border-radius:var(--r);padding:14px 16px}
+  .practice .qq{font-weight:700;margin:0 0 10px;font-size:18px}
+  .practice .streak{float:right;font:700 14px var(--f-display);color:var(--ok)}
+</style>
+</head>
+<body data-page="maths">
+<div class="wrap">
+  <div id="lab-top"><span class="eyebrow">Maths for Physics</span><h1>Maths help</h1><p class="lead">Most marks lost in Physics calculations are lost on the maths, not the physics. Each skill below has a simple explanation, a worked example and endless practice questions. Get 3 right in a row and the skill gets a ✓.</p></div>
+  <ul class="toc" id="toc"></ul>
+  <div id="topics"></div>
+  <div id="lab-foot"></div>
+</div>
+<script>
+(function () {
+  'use strict';
+  function R(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+  function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  var sf = Lab.sf, sci = Lab.sci;
+  function mcq(q, right, wrong, steps) { var o = shuffle([right].concat(wrong)); return { q: q, o: o, a: o.indexOf(right), steps: steps }; }
+
+  // three-letter product/quotient formulas used across the topics: [name, A, op, B, C, unitA, unitB, unitC, nameA, nameB, nameC]
+  var F3 = [
+    ['Newton\'s 2nd law', 'F', '×', 'm', 'a', 'N', 'kg', 'm/s²', 'force', 'mass', 'acceleration'],
+    ['Weight', 'W', '×', 'm', 'g', 'N', 'kg', 'N/kg', 'weight', 'mass', 'gravitational field strength'],
+    ['Ohm\'s law', 'V', '×', 'I', 'R', 'V', 'A', 'Ω', 'voltage', 'current', 'resistance'],
+    ['Electrical power', 'P', '×', 'I', 'V', 'W', 'A', 'V', 'power', 'current', 'voltage'],
+    ['Hooke\'s law', 'F', '×', 'k', 'x', 'N', 'N/m', 'm', 'force', 'spring constant', 'extension'],
+    ['Momentum', 'p', '×', 'm', 'v', 'kg m/s', 'kg', 'm/s', 'momentum', 'mass', 'velocity'],
+    ['Wave equation', 'v', '×', 'f', 'λ', 'm/s', 'Hz', 'm', 'wave speed', 'frequency', 'wavelength'],
+    ['Charge', 'Q', '×', 'I', 't', 'C', 'A', 's', 'charge', 'current', 'time'],
+    ['Speed', 'v', '÷', 'd', 't', 'm/s', 'm', 's', 'speed', 'distance', 'time'],
+    ['Density', 'ρ', '÷', 'm', 'V', 'kg/m³', 'kg', 'm³', 'density', 'mass', 'volume'],
+    ['Pressure', 'P', '÷', 'F', 'A', 'Pa', 'N', 'm²', 'pressure', 'force', 'area'],
+    ['Power', 'P', '÷', 'E', 't', 'W', 'J', 's', 'power', 'energy', 'time'],
+  ];
+
+  var TOPICS = [
+    { id: 'substitute', title: 'Putting numbers into a formula',
+      simple: '<p>A formula is a recipe. Each letter stands for a quantity. <b>Substituting</b> means swapping each letter for its number, then doing the arithmetic.</p><p>Always follow 4 steps: <b>1</b> write the formula, <b>2</b> write it again with the numbers in place of the letters, <b>3</b> work it out, <b>4</b> write the answer <b>with its unit</b>.</p>',
+      example: ['Find the force on a 4 kg mass accelerating at 3 m/s².', [['Write the formula', 'F = m × a'], ['Substitute', 'F = 4 × 3'], ['Calculate', 'F = 12'], ['Answer with unit', 'F = <b>12 N</b>']]],
+      gen: function () {
+        var f = pick(F3), b = R(2, 12), c = R(2, 9), a = f[2] === '×' ? b * c : b * c, B = f[2] === '×' ? b : b * c;
+        if (f[2] === '×') return { q: 'Use ' + f[1] + ' = ' + f[3] + ' × ' + f[4] + ' to find ' + f[1] + ' when ' + f[3] + ' = ' + b + ' ' + f[6] + ' and ' + f[4] + ' = ' + c + ' ' + f[7] + '.', n: b * c, unit: f[5], steps: [['Formula', f[1] + ' = ' + f[3] + ' × ' + f[4]], ['Substitute', f[1] + ' = ' + b + ' × ' + c], ['Answer', f[1] + ' = <b>' + b * c + ' ' + f[5] + '</b>']] };
+        return { q: 'Use ' + f[1] + ' = ' + f[3] + ' ÷ ' + f[4] + ' to find ' + f[1] + ' when ' + f[3] + ' = ' + B + ' ' + f[6] + ' and ' + f[4] + ' = ' + c + ' ' + f[7] + '.', n: b, unit: f[5], steps: [['Formula', f[1] + ' = ' + f[3] + ' ÷ ' + f[4]], ['Substitute', f[1] + ' = ' + B + ' ÷ ' + c], ['Answer', f[1] + ' = <b>' + b + ' ' + f[5] + '</b>']] };
+      } },
+    { id: 'rearrange', title: 'Rearranging a formula',
+      simple: '<p>Rearranging means getting the letter you want <b>on its own</b>. Think of a formula as a <b>balance</b>: whatever you do to one side, do to the other. To undo × divide; to undo ÷ multiply; to undo + subtract.</p><p><b>Quick trick for A = B × C</b>: B = A ÷ C and C = A ÷ B. <b>For A = B ÷ C</b>: B = A × C and C = B ÷ A.</p>',
+      example: ['Make x the subject of F = kx.', [['Start', 'F = k × x'], ['x is multiplied by k, so divide both sides by k', 'F ÷ k = k × x ÷ k'], ['The k\'s cancel on the right', '<b>x = F ÷ k</b>'], ['Check with numbers', 'if k = 2 and x = 5, F = 10; then F ÷ k = 10 ÷ 2 = 5 ✓']]],
+      gen: function () {
+        var f = pick(F3), target = pick([3, 4]), A = f[1], B = f[3], C = f[4], T = f[target], other = target === 3 ? C : B, right, wrong, steps;
+        if (f[2] === '×') { right = T + ' = ' + A + ' ÷ ' + other; wrong = [T + ' = ' + A + ' × ' + other, T + ' = ' + other + ' ÷ ' + A, T + ' = ' + A + ' − ' + other]; steps = [['Start', A + ' = ' + B + ' × ' + C], [T + ' is multiplied by ' + other + ', so divide both sides by ' + other, '<b>' + right + '</b>']]; }
+        else if (target === 3) { right = B + ' = ' + A + ' × ' + C; wrong = [B + ' = ' + A + ' ÷ ' + C, B + ' = ' + C + ' ÷ ' + A, B + ' = ' + A + ' + ' + C]; steps = [['Start', A + ' = ' + B + ' ÷ ' + C], [B + ' is divided by ' + C + ', so multiply both sides by ' + C, '<b>' + right + '</b>']]; }
+        else { right = C + ' = ' + B + ' ÷ ' + A; wrong = [C + ' = ' + A + ' ÷ ' + B, C + ' = ' + A + ' × ' + B, C + ' = ' + B + ' − ' + A]; steps = [['Start', A + ' = ' + B + ' ÷ ' + C], ['Multiply both sides by ' + C, A + ' × ' + C + ' = ' + B], ['Divide both sides by ' + A, '<b>' + right + '</b>']]; }
+        return mcq('Make <b>' + T + '</b> the subject of ' + A + ' = ' + B + ' ' + f[2] + ' ' + C + ' (' + f[0].toLowerCase() + ').', right, wrong, steps);
+      } },
+    { id: 'units', title: 'Units and converting them',
+      simple: '<p>Physics formulas need <b>SI units</b>: metres (m), kilograms (kg), seconds (s), amps (A), kelvin (K). Change everything into these <b>before</b> you substitute.</p><p>Big unit → small unit: <b>multiply</b>. Small unit → big unit: <b>divide</b>. For areas, square the conversion (1 m² = 100 × 100 cm² = 10 000 cm²); for volumes, cube it (1 m³ = 1 000 000 cm³).</p>',
+      example: ['Change 250 g into kg, and 36 km/h into m/s.', [['1 kg = 1000 g, so divide', '250 ÷ 1000 = <b>0.25 kg</b>'], ['36 km/h means 36 000 m in 3600 s', '36 000 ÷ 3600 = <b>10 m/s</b>'], ['Shortcut for km/h → m/s', 'divide by 3.6']]],
+      gen: function () {
+        var c = pick([['cm', 'm', 0.01, R(5, 95)], ['mm', 'm', 0.001, R(2, 900)], ['g', 'kg', 0.001, R(20, 900)], ['km', 'm', 1000, R(2, 30)], ['min', 's', 60, R(2, 15)], ['h', 's', 3600, R(1, 5)], ['cm²', 'm²', 1e-4, R(2, 80)], ['cm³', 'm³', 1e-6, R(5, 500)], ['km/h', 'm/s', 1 / 3.6, pick([18, 36, 54, 72, 90, 108])], ['kJ', 'J', 1000, R(2, 50)], ['mA', 'A', 0.001, R(20, 900)]]);
+        var ans = c[3] * c[2];
+        return { q: 'Change ' + c[3] + ' ' + c[0] + ' into ' + c[1] + '.', n: ans, unit: c[1], steps: [['Conversion', '1 ' + c[0] + ' = ' + sci(c[2], 3) + ' ' + c[1]], ['So', c[3] + ' ' + c[0] + ' = ' + c[3] + ' × ' + sci(c[2], 3) + ' = <b>' + sci(ans, 3) + ' ' + c[1] + '</b>']] };
+      } },
+    { id: 'prefixes', title: 'Prefixes and powers of ten',
+      simple: '<p>A prefix is a short way of writing a power of ten. <b>k</b> (kilo) = × 10³ = × 1000. <b>M</b> (mega) = × 10⁶. <b>G</b> (giga) = × 10⁹. <b>m</b> (milli) = × 10⁻³ = ÷ 1000. <b>μ</b> (micro) = × 10⁻⁶. <b>n</b> (nano) = × 10⁻⁹.</p>',
+      example: ['Write 4.7 kΩ and 350 mA in base units.', [['k means × 1000', '4.7 kΩ = 4.7 × 1000 = <b>4700 Ω</b>'], ['m means ÷ 1000', '350 mA = 350 ÷ 1000 = <b>0.35 A</b>']]],
+      gen: function () {
+        var p = pick([['k', 1e3], ['M', 1e6], ['m', 1e-3], ['μ', 1e-6], ['n', 1e-9], ['G', 1e9]]), u = pick([['W', 'watts'], ['V', 'volts'], ['m', 'metres'], ['s', 'seconds'], ['J', 'joules'], ['Hz', 'hertz']]), v = pick([2, 3.5, 4.7, 12, 25, 150, 600]);
+        return { q: 'Write ' + v + ' ' + p[0] + u[0] + ' in ' + u[1] + ' (' + u[0] + '). You can use standard form, like 3e-6.', n: v * p[1], unit: u[0], steps: [[p[0] + ' means', '× ' + sci(p[1], 1)], ['So', v + ' × ' + sci(p[1], 1) + ' = <b>' + sci(v * p[1], 3) + ' ' + u[0] + '</b>']] };
+      } },
+    { id: 'standard-form', title: 'Standard form',
+      simple: '<p>Standard form writes very big or very small numbers as <b>a number between 1 and 10 × a power of ten</b>. The power tells you how many places the decimal point moves: positive = big number, negative = small number.</p><p>On a calculator use the <b>×10ˣ</b> (or EXP) key. Type 3 ×10ˣ 8 for 3 × 10⁸, not 3 × 10 ^ 8.</p>',
+      example: ['Write 0.00045 and 3 200 000 in standard form.', [['Move the point 4 places right to get 4.5', '0.00045 = <b>4.5 × 10⁻⁴</b>'], ['Move the point 6 places left to get 3.2', '3 200 000 = <b>3.2 × 10⁶</b>'], ['Multiplying', '(2 × 10³) × (3 × 10⁴) = 6 × 10⁷: multiply the numbers, ADD the powers']]],
+      gen: function () {
+        var kind = R(0, 2);
+        if (kind === 0) { var e = R(-7, -2), m = R(11, 99) / 10, v = m * Math.pow(10, e); return { q: 'Write ' + v.toFixed(-e + 1).replace(/0+$/, '') + ' in standard form. (Type it like 4.5e-4 or 4.5 × 10^-4.)', n: v, unit: '', steps: [['Move the decimal point until you get a number between 1 and 10', m], ['Count the places moved (to the right, so the power is negative)', '<b>' + m + ' × 10' + Lab.sup(e) + '</b>']] }; }
+        if (kind === 1) { var e2 = R(4, 9), m2 = R(11, 99) / 10, v2 = Math.round(m2 * Math.pow(10, e2)); return { q: 'Write ' + v2.toLocaleString('en') + ' in standard form.', n: v2, unit: '', steps: [['Number between 1 and 10', m2], ['Places moved to the left', e2], ['Answer', '<b>' + m2 + ' × 10' + Lab.sup(e2) + '</b>']] }; }
+        var a = R(2, 5), b = R(2, 4), p = R(2, 8), q = R(-6, 4);
+        return { q: 'Work out (' + a + ' × 10' + Lab.sup(p) + ') × (' + b + ' × 10' + Lab.sup(q) + ').', n: a * b * Math.pow(10, p + q), unit: '', steps: [['Multiply the numbers', a + ' × ' + b + ' = ' + a * b], ['Add the powers', p + ' + (' + q + ') = ' + (p + q)], ['Answer', '<b>' + sci(a * b * Math.pow(10, p + q), 3) + '</b>']] };
+      } },
+    { id: 'sigfigs', title: 'Significant figures and rounding',
+      simple: '<p>Significant figures (s.f.) are the digits that matter, counted from the <b>first non-zero digit</b>. 0.0<b>45</b>6 starts at the 4. Round your final answer to the same number of s.f. as the data in the question (usually 2 or 3). Never round in the middle of a calculation.</p>',
+      example: ['Round 0.04567 to 2 s.f. and 3456 to 2 s.f.', [['First two significant digits of 0.04567', '4 and 5; the next digit is 6 (5 or more), so round up → <b>0.046</b>'], ['3456 to 2 s.f.', '34|56 → 3500 (keep the zeros to hold the place value)']]],
+      gen: function () {
+        var s = R(2, 3), v = pick([R(1000, 99999) / Math.pow(10, R(0, 6)), R(100, 9999)]), ans = Number(v.toPrecision(s));
+        return { q: 'Round ' + v + ' to ' + s + ' significant figures.', n: ans, tol: 1e-9, sfNeed: s, unit: '', steps: [['Count from the first non-zero digit', s + ' digits, then look at the next digit'], ['Answer', '<b>' + sf(ans, s) + '</b>']] };
+      } },
+    { id: 'graphs', title: 'Plotting a graph',
+      simple: '<p>Put the <b>independent variable</b> (the one you change) on the <b>x-axis</b> and the <b>dependent variable</b> (the one you measure) on the <b>y-axis</b>. Label each axis with the <b>quantity / unit</b>, e.g. "time / s". Choose a scale that uses <b>more than half</b> the paper and goes up in easy steps (1, 2, 5 or 10 per square). Plot with small, neat crosses. Draw <b>one smooth best-fit line</b>, not dot-to-dot.</p>',
+      example: ['A student changes the length of a pendulum and measures the period. Which goes on which axis?', [['Changed by the student (independent)', 'length → <b>x-axis</b>'], ['Measured (dependent)', 'period → <b>y-axis</b>'], ['Axis labels', 'length / m and period / s']]],
+      gen: function () {
+        return pick([
+          function () { return mcq('In a Hooke\'s law experiment the load is changed and the extension measured. What goes on the x-axis?', 'load', ['extension', 'time', 'spring constant'], [['The load is changed by the student', 'independent variable → x-axis']]); },
+          function () { return mcq('Which is the best way to label an axis?', 'time / s', ['time', 's', 'seconds time'], [['Format', 'quantity / unit']]); },
+          function () { return mcq('Your largest value is 37 and the axis has 10 large squares. Which scale is best?', '5 per square (goes up to 50)', ['10 per square (goes up to 100)', '3.7 per square', '1 per square (goes up to 10)'], [['Must fit and use more than half', '5 per square → 50: 37 uses most of the axis; easy steps']]); },
+          function () { return mcq('Points lie roughly on a straight line with some scatter. What do you draw?', 'one straight best-fit line with points evenly on both sides', ['a line joining every point dot-to-dot', 'a line through the first and last points only', 'no line'], [['Best fit', 'shows the trend and averages out random errors']]); },
+          function () { return mcq('A straight-line graph through the origin shows that y is…', 'directly proportional to x', ['inversely proportional to x', 'constant', 'decreasing'], [['Straight line through (0, 0)', 'y ∝ x: double x, double y']]); },
+        ])();
+      } },
+    { id: 'gradient', title: 'Gradient and area under a graph',
+      simple: '<p>The <b>gradient</b> is how steep a line is: <b>gradient = rise ÷ run = (y₂ − y₁) ÷ (x₂ − x₁)</b>. Draw a big triangle on the line (at least half the line) and read the two points carefully. The gradient has units: (y unit) ÷ (x unit).</p><p>The <b>area under a graph</b> is the area between the line and the x-axis. Split it into rectangles (base × height) and triangles (½ × base × height).</p>',
+      example: ['A distance–time line goes through (2 s, 10 m) and (6 s, 30 m). Find the gradient.', [['Rise', '30 − 10 = 20 m'], ['Run', '6 − 2 = 4 s'], ['Gradient', '20 ÷ 4 = <b>5 m/s</b>, which is the speed']]],
+      gen: function () {
+        if (Math.random() < 0.6) { var x1 = R(0, 4), x2 = x1 + R(2, 6), g = R(1, 8) * pick([1, 0.5, 2]), y1 = R(0, 10), y2 = y1 + g * (x2 - x1); return { q: 'A line passes through (' + x1 + ', ' + y1 + ') and (' + x2 + ', ' + y2 + '). Find its gradient.', n: g, unit: '', steps: [['Rise', y2 + ' − ' + y1 + ' = ' + (y2 - y1)], ['Run', x2 + ' − ' + x1 + ' = ' + (x2 - x1)], ['Gradient', (y2 - y1) + ' ÷ ' + (x2 - x1) + ' = <b>' + g + '</b>']] }; }
+        var v = R(2, 12) * 2, t = R(2, 10);
+        return pick([{ q: 'A velocity–time graph rises in a straight line from 0 to ' + v + ' m/s in ' + t + ' s. Find the distance travelled (the area under the graph).', n: 0.5 * v * t, unit: 'm', steps: [['Shape', 'a triangle'], ['Area', '½ × base × height = ½ × ' + t + ' × ' + v + ' = <b>' + 0.5 * v * t + ' m</b>']] },
+          { q: 'A velocity–time graph is a flat line at ' + v + ' m/s for ' + t + ' s. Find the distance travelled.', n: v * t, unit: 'm', steps: [['Shape', 'a rectangle'], ['Area', 'base × height = ' + t + ' × ' + v + ' = <b>' + v * t + ' m</b>']] }]);
+      } },
+    { id: 'proportion', title: 'Proportion and ratio',
+      simple: '<p><b>Directly proportional</b> (y ∝ x): double one, the other doubles. The ratio y ÷ x stays the same. <b>Inversely proportional</b> (y ∝ 1/x): double one, the other halves. The product y × x stays the same (like p × V in Boyle\'s law).</p>',
+      example: ['2 N stretches a spring 5 cm. How far does 7 N stretch it?', [['Find the stretch for 1 N', '5 ÷ 2 = 2.5 cm per N'], ['Multiply by 7', '2.5 × 7 = <b>17.5 cm</b>']]],
+      gen: function () {
+        if (Math.random() < 0.6) { var a = R(2, 6), b = R(2, 10), c = R(3, 12); return { q: 'A ' + a + ' N load stretches a spring ' + b + ' cm. How far does a ' + c + ' N load stretch it (within the limit)?', n: b / a * c, unit: 'cm', steps: [['Per newton', b + ' ÷ ' + a + ' = ' + sf(b / a, 3) + ' cm per N'], ['For ' + c + ' N', sf(b / a, 3) + ' × ' + c + ' = <b>' + sf(b / a * c, 3) + ' cm</b>']] }; }
+        var p = R(1, 4) * 100, V = R(2, 6) * 10, p2 = p * pick([2, 4, 0.5]);
+        return { q: 'A gas at ' + p + ' kPa has a volume of ' + V + ' cm³. At constant temperature the pressure changes to ' + p2 + ' kPa. What is the new volume?', n: p * V / p2, unit: 'cm³', steps: [['Inverse proportion: p × V stays the same', p + ' × ' + V + ' = ' + p * V], ['New volume', p * V + ' ÷ ' + p2 + ' = <b>' + sf(p * V / p2, 3) + ' cm³</b>']] };
+      } },
+    { id: 'fractions', title: 'Fractions, reciprocals and percentages',
+      simple: '<p>A <b>reciprocal</b> is 1 ÷ a number (the reciprocal of 4 is ¼ = 0.25). You need them for resistors in parallel (1/R = 1/R₁ + 1/R₂) and lenses (1/f = 1/u + 1/v). <b>Don\'t forget the last step</b>: turn your answer for 1/R back into R with the 1/x (or x⁻¹) key.</p><p><b>Percentage</b> = part ÷ whole × 100, e.g. efficiency = useful ÷ total × 100%.</p>',
+      example: ['Resistors of 6 Ω and 3 Ω in parallel.', [['Add the reciprocals', '1/R = 1/6 + 1/3 = 0.1667 + 0.3333 = 0.5'], ['Turn it back', 'R = 1 ÷ 0.5 = <b>2 Ω</b>'], ['Check', 'smaller than the smallest resistor ✓']]],
+      gen: function () {
+        if (Math.random() < 0.55) { var a = pick([2, 3, 4, 6, 8, 10, 12, 20]), b = pick([2, 3, 4, 6, 8, 10, 12, 20]), r = 1 / (1 / a + 1 / b); return { q: 'Find the total resistance of ' + a + ' Ω and ' + b + ' Ω in parallel.', n: r, unit: 'Ω', steps: [['Add the reciprocals', '1/R = 1/' + a + ' + 1/' + b + ' = ' + sf(1 / a + 1 / b, 3)], ['Reciprocal', 'R = 1 ÷ ' + sf(1 / a + 1 / b, 3) + ' = <b>' + sf(r, 3) + ' Ω</b>']] }; }
+        var tot = R(4, 20) * 100, use = Math.round(tot * R(20, 90) / 100);
+        return { q: 'A motor takes in ' + tot + ' J and gives out ' + use + ' J of useful energy. What is its efficiency?', n: use / tot * 100, unit: '%', steps: [['Efficiency', 'useful ÷ total × 100'], ['Substitute', use + ' ÷ ' + tot + ' × 100 = <b>' + sf(use / tot * 100, 3) + '%</b>']] };
+      } },
+    { id: 'powers', title: 'Squares, square roots and powers',
+      simple: '<p>v² means v × v. In KE = ½mv² only the <b>v</b> is squared, so do the square <b>first</b>, then multiply. To undo a square, take a <b>square root</b> (√). Example: if v² = 49, v = √49 = 7.</p>',
+      example: ['Find the KE of a 2 kg ball moving at 3 m/s.', [['Square the speed first', '3² = 9'], ['Then multiply', '½ × 2 × 9 = <b>9 J</b>'], ['Common mistake', '(½ × 2 × 3)² = 9 is right here by luck: always square v on its own']]],
+      gen: function () {
+        if (Math.random() < 0.5) { var m = R(1, 10), v = R(2, 12); return { q: 'Find the kinetic energy of a ' + m + ' kg object moving at ' + v + ' m/s. (KE = ½mv²)', n: 0.5 * m * v * v, unit: 'J', steps: [['Square v', v + '² = ' + v * v], ['Multiply', '½ × ' + m + ' × ' + v * v + ' = <b>' + 0.5 * m * v * v + ' J</b>']] }; }
+        var h = pick([5, 20, 45, 80, 125, 1.8, 3.2]), vv = Math.sqrt(20 * h);
+        return { q: 'An object falls ' + h + ' m from rest. Find its speed at the bottom using v = √(2gh) with g = 10.', n: vv, unit: 'm/s', steps: [['Inside the root first', '2 × 10 × ' + h + ' = ' + 20 * h], ['Square root', '√' + 20 * h + ' = <b>' + sf(vv, 3) + ' m/s</b>']] };
+      } },
+    { id: 'angles', title: 'Angles and sine',
+      simple: '<p>For refraction you need <b>sin</b> of an angle. Make sure your calculator is in <b>degrees</b> (D on the screen). To go backwards from a sine value to the angle, use <b>sin⁻¹</b> (SHIFT then sin).</p><p>n = sin i ÷ sin r: work out each sine first, then divide.</p>',
+      example: ['i = 40°, r = 25°. Find n.', [['sin 40°', '0.643'], ['sin 25°', '0.423'], ['n', '0.643 ÷ 0.423 = <b>1.52</b>']]],
+      gen: function () {
+        if (Math.random() < 0.5) { var i = R(3, 8) * 10, n = pick([1.33, 1.5, 1.6]), r = Math.asin(Math.sin(i * Math.PI / 180) / n) * 180 / Math.PI; r = Math.round(r); var nn = Math.sin(i * Math.PI / 180) / Math.sin(r * Math.PI / 180); return { q: 'Light enters glass with i = ' + i + '° and r = ' + r + '°. Find the refractive index n = sin i ÷ sin r.', n: nn, unit: '', steps: [['sin i', 'sin ' + i + '° = ' + sf(Math.sin(i * Math.PI / 180), 3)], ['sin r', 'sin ' + r + '° = ' + sf(Math.sin(r * Math.PI / 180), 3)], ['n', '= <b>' + sf(nn, 3) + '</b>']] }; }
+        var n2 = pick([1.33, 1.5, 2.42, 1.6]), cdeg = Math.asin(1 / n2) * 180 / Math.PI;
+        return { q: 'Find the critical angle for a material with n = ' + n2 + '. (sin c = 1 ÷ n)', n: cdeg, unit: '°', tol: 0.01, steps: [['sin c', '1 ÷ ' + n2 + ' = ' + sf(1 / n2, 3)], ['Inverse sine', 'c = sin⁻¹(' + sf(1 / n2, 3) + ') = <b>' + sf(cdeg, 3) + '°</b>']] };
+      } },
+  ];
+
+  var prog = (Lab.readJSON(Lab.LKEY) || {}).maths || {};
+  function saveProg() { var all = Lab.readJSON(Lab.LKEY) || {}; all.maths = prog; try { localStorage.setItem(Lab.LKEY, JSON.stringify(all)); } catch (e) { } }
+  function toc() {
+    Lab.$('#toc').innerHTML = TOPICS.map(function (t) { return '<li><a href="#' + t.id + '">' + t.title + (prog[t.id] && prog[t.id].best >= 3 ? '<em>✓</em>' : '') + '</a></li>'; }).join('');
+  }
+  Lab.$('#topics').innerHTML = TOPICS.map(function (t) {
+    return '<section class="topic" id="' + t.id + '"><h2>' + t.title + '</h2><div class="stack">' +
+      '<div class="simple"><strong class="lbl">In simple words</strong>' + t.simple + '</div>' +
+      '<div class="ex" data-ex="' + t.id + '"></div>' +
+      '<div class="practice card" data-practice="' + t.id + '"></div></div></section>';
+  }).join('');
+  TOPICS.forEach(function (t) {
+    var ex = document.querySelector('[data-ex="' + t.id + '"]');
+    Lab.math(ex, 'Worked example: ' + t.example[0], t.example[1]);
+    var box = document.querySelector('[data-practice="' + t.id + '"]'), cur = null, streak = 0, tries = 0;
+    function render() {
+      cur = t.gen(); tries = 0;
+      var p = prog[t.id] || {};
+      box.innerHTML = '<span class="streak">' + (streak ? streak + ' in a row' : '') + (p.best >= 3 ? ' ✓' : '') + '</span><span class="lbl" style="font:800 12px var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--t4)">Your turn</span>' +
+        '<p class="qq">' + cur.q + '</p>' +
+        (cur.o ? '<div class="qopts">' + cur.o.map(function (o, i) { return '<button type="button" data-o="' + i + '">' + String.fromCharCode(65 + i) + '. ' + o + '</button>'; }).join('') + '</div>'
+          : '<form class="qnum"><label class="sr" for="in-' + t.id + '">Your answer</label><input id="in-' + t.id + '" inputmode="decimal" autocomplete="off" placeholder="Your answer">' + (cur.unit ? '<span>' + cur.unit + '</span>' : '') + '<button class="btn" type="submit">Check</button></form>') +
+        '<div class="fb" aria-live="polite"></div><div class="row" style="margin-top:10px"><button class="btn ghost" type="button" data-sol>Show solution</button><button class="btn ghost" type="button" data-next>New question</button></div><div data-solbox></div>';
+    }
+    function result(ok) {
+      tries++;
+      if (ok) { streak++; var p = prog[t.id] = prog[t.id] || {}; p.best = Math.max(p.best || 0, streak); saveProg(); toc(); }
+      else streak = 0;
+      box.querySelector('.fb').innerHTML = '<p class="qfb ' + (ok ? 'ok' : 'no') + '"><strong>' + (ok ? '✓ Correct!' + (streak >= 3 ? ' That\'s ' + streak + ' in a row.' : '') : '✗ Not quite.') + '</strong>' + (ok ? 'Press New question for another.' : tries >= 2 ? 'Look at the solution, then try a new question.' : 'Check each step and try again.') + '</p>';
+      if (ok || tries >= 2) showSol();
+      box.querySelector('.streak').textContent = (streak ? streak + ' in a row' : '') + ((prog[t.id] || {}).best >= 3 ? ' ✓' : '');
+    }
+    function showSol() { var s = box.querySelector('[data-solbox]'); s.style.marginTop = '10px'; Lab.math(s, 'Solution', cur.steps); }
+    box.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      if (b.hasAttribute('data-next')) render();
+      else if (b.hasAttribute('data-sol')) showSol();
+      else if (b.hasAttribute('data-o')) { var ok = +b.getAttribute('data-o') === cur.a; b.classList.add(ok ? 'right' : 'wrong'); result(ok); }
+    });
+    box.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var raw = box.querySelector('input').value, got = WBC.parseNumber(raw);
+      if (!got) { box.querySelector('.fb').innerHTML = '<p class="qfb no"><strong>Type a number.</strong>For standard form you can type 4.5e-4.</p>'; return; }
+      var ok = WBC.checkNumber(raw, { value: cur.n, pct: cur.tol == null ? 0.02 : cur.tol }).ok;
+      if (ok && cur.sfNeed && got.sf !== cur.sfNeed && !(cur.n >= 10 && got.sf < cur.sfNeed)) ok = false;
+      result(ok);
+    });
+    render();
+  });
+  toc();
+  if (location.hash) { var el = document.getElementById(location.hash.slice(1)); if (el) setTimeout(function () { el.scrollIntoView(); }, 50); }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logic Gates · CSEC Physics 2027 Labs</title>
+<meta name="description" content="Switch the inputs of AND, OR, NOT, NAND and NOR gates and build their truth tables. CSEC Physics.">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="lab.css">
+<script src="../data/index.js"></script><script src="registry.js"></script><script src="../assets/js/wbc.js"></script><script src="lab.js"></script>
+</head>
+<body data-lab="logic-gates">
+<div class="wrap">
+  <div id="lab-top"></div>
+
+  <div class="simple"><strong class="lbl">In simple words</strong>
+    <p>A <b>logic gate</b> is an electronic switch that makes a decision. Every input and output is either <b>1</b> (on, high voltage) or <b>0</b> (off, low voltage).</p>
+    <p><b>AND</b>: output 1 only if A <b>and</b> B are both 1. <b>OR</b>: output 1 if A <b>or</b> B (or both) is 1. <b>NOT</b>: flips the input. <b>NAND</b> = NOT AND, and <b>NOR</b> = NOT OR (the little circle means "NOT").</p>
+  </div>
+
+  <div class="row" style="margin-top:16px" id="gate"></div>
+  <div class="lab-grid" style="margin-top:12px">
+    <div class="stage">
+      <canvas id="cv" aria-label="A logic gate with input switches A and B and an output lamp"></canvas>
+      <div class="row" style="margin-top:8px" id="ins"></div>
+    </div>
+    <div class="stack">
+      <section class="card"><h2>Truth table</h2><p class="note" style="margin-top:0">Rows fill in as you try each combination of inputs.</p><div id="tt"></div></section>
+      <section class="card" id="use"></section>
+    </div>
+  </div>
+
+  <section id="tasks" style="margin-top:16px"></section>
+  <section id="quiz" style="margin-top:16px"></section>
+  <div id="lab-foot"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var c = Lab.c;
+  var G = {
+    AND: [function (a, b) { return a & b; }, 'A security light: comes on if it is dark AND someone moves.'],
+    OR: [function (a, b) { return a | b; }, 'A car warning light: comes on if the driver\'s door OR the passenger\'s door is open.'],
+    NOT: [function (a) { return a ? 0 : 1; }, 'A night light: comes on when it is NOT light.'],
+    NAND: [function (a, b) { return (a & b) ? 0 : 1; }, 'Output is 0 only when both inputs are 1. NAND gates can be combined to make every other gate.'],
+    NOR: [function (a, b) { return (a | b) ? 0 : 1; }, 'A machine runs only when NEITHER safety guard is open.'],
+  };
+  var st = { g: 'AND', A: 0, B: 0, tried: {} };
+  function out() { return G[st.g][0](st.A, st.B); }
+  function rows() { return st.g === 'NOT' ? [[0], [1]] : [[0, 0], [0, 1], [1, 0], [1, 1]]; }
+
+  var view = Lab.canvas(Lab.$('#cv'), function (ctx, W, H) {
+    var gx = W * 0.4, gy = H / 2, gw = 110, gh = 90, one = st.g === 'NOT', bub = st.g === 'NOT' || st.g === 'NAND' || st.g === 'NOR';
+    var hi = c('ok'), lo = c('grid-strong');
+    // input wires
+    var ya = one ? gy : gy - 25, yb = gy + 25;
+    Lab.line(ctx, 70, ya, gx - 10, ya, st.A ? hi : lo, 4);
+    if (!one) Lab.line(ctx, 70, yb, gx - 10, yb, st.B ? hi : lo, 4);
+    [['A', ya, st.A]].concat(one ? [] : [['B', yb, st.B]]).forEach(function (p) { Lab.roundRect(ctx, 20, p[1] - 16, 44, 32, 8); ctx.fillStyle = p[2] ? hi : c('surface'); ctx.fill(); ctx.strokeStyle = c('ink'); ctx.lineWidth = 2; ctx.stroke(); Lab.text(ctx, p[0] + ' = ' + p[2], 42, p[1], { align: 'center', weight: 700, color: p[2] ? '#fff' : c('ink') }); });
+    // gate body
+    ctx.fillStyle = c('surface'); ctx.strokeStyle = c('ink'); ctx.lineWidth = 2.5; ctx.beginPath();
+    if (st.g === 'AND' || st.g === 'NAND') { ctx.moveTo(gx - 10, gy - gh / 2); ctx.lineTo(gx + gw / 2 - 10, gy - gh / 2); ctx.arc(gx + gw / 2 - 10, gy, gh / 2, -Math.PI / 2, Math.PI / 2); ctx.lineTo(gx - 10, gy + gh / 2); ctx.closePath(); }
+    else if (st.g === 'OR' || st.g === 'NOR') { ctx.moveTo(gx - 16, gy - gh / 2); ctx.quadraticCurveTo(gx + gw * 0.55, gy - gh / 2, gx + gw - 10, gy); ctx.quadraticCurveTo(gx + gw * 0.55, gy + gh / 2, gx - 16, gy + gh / 2); ctx.quadraticCurveTo(gx + 14, gy, gx - 16, gy - gh / 2); }
+    else { ctx.moveTo(gx - 10, gy - gh / 2.5); ctx.lineTo(gx + gw - 30, gy); ctx.lineTo(gx - 10, gy + gh / 2.5); ctx.closePath(); }
+    ctx.fill(); ctx.stroke();
+    var ox = st.g === 'NOT' ? gx + gw - 30 : gx + gw - 10;
+    if (bub) { Lab.dot(ctx, ox + 8, gy, 8, c('surface'), c('ink')); ox += 16; }
+    Lab.text(ctx, st.g, gx + 26, gy, { weight: 700, size: 16 });
+    var o = out();
+    Lab.line(ctx, ox, gy, W - 90, gy, o ? hi : lo, 4);
+    // output lamp
+    if (o) { var g = ctx.createRadialGradient(W - 60, gy, 6, W - 60, gy, 46); g.addColorStop(0, 'rgba(255,214,10,1)'); g.addColorStop(1, 'rgba(255,214,10,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(W - 60, gy, 46, 0, 7); ctx.fill(); }
+    Lab.dot(ctx, W - 60, gy, 18, o ? '#FFD60A' : c('surface'), c('ink'));
+    Lab.text(ctx, 'output = ' + o, W - 60, gy + 36, { align: 'center', weight: 700 });
+  }, { ratio: 0.45, min: 240, max: 320 });
+
+  Lab.seg(Lab.$('#gate'), { label: 'Gate', value: 'AND', options: Object.keys(G).map(function (k) { return [k, k]; }), onChange: function (v) { st.g = v; update(); } });
+  var ins = Lab.$('#ins');
+  var bA = Lab.button(ins, 'Switch A', function () { st.A ^= 1; update(); });
+  var bB = Lab.button(ins, 'Switch B', function () { st.B ^= 1; update(); });
+
+  var T = Lab.tasks(Lab.$('#tasks'), [
+    { t: 'Complete the truth table for AND.', ok: function (s) { return full('AND'); } },
+    { t: 'Complete the truth table for OR.', ok: function (s) { return full('OR'); } },
+    { t: 'Complete the truth table for NOT.', ok: function (s) { return full('NOT'); } },
+    { t: 'Complete NAND and NOR. Compare them with AND and OR.', s: 'Each output is flipped.', ok: function (s) { return full('NAND') && full('NOR'); } },
+  ], { title: 'Build every truth table' });
+  function full(g) { var n = g === 'NOT' ? 2 : 4; return Object.keys(st.tried).filter(function (k) { return k.indexOf(g + ':') === 0; }).length >= n; }
+
+  function update() {
+    st.tried[st.g + ':' + (st.g === 'NOT' ? st.A : st.A + '' + st.B)] = true;
+    bB.hidden = st.g === 'NOT';
+    var one = st.g === 'NOT';
+    Lab.$('#tt').innerHTML = '<table class="data"><thead><tr><th>A</th>' + (one ? '' : '<th>B</th>') + '<th>Output</th></tr></thead><tbody>' + rows().map(function (r) {
+      var key = st.g + ':' + r.join(''), seen = st.tried[key], cur = one ? r[0] === st.A : r[0] === st.A && r[1] === st.B;
+      return '<tr' + (cur ? ' class="hl"' : '') + '><td>' + r[0] + '</td>' + (one ? '' : '<td>' + r[1] + '</td>') + '<td>' + (seen ? G[st.g][0](r[0], r[1]) : '?') + '</td></tr>';
+    }).join('') + '</tbody></table>';
+    Lab.$('#use').innerHTML = '<h2>Used for…</h2><p style="margin:0">' + G[st.g][1] + '</p>';
+    view.redraw(); T.update(st);
+  }
+  update();
+
+  Lab.quiz(Lab.$('#quiz'), [
+    { q: 'An AND gate has inputs A = 1 and B = 0. What is the output?', o: ['0', '1'], a: 0, why: ' AND needs both inputs to be 1.' },
+    { q: 'Which gate gives an output of 1 only when both inputs are 0?', o: ['AND', 'OR', 'NAND', 'NOR'], a: 3, why: ' NOR = NOT OR. OR gives 0 only for 0,0, so NOR gives 1 only for 0,0.' },
+    { q: 'A NOT gate has an input of 1. Its output is…', o: ['0', '1', '2', 'unchanged'], a: 0, why: ' NOT inverts the input.' },
+  ]);
+})();
+</script>
+</body>
+</html>
