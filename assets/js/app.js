@@ -93,7 +93,7 @@
   }
   function footer() {
     return '<footer class="foot"><a href="#/mistakes">My Mistake Log</a><a href="#/teacher">Teacher summary</a>' +
-      '<span>' + (CFG.endpoint ? 'Your name and answers are sent to your teacher.' : 'Your work saves on this device only.') + '</span>' +
+      '<span>' + (MON ? 'Your name, the lessons and labs you open, and your answers are sent to your teacher.' : CFG.endpoint ? 'Your name and answers are sent to your teacher.' : 'Your work saves on this device only.') + '</span>' +
       '<span id="submission-status" role="status" aria-live="polite">' + esc(submissionStatus) + '</span></footer>';
   }
 
@@ -156,7 +156,45 @@
     return payload;
   }
 
+  // ---------- Student Monitor (assets/js/student-monitor.js, shared with the tutor's other sites) ----------
+  // With config.js `monitor: true`, lesson visits, labs opened, finished lessons and mocks also go to the tutor's
+  // monitor app. It runs beside the Apps Script endpoint above and never changes its status messages.
+  var MON = CFG.monitor && window.StudentMonitor ? window.StudentMonitor : null;
+  if (MON) MON.init({ site: 'csec-physics-workbook', name: function () { return S.name; } });
+
+  function monitorSummary(last) {
+    if (!MON || !S.name) return;
+    var done = 0, total = 0, secs = 0;
+    Object.keys(LESSON).forEach(function (id) { if (LESSON[id].kind !== 'mock') { total++; if (isDone(id)) done++; } });
+    Object.keys(S.l).forEach(function (id) { secs += Number(S.l[id].secs || 0); });
+    MON.summary({ last: last, secs: secs, done: done, total: total, xp: S.xp });
+  }
+
+  // A lesson visit or a lab opened: lets the teacher see work that never reaches "Finish this day".
+  function sendActivity(kind, lessonId, title, secs) {
+    if (!MON || !S.name) return;
+    var answers = (lessonState(lessonId) || {}).i || {}, lesson = fullLessonData(lessonId), right = 0;
+    Object.keys(answers).forEach(function (id) { if (answers[id] && answers[id].right) right++; });
+    var t = String(title || (lesson ? lesson.titleText || lesson.title : '') || lessonId || '');
+    MON.event(kind, { item: lessonId || '', title: t, group: LESSON[lessonId] ? LESSON[lessonId].book : '', secs: secs,
+      right: right, total: lesson ? collectLessonItems(lesson).length : 0 });
+    monitorSummary((kind === 'lab' ? 'Opened lab: ' : 'Worked on: ') + t);
+  }
+
+  function monitorSubmission(payload) {
+    if (!MON) return;
+    var mock = payload.type === 'mock';
+    var detail = { section: payload.section, exitRight: payload.exitRight, exitTotal: payload.exitTotal, selfMarks: payload.selfMarks,
+      selfTotal: payload.selfTotal, xp: payload.xp, stars: payload.stars, feel: payload.feel, answers: payload.answers };
+    if (mock) { detail.paper = payload.paper; detail.overTime = payload.overTime; detail.sectionScores = payload.sectionScores; }
+    MON.event(payload.type, { item: payload.lessonId, title: payload.lessonTitle, group: payload.book, secs: payload.secs,
+      right: payload.right, total: payload.total, score: mock ? payload.score : payload.exitRight, max: mock ? payload.mockTotal : payload.exitTotal,
+      note: payload.question, detail: detail });
+    monitorSummary((mock ? 'Submitted ' : 'Finished: ') + payload.lessonTitle);
+  }
+
   function enqueueSubmission(payload) {
+    monitorSubmission(payload);
     if (typeof CFG.endpoint !== 'string' || !CFG.endpoint.trim()) {
       updateSubmissionStatus('Saved on this device. No teacher endpoint is configured.');
       return;
@@ -1008,11 +1046,13 @@
   var activeLessonId = null, activeLessonAt = 0, mockTimerInterval = null;
   function stopActiveLesson() {
     if (!activeLessonId) return;
-    var st = lessonState(activeLessonId);
+    var st = lessonState(activeLessonId), visit = Math.max(0, Math.round((Date.now() - activeLessonAt) / 1000));
     if (st) {
-      st.secs = Number(st.secs || 0) + Math.max(0, Math.round((Date.now() - activeLessonAt) / 1000));
+      st.secs = Number(st.secs || 0) + visit;
       save();
     }
+    // Under 15 s is clicking past a lesson, not working on it.
+    if (visit >= 15) sendActivity('visit', activeLessonId, '', visit);
     activeLessonId = null;
     activeLessonAt = 0;
   }
@@ -1930,6 +1970,14 @@
 
   window.addEventListener('hashchange', render);
   window.addEventListener('pagehide', stopActiveLesson);
+  // Opening a lab leaves this page, so record it on the way out (lab pages do not load config.js).
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest && e.target.closest('a[href^="labs/"]');
+    var m = a && /^labs\/([\w-]+)\.html(?:\?from=([\w.]+))?/.exec(a.getAttribute('href'));
+    if (!m || m[1] === 'index' || m[1] === 'registry') return;
+    var lab = (window.WB_LABS || []).find(function (l) { return l.id === m[1]; });
+    sendActivity('lab', m[2] || '', lab ? lab.title : a.textContent.replace(/[→↗]/g, '').trim(), 0);
+  }, true);
   window.addEventListener('scroll', function () {
     var t = document.getElementById('topbar');
     if (t) t.classList.toggle('scrolled', window.scrollY > 4);
