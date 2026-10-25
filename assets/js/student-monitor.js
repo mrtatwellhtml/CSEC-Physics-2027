@@ -6,8 +6,8 @@
      site: 'csec-chemistry',            // a-z 0-9 -, matches the monitor's sites.js
      name: function () { return S.name; },  // the name the student typed on this site
      autoVisits: false,                 // true: record time on each page / #route (sites without their own hooks)
-     askName: false,                    // true: no name box on the site, so show a one-time bar asking for it
-                                        //       (then leave out `name`; the tracker keeps the name itself)
+     askName: false,                    // true: no name box on the site, so show a one-time bar asking for it;
+                                        //       `name` may still return a name the site already knows
      onStatus: function (state) {},     // 'sent' | 'queued' | 'failed', for lesson/mock records only
      host: undefined,                   // tests only: 'http://127.0.0.1:8080' for the Firestore emulator
    });
@@ -20,7 +20,7 @@
   if (window.StudentMonitor) return;
   var PROJECT = 'mathlessons-7cc22', API_KEY = 'AIzaSyBM5v36g9_nU7oRhw2UmZZQCqmpat9noMQ';
   var DOCS = 'projects/' + PROJECT + '/databases/(default)/documents';
-  var QKEY = 'smon-v1-queue', SIDKEY = 'smon-v1-sid', SUMKEY = 'smon-v1-summary', MAXQ = 300;
+  var QKEY = 'smon-v1-queue', SIDKEY = 'smon-v1-sid', SUMKEY = 'smon-v1-summary', LASTSUMKEY = 'smon-v1-lastsum', MAXQ = 300;
   var FIELDS = ['item', 'title', 'group', 'secs', 'right', 'total', 'score', 'max', 'note', 'detail'];
   var LIMITS = { item: 120, title: 200, group: 120, note: 1000, detail: 20000 };
   var KINDS = ['open', 'visit', 'lesson', 'mock', 'lab', 'attempt', 'other'];
@@ -70,10 +70,13 @@
   function summary(data) {
     var name = studentName();
     if (!cfg || !name) return;
-    data = data || {};
-    write(SUMKEY, { site: cfg.site, sid: deviceId(), student: name, skey: nameKey(name), last: clip(data.last, 200),
-      secs: Math.min(number(data.secs), 10000000), done: Math.min(number(data.done), 100000),
-      total: Math.min(number(data.total), 100000), xp: Math.min(number(data.xp), 10000000) });
+    // Fields left out keep their last value, so a page-visit update never wipes a site's own "done" count.
+    var key = LASTSUMKEY + '-' + cfg.site, prev = read(key, {}), d = {};
+    ['last', 'secs', 'done', 'total', 'xp'].forEach(function (k) { d[k] = data && data[k] !== undefined ? data[k] : prev[k]; });
+    write(key, d);
+    write(SUMKEY, { site: cfg.site, sid: deviceId(), student: name, skey: nameKey(name), last: clip(d.last, 200),
+      secs: Math.min(number(d.secs), 10000000), done: Math.min(number(d.done), 100000),
+      total: Math.min(number(d.total), 100000), xp: Math.min(number(d.xp), 10000000) });
     clearTimeout(summaryTimer);
     summaryTimer = setTimeout(flush, 1500);
   }
@@ -93,8 +96,15 @@
   }
   function status(entry, state) { if (entry.loud && cfg && cfg.onStatus) try { cfg.onStatus(state); } catch (e) { /* ignore */ } }
 
+  // A page served from this computer (a preview, a site's own browser tests) never sends to the real database,
+  // so test students cannot appear in the monitor. Tests that point `host` at the emulator, or set
+  // window.SMON_ALLOW_LOCAL, still send.
+  function localPreview() {
+    return !cfg.host && !window.SMON_ALLOW_LOCAL && /^(localhost|127\.0\.0\.1|\[::1\]|)$/.test(location.hostname || '');
+  }
+
   function flush() {
-    if (flushing || !cfg || (navigator.onLine === false)) return;
+    if (flushing || !cfg || (navigator.onLine === false) || localPreview()) return;
     var q = read(QKEY, []), sum = read(SUMKEY, null);
     if (!q.length && !sum) return;
     flushing = true;
@@ -189,7 +199,11 @@
   function init(options) {
     if (cfg || !options || !/^[a-z0-9-]{2,40}$/.test(options.site || '')) return;
     cfg = options;
-    if (cfg.askName && !cfg.name) cfg.name = function () { return read(NAMEKEY, ''); };
+    if (cfg.askName) {
+      // A name the site already knows wins; otherwise the one typed into the bar.
+      var known = cfg.name;
+      cfg.name = function () { var n = ''; try { n = known ? known() : ''; } catch (e) { /* ignore */ } return n || read(NAMEKEY, ''); };
+    }
     if (cfg.askName) {
       if (document.body) nameBar(); else document.addEventListener('DOMContentLoaded', nameBar);
     }
