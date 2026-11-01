@@ -1989,6 +1989,19 @@
   applyTheme();
   render();
   flushSubmissionQueue();
+  // Progress carried over from the old address (assets/js/carry.js): say so once.
+  if (window.WB_CARRIED) {
+    var carried = document.createElement('p'), ok = document.createElement('button'), c = window.WB_CARRIED;
+    carried.className = 'carry-note';
+    carried.setAttribute('role', 'status');
+    carried.textContent = 'The workbook has a new home, and your progress came with you' +
+      (c.lessons || c.labs ? ': ' + [c.lessons ? c.lessons + (c.lessons === 1 ? ' lesson' : ' lessons') : '', c.labs ? c.labs + (c.labs === 1 ? ' lab' : ' labs') : ''].filter(Boolean).join(' and ') : '') + '.';
+    ok.type = 'button';
+    ok.textContent = 'OK';
+    ok.addEventListener('click', function () { carried.remove(); });
+    carried.appendChild(ok);
+    document.body.insertBefore(carried, document.body.firstChild);
+  }
 
   // for tests / later phases
   window.WBAPP = { state: function () { return S; }, save: save, render: render, loadBook: loadBook, KEY: KEY };

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CSEC Physics 2027 has moved</title>
+<meta name="description" content="The CSEC Physics 2027 workbook now lives at csec-physics-2027.web.app/study.">
+<meta name="robots" content="noindex">
+<!-- The new address accepts carried progress only from this origin, so send it. -->
+<meta name="referrer" content="origin">
+<style>
+  :root { color-scheme: light dark; --bg: #F3F4F8; --surface: #fff; --ink: #12141C; --muted: #5C6273; --line: #E3E6EE; --accent: #2F5BFF; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0D0F14; --surface: #161921; --ink: #EDEFF5; --muted: #9BA2B4; --line: #2A2F3B; --accent: #7D98FF; } }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--ink);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 34rem; margin: 16px; padding: 28px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+  h1 { font-size: 1.4rem; line-height: 1.25; margin: 0 0 10px; }
+  p { margin: 0 0 14px; }
+  .go { display: inline-block; padding: 12px 18px; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600; text-decoration: none; }
+  .small { color: var(--muted); font-size: 14px; margin: 16px 0 0; }
+  button { font: inherit; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <h1>The CSEC Physics 2027 workbook has moved</h1>
+  <p id="msg">It now lives with the Physics lessons, and works offline there. Taking you there now, with your progress…</p>
+  <p><a class="go" id="go" href="https://csec-physics-2027.web.app/study/">Open the workbook</a></p>
+  <p id="export" hidden><button type="button" id="save">Save my progress file</button> Then open the workbook, go to <b>Teacher summary</b> and choose <b>Import progress</b>.</p>
+  <p class="small">Your progress also stays saved on this device here.</p>
+</main>
+<script>
+  /* Retired 2026-11-01 so students' progress lives in one place. Reads this workbook's saved
+     progress (only its own keys: other sites share this github.io origin) and opens the new address
+     with it in the fragment, where assets/js/carry.js merges it. Nothing here is deleted. */
+  (function () {
+    'use strict';
+    var NEW = 'https://csec-physics-2027.web.app/study/', BASE = '/CSEC-Physics-2027/';
+    function read(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; } }
+
+    // Where the student was going: a lab page or a #/route inside the workbook.
+    var path = location.pathname.indexOf(BASE) === 0 ? location.pathname.slice(BASE.length) : '';
+    var to = /^labs\/[a-z0-9-]+\.html$/.test(path) ? path + (/^\?from=[\w.]{1,80}$/.test(location.search) ? location.search : '')
+      : /^#\/[\w.\/-]{0,200}$/.test(location.hash) ? location.hash : '';
+
+    var state = read('csec-phys-2027-v1'), labs = read('csec-phys-2027-labs'), q = read('smon-v1-queue');
+    var queue = Array.isArray(q) ? q.filter(function (r) { return r && r.doc && r.doc.site === 'csec-physics-workbook'; }) : [];
+    var url = NEW + to;
+    if (state || labs || queue.length) {
+      var json = JSON.stringify({ v: 1, state: state, labs: labs, queue: queue });
+      var bytes = new TextEncoder().encode(json), bin = '';
+      for (var i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+      var carry = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      url = NEW + '#carry=' + carry + (to ? '&to=' + encodeURIComponent(to) : '');
+      // Too big for an address (very rare): let the student carry it as a file instead.
+      if (url.length > 1900000) {
+        url = NEW + to;
+        document.getElementById('msg').textContent = 'Your saved work is too large to bring over automatically. Save it as a file first:';
+        document.getElementById('export').hidden = false;
+        document.getElementById('save').addEventListener('click', function () {
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(new Blob([JSON.stringify(state || {}, null, 2)], { type: 'application/json' }));
+          a.download = 'csec-physics-2027-progress.json';
+          document.body.appendChild(a); a.click(); a.remove();
+        });
+        document.getElementById('go').href = url;
+        return;
+      }
+    }
+    document.getElementById('go').href = url;
+    location.replace(url);
+  })();
+</script>
+</body>
+</html>

@@ -47,11 +47,15 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           enablement: true
-      - name: Assemble public static site
+      # Retired 2026-11-01: the workbook is published only at csec-physics-2027.web.app/study
+      # (built from this repo by the Physics hub), so students' progress lives in one place.
+      # GitHub Pages now serves the "moved" page at every address; it carries each student's
+      # saved progress to the new address (moved/index.html, assets/js/carry.js).
+      - name: Assemble the moved page
         run: |
           mkdir _site
-          cp index.html teacher.html config.js _site/
-          cp -R assets data img labs _site/
+          cp moved/index.html _site/index.html
+          cp moved/index.html _site/404.html
           touch _site/.nojekyll
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

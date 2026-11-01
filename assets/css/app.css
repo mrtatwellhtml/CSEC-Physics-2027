@@ -499,3 +499,7 @@ details.more summary{cursor:pointer;font-weight:700;color:var(--accent);min-heig
 :root{--ok-ink:#0B6E4C;--no-ink:#B4232A;--amber-ink:#8A4B00}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ok-ink:#3DD68C;--no-ink:#FF6B6E;--amber-ink:#FBBF24}}
 :root[data-theme="dark"]{--ok-ink:#3DD68C;--no-ink:#FF6B6E;--amber-ink:#FBBF24}
+
+/* One-time note after progress is carried over from the old address (assets/js/carry.js) */
+.carry-note{margin:0;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--ink);border-bottom:1px solid var(--line);font-size:14px;text-align:center}
+.carry-note button{font:inherit;font-weight:600;min-height:36px;padding:4px 16px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
